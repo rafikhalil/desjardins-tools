@@ -9,6 +9,17 @@
  * (§0 rule 2), since XLSX is a zipped-XML format no one hand-writes a
  * parser for.
  *
+ * Importing is CHUNKED, not one synchronous pass: a real rate workbook —
+ * now that Term Life keeps every Duration 1-100, not just 1 (§ below) — is
+ * big enough that parsing it in one go would freeze the tab for a visible
+ * moment. ingestTermLifeWorkbook()/ingestPermLifeWorkbook() process rows in
+ * batches (processRowsChunked(), ROW_CHUNK per tick) via setTimeout(…, 0)
+ * between batches, driving a real progress bar (#rateProgress) — sheet N of
+ * 6 and row X/Y for Term Life, row X/Y for Permanent Life's one sheet — so
+ * the operator sees what's happening rather than a frozen page. One import
+ * runs at a time; concurrent requests (e.g. "Load from rates/" firing off
+ * both files at once) queue rather than collide (§ importQueue).
+ *
  * One container per coverage. Per the request: each coverage's card splits
  * into TWO table regions sharing one row axis (the Coverage Category's fixed
  * rate bands) —
@@ -27,7 +38,10 @@
  *     and their lookupXRate() counterparts below. One "Import Rates File"
  *     picker handles both; detectAndIngest() tells them apart by which sheet
  *     names the workbook itself has ("temp_rates_" vs "perm_rates_"), so
- *     there's one drop point instead of a button per category.
+ *     there's one drop point instead of a button per category. Term Life
+ *     keeps every Duration 1-100 it finds, not just Duration 1 — only
+ *     Duration 1 is read anywhere today (§ lookupTermLifeRate's own default),
+ *     but a later feature needing another duration won't need a re-import.
  *   - The Axis Key CONSTRUCTION formula (insured + coverage + band → the
  *     exact string a rate row is keyed by) has not been given yet for
  *     either category, so PR_i/EPR_i/PR_BD_i/EPR_BD_i stay pending
@@ -99,85 +113,178 @@
   };
 
   // ------------------------------------------------------------- workbook
-  /* termLifeTables[suffix][axisKey][age] = rate. Populated by
-     ingestTermLifeWorkbook(); empty until a file is loaded (fresh session)
-     or restored from localStorage (§ persistence, below). */
+  /* termLifeTables[suffix][axisKey][duration][age] = rate. Every Duration
+     1-100 is kept, not just Duration 1 — only Duration 1 is actually READ
+     anywhere today, but re-importing the whole workbook once a later
+     feature needs another duration is wasteful when it's no harder to keep
+     all of it the first time. Populated by ingestTermLifeWorkbook(); empty
+     until a file is loaded (fresh session) or restored from localStorage
+     (§ persistence, below). */
   var termLifeTables = {};
   var termLifeMeta = null;   // { fileName, counts: {suffix: rowCount}, missingSheets: [] }
 
   /* permLifeTable[axisKey][age] = rate — one flat table, no per-product
      split (§ file header: Permanent Life is one sheet, every WL product's
-     rows distinguished only by Axis Key). */
+     rows distinguished only by Axis Key) and no duration axis to begin with
+     (ColE is Age directly, not a policy-year duration like Term Life's) —
+     every row already gets kept. */
   var permLifeTable = {};
   var permLifeMeta = null;   // { fileName, count: rowCount, missingSheet: bool }
+
+  /* Rows processed per UI-yielding tick while importing. A real workbook —
+     especially now that every Duration is kept, not just 1 — can be big
+     enough that parsing it in one synchronous pass would freeze the tab for
+     a visible moment; chunking with a setTimeout(…, 0) between batches lets
+     the browser repaint the progress bar and stay responsive in between. */
+  var ROW_CHUNK = 500;
+
+  /** Runs `onRow(row)` over `rows[1..]` (row 0 is always the header) in
+      ROW_CHUNK batches, yielding between them. `onProgress(done, total)`
+      fires after each batch; `onDone()` fires once every row has been
+      visited (or immediately, if there were no data rows at all). */
+  function processRowsChunked(rows, onRow, onProgress, onDone) {
+    var total = Math.max(rows.length - 1, 0);
+    if (!total) { onDone(); return; }
+    var r = 1;
+    function step() {
+      var end = Math.min(r + ROW_CHUNK, rows.length);
+      for (; r < end; r++) onRow(rows[r]);
+      onProgress(r - 1, total);
+      if (r < rows.length) setTimeout(step, 0);
+      else onDone();
+    }
+    step();
+  }
+
+  /* One import at a time, queued rather than rejected — "Load from rates/"
+     (below) fires off Term Life and Permanent Life together, and
+     restorePersistedRates() does the same on startup; both legitimately
+     need to run, just not at once (they'd fight over the one progress bar).
+     Each job runs to completion, including its own persistRates()/
+     renderRatesTab()/renderStatus() calls, before the next one starts. */
+  var importQueue = [];
+  var importing = false;
 
   /** Reads the bytes as a workbook and routes to the right ingester by
       looking at its OWN sheet names — "temp_rates_" -> Term Life,
       "perm_rates_" -> Permanent Life — rather than a second button/picker
       per category. One file, one drop point; the workbook says what it is. */
   function detectAndIngest(bytes, fileName) {
-    var wb;
-    try { wb = XLSX.read(bytes, { type: 'array' }); }
-    catch (e) { toast('Could not read "' + fileName + '" as an Excel file (' + e.message + ').', 'err'); return; }
+    importQueue.push({ bytes: bytes, fileName: fileName });
+    if (!importing) runNextImport();
+  }
 
-    var isTermLife = wb.SheetNames.some(function (n) { return /^temp_rates_/i.test(n); });
-    var isPermLife = wb.SheetNames.some(function (n) { return /^perm_rates_/i.test(n); });
+  function runNextImport() {
+    if (!importQueue.length) return;
+    var job = importQueue.shift();
+    importing = true;
+    setImportButtonsDisabled(true);
+    showProgress('Reading "' + job.fileName + '"…', 0);
 
-    if (isTermLife) ingestTermLifeWorkbook(wb, bytes, fileName);
-    else if (isPermLife) ingestPermLifeWorkbook(wb, bytes, fileName);
-    else toast('"' + fileName + '" doesn\'t look like a Term Life or Permanent Life rate workbook ' +
-      '(expected a sheet name starting with "temp_rates_" or "perm_rates_").', 'err');
+    // Yield one tick before the (still synchronous) XLSX.read() itself, so
+    // the "Reading…" state actually paints before that call blocks the
+    // thread — the finer-grained chunked progress below covers the rest.
+    setTimeout(function () {
+      var wb;
+      try { wb = XLSX.read(job.bytes, { type: 'array' }); }
+      catch (e) {
+        toast('Could not read "' + job.fileName + '" as an Excel file (' + e.message + ').', 'err');
+        afterImport();
+        return;
+      }
+
+      var isTermLife = wb.SheetNames.some(function (n) { return /^temp_rates_/i.test(n); });
+      var isPermLife = wb.SheetNames.some(function (n) { return /^perm_rates_/i.test(n); });
+
+      if (isTermLife) ingestTermLifeWorkbook(wb, job.bytes, job.fileName, afterImport);
+      else if (isPermLife) ingestPermLifeWorkbook(wb, job.bytes, job.fileName, afterImport);
+      else {
+        toast('"' + job.fileName + '" doesn\'t look like a Term Life or Permanent Life rate workbook ' +
+          '(expected a sheet name starting with "temp_rates_" or "perm_rates_").', 'err');
+        afterImport();
+      }
+    }, 0);
+  }
+
+  function afterImport() {
+    importing = false;
+    hideProgress();
+    runNextImport();
+    if (!importing) setImportButtonsDisabled(false);
   }
 
   /** Parses one Term Life workbook per the exact layout described: for each
-      of the 6 known sheets, ColD = Axis Key, ColE = Duration (keep only
-      Duration === 1 — "we only want Row = 1"), ColG..ColDB = age 0..99
-      (100 columns, 0-based offset from ColG). Column arithmetic: ColA=0 ...
-      ColG=6 ... ColDB=105 (6+100-1), ColDC=106 (Scenario, ignored). */
-  function ingestTermLifeWorkbook(wb, bytes, fileName) {
+      of the 6 known sheets, ColD = Axis Key, ColE = Duration (every 1-100
+      kept, § termLifeTables above), ColG..ColDB = age 0..99 (100 columns,
+      0-based offset from ColG). Column arithmetic: ColA=0 ... ColG=6 ...
+      ColDB=105 (6+100-1), ColDC=106 (Scenario, ignored). Sheets are visited
+      one at a time (not Promise.all — a real workbook is more valuable read
+      correctly than fast, and staying sequential keeps memory/CPU bounded
+      to one sheet at a time); `done` fires after the last one, success or not. */
+  function ingestTermLifeWorkbook(wb, bytes, fileName, done) {
     var tables = {}, counts = {}, missing = [];
-    TERM_LIFE_DURATIONS.forEach(function (suffix) {
+    var sheetIdx = 0;
+
+    function nextSheet() {
+      if (sheetIdx >= TERM_LIFE_DURATIONS.length) { finish(); return; }
+      var suffix = TERM_LIFE_DURATIONS[sheetIdx];
       var sheetName = 'temp_rates_' + RATE_VERSION + '_' + suffix;
       var ws = wb.Sheets[sheetName];
-      if (!ws) { missing.push(sheetName); tables[suffix] = {}; counts[suffix] = 0; return; }
+      var label = 'Reading "' + fileName + '" — sheet ' + (sheetIdx + 1) + ' of ' + TERM_LIFE_DURATIONS.length + ' (' + sheetName + ')';
+      showProgress(label, Math.round((sheetIdx / TERM_LIFE_DURATIONS.length) * 100));
+
+      if (!ws) {
+        missing.push(sheetName); tables[suffix] = {}; counts[suffix] = 0;
+        sheetIdx++;
+        setTimeout(nextSheet, 0);
+        return;
+      }
 
       var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
       var table = {}, n = 0;
-      for (var r = 1; r < rows.length; r++) {           // row 0 is the header row
-        var row = rows[r];
-        if (!row || row[3] === null || row[3] === '') continue;   // ColD, Axis Key
-        if (Number(row[4]) !== 1) continue;                        // ColE, Duration — only 1
+
+      processRowsChunked(rows, function (row) {
+        if (!row || row[3] === null || row[3] === '') return;      // ColD, Axis Key
+        var duration = Number(row[4]);                              // ColE, Duration
+        if (!isFinite(duration) || duration < 1 || duration > 100) return;
         var axisKey = String(row[3]).trim();
         var ages = {};
-        for (var c = 6; c <= 105; c++) {                 // ColG..ColDB = C1..C100 = age 0..99
+        for (var c = 6; c <= 105; c++) {                            // ColG..ColDB = age 0..99
           var v = row[c];
           if (v === null || v === undefined || v === '') continue;
           ages[c - 6] = Number(v);
         }
-        // Same axis key claimed by more than one Duration-1 row would be a
-        // data problem in the source file, not something to silently pick a
-        // winner for — the whole point of this tab is catching exactly this
-        // kind of mismatch. Last one wins if it ever happens; n only counts
-        // genuinely new keys so the row count stays honest either way.
-        if (!(axisKey in table)) n++;
-        table[axisKey] = ages;
-      }
-      tables[suffix] = table;
-      counts[suffix] = n;
-    });
-
-    termLifeTables = tables;
-    termLifeMeta = { fileName: fileName, counts: counts, missingSheets: missing };
-    persistRates('termLife', bytes, fileName);
-    renderRatesTab();
-    renderStatus();
-
-    var total = TERM_LIFE_DURATIONS.reduce(function (s, suf) { return s + (counts[suf] || 0); }, 0);
-    if (missing.length) {
-      toast('Loaded "' + fileName + '", but couldn\'t find sheet(s): ' + missing.join(', ') + '.', 'err');
-    } else {
-      toast('Loaded "' + fileName + '" — ' + total + ' rate row(s) across ' + TERM_LIFE_DURATIONS.length + ' sheets.');
+        if (!(axisKey in table)) table[axisKey] = {};
+        if (!(duration in table[axisKey])) n++;
+        table[axisKey][duration] = ages;
+      }, function (doneCount, total) {
+        var overall = Math.round(((sheetIdx + doneCount / total) / TERM_LIFE_DURATIONS.length) * 100);
+        showProgress(label + ' — ' + doneCount + '/' + total + ' rows', overall);
+      }, function () {
+        tables[suffix] = table;
+        counts[suffix] = n;
+        sheetIdx++;
+        setTimeout(nextSheet, 0);
+      });
     }
+
+    function finish() {
+      termLifeTables = tables;
+      termLifeMeta = { fileName: fileName, counts: counts, missingSheets: missing };
+      persistRates('termLife', bytes, fileName);
+      renderRatesTab();
+      renderStatus();
+
+      var total = TERM_LIFE_DURATIONS.reduce(function (s, suf) { return s + (counts[suf] || 0); }, 0);
+      if (missing.length) {
+        toast('Loaded "' + fileName + '", but couldn\'t find sheet(s): ' + missing.join(', ') + '.', 'err');
+      } else {
+        toast('Loaded "' + fileName + '" — ' + total + ' rate row(s) across ' + TERM_LIFE_DURATIONS.length + ' sheets.');
+      }
+      done();
+    }
+
+    nextSheet();
   }
 
   /** Permanent Life's own layout (much simpler — one sheet, one rate per
@@ -185,37 +292,44 @@
       Row 20 is age 19), ColG = the rate. A block starts with a Row = -2
       sentinel row that carries no rate and is skipped, along with anything
       else outside the real 1-100 range, rather than trusting -2 as the only
-      possible non-data value. */
-  function ingestPermLifeWorkbook(wb, bytes, fileName) {
+      possible non-data value. No duration axis here (§ permLifeTable
+      above), so this is a single chunked pass, not the sheet-by-sheet
+      staging Term Life needs. */
+  function ingestPermLifeWorkbook(wb, bytes, fileName, done) {
     var ws = wb.Sheets[PERM_LIFE_SHEET];
     if (!ws) {
       permLifeMeta = { fileName: fileName, count: 0, missingSheet: true };
       renderStatus();
       toast('Loaded "' + fileName + '", but couldn\'t find sheet "' + PERM_LIFE_SHEET + '".', 'err');
+      done();
       return;
     }
 
+    showProgress('Reading "' + fileName + '"…', 0);
     var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
     var table = {}, n = 0;
-    for (var r = 1; r < rows.length; r++) {              // row 0 is the header row
-      var row = rows[r];
-      if (!row || row[3] === null || row[3] === '') continue;   // ColD, Axis Key
-      var rowNum = Number(row[4]);                               // ColE, Age + 1
-      if (!isFinite(rowNum) || rowNum < 1 || rowNum > 100) continue;   // skips the -2 sentinel, any junk
-      var v = row[6];                                            // ColG, the rate
-      if (v === null || v === undefined || v === '') continue;
+
+    processRowsChunked(rows, function (row) {
+      if (!row || row[3] === null || row[3] === '') return;         // ColD, Axis Key
+      var rowNum = Number(row[4]);                                   // ColE, Age + 1
+      if (!isFinite(rowNum) || rowNum < 1 || rowNum > 100) return;    // skips the -2 sentinel, any junk
+      var v = row[6];                                                // ColG, the rate
+      if (v === null || v === undefined || v === '') return;
       var axisKey = String(row[3]).trim(), age = rowNum - 1;
-      if (!(axisKey in table)) { table[axisKey] = {}; }
+      if (!(axisKey in table)) table[axisKey] = {};
       table[axisKey][age] = Number(v);
       n++;
-    }
-
-    permLifeTable = table;
-    permLifeMeta = { fileName: fileName, count: n, missingSheet: false };
-    persistRates('permLife', bytes, fileName);
-    renderRatesTab();
-    renderStatus();
-    toast('Loaded "' + fileName + '" — ' + n + ' rate row(s).');
+    }, function (doneCount, total) {
+      showProgress('Reading "' + fileName + '" — ' + doneCount + '/' + total + ' rows', Math.round((doneCount / total) * 100));
+    }, function () {
+      permLifeTable = table;
+      permLifeMeta = { fileName: fileName, count: n, missingSheet: false };
+      persistRates('permLife', bytes, fileName);
+      renderRatesTab();
+      renderStatus();
+      toast('Loaded "' + fileName + '" — ' + n + ' rate row(s).');
+      done();
+    });
   }
 
   /** The two lookups this whole file exists to provide — not called by the
@@ -223,11 +337,16 @@
       category), but fully working and exercised by each ingest function's
       own row counts, cross-checked against a locally-built sample workbook
       shaped exactly like the real ones. Both return null for "no such row"
-      — never a guessed or defaulted figure. */
-  function lookupTermLifeRate(suffix, axisKey, age) {
+      — never a guessed or defaulted figure. `duration` defaults to 1 — the
+      only one anything reads today — but every duration that was in the
+      file is there to pass explicitly once a later feature needs one. */
+  function lookupTermLifeRate(suffix, axisKey, age, duration) {
+    duration = duration || 1;
     var table = termLifeTables[suffix];
     if (!table) return null;
-    var ages = table[axisKey];
+    var byDuration = table[axisKey];
+    if (!byDuration) return null;
+    var ages = byDuration[duration];
     if (!ages || !(age in ages)) return null;
     return ages[age];
   }
@@ -368,6 +487,28 @@
     el.className = 'rate-status' + (warn ? ' rate-status--warn' : '');
   }
 
+  /** The loading bar itself — shown for the whole duration of an import
+      (§ importQueue/runNextImport above), hidden again once the queue is
+      empty. `pct` is 0-100; label names what's happening right now (which
+      file, which sheet, how many rows) rather than leaving the operator
+      staring at an unexplained bar. */
+  function showProgress(label, pct) {
+    var wrap = $('rateProgress');
+    if (!wrap) return;
+    wrap.hidden = false;
+    $('rateProgressLabel').textContent = label;
+    $('rateProgressBar').value = Math.max(0, Math.min(100, pct));
+  }
+  function hideProgress() {
+    var wrap = $('rateProgress');
+    if (wrap) wrap.hidden = true;
+  }
+  function setImportButtonsDisabled(disabled) {
+    var a = $('btnImportRates'), b = $('btnLoadDefaultRates');
+    if (a) a.disabled = disabled;
+    if (b) b.disabled = disabled;
+  }
+
   // ---------------------------------------------------------------- render
   function dashCell(extraClass) {
     return '<td class="r' + (extraClass ? ' ' + extraClass : '') + '"><span class="muted" title="Not calculated yet">—</span></td>';
@@ -480,6 +621,10 @@
               'title="Tries ' + core.esc(TERM_LIFE_FILE_PATH) + ' and ' + core.esc(PERM_LIFE_FILE_PATH) + '">' +
               'Load from ' + core.esc(RATES_FOLDER) + '/</button>' +
             '<input type="file" id="ratesFileInput" accept=".xlsx" hidden>' +
+          '</div>' +
+          '<div class="rate-progress" id="rateProgress" hidden>' +
+            '<div class="rate-progress-label" id="rateProgressLabel"></div>' +
+            '<progress class="rate-progress-bar" id="rateProgressBar" max="100" value="0"></progress>' +
           '</div>' +
           '<div class="rate-status muted" id="ratesStatus">Term Life: no file loaded yet.<br>Permanent Life: no file loaded yet.</div>' +
         '</div>' +

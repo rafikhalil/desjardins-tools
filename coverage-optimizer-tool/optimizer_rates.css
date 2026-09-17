@@ -16,6 +16,14 @@
 .rate-status--warn { color: var(--warn); }
 .rate-status--err { color: var(--neg); }
 
+/* The import loading bar (optimizer_rates.js "importQueue"/showProgress) —
+   hidden outside an active import. `accent-color` themes the native
+   <progress> fill/track from the one token, no custom track/fill markup
+   needed. */
+.rate-progress { margin-top: 8px; }
+.rate-progress-label { font-size: 10.5px; color: var(--ink-3); margin-bottom: 3px; }
+.rate-progress-bar { width: 100%; height: 8px; accent-color: var(--accent); }
+
 /* One coverage's rate card splits into two independent table regions, side
    by side: the per-insured PR_i/EPR_i/… section (can scroll on its own,
    §2b-style .table-scroll-wrap) and the Total/BD_Total/BD_Final section

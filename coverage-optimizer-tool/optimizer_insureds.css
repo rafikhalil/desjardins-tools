@@ -1,0 +1,11 @@
+/* ===========================================================================
+   Coverage Optimizer — Insureds tab
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html) — see
+   OPTIMIZER_REFERENCE.md §2e. Uses ONLY existing tokens/classes from
+   optimizer.css (.card, .ins, .table-scroll-wrap, .cell-pending,
+   .col-hard-sep, …); nothing here restyles or redefines any of them. Unlike
+   the Coverages tab, nothing on this one is editable, so there's no `.fi`
+   sizing rule to add — this file is here for the tab's OWN identity/
+   structuring (§1), not because it needs component styles of its own.
+   =========================================================================== */

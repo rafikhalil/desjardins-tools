@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Coverage Optimizer — Life</title>
+<link rel="stylesheet" href="optimizer.css">
+<link rel="stylesheet" href="optimizer_coverages.css">
+<link rel="stylesheet" href="optimizer_insureds.css">
+<link rel="stylesheet" href="optimizer_backdate.css">
+<link rel="stylesheet" href="optimizer_rates.css">
+<link rel="stylesheet" href="optimizer_history.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════════════════════════════ TOP BAR ═══════════════════════════ -->
+  <header class="topbar">
+    <div class="brand" id="brandBlock">
+      <button class="brand-select" id="toolSelect" aria-haspopup="listbox" aria-expanded="false"
+              title="Switch tool">
+        <span class="mark">CO</span>
+        <span class="brand-txt">
+          <span class="brand-name">Coverage Optimizer</span>
+          <span class="brand-sub">Life · internal · v0.1.0</span>
+        </span>
+        <span class="brand-caret" aria-hidden="true">▾</span>
+      </button>
+      <!-- Options are generated from the TOOLS table in optimizer.js;
+           picking the other tool navigates to its page. -->
+      <div class="brand-menu" id="toolMenu" role="listbox" aria-label="Tool" hidden></div>
+    </div>
+
+    <div class="spacer"></div>
+
+    <!-- Save Test / History (optimizer_history.js owns all the wiring here,
+         even though the controls themselves are static markup, not
+         generated — see that file's header comment). -->
+    <input class="fi fi--txt" id="tcName" placeholder="Test Case Name" maxlength="60"
+           spellcheck="false" autocomplete="off" title="Test Case Name">
+    <select class="fi" id="tcUser" title="Username">
+      <option value="Catheryne L.">Catheryne L.</option>
+      <option value="Rafi K.">Rafi K.</option>
+      <option value="Catherine C.">Catherine C.</option>
+    </select>
+    <button class="btn btn--primary" id="btnSaveTest" title="Save this test case to History">Save Test</button>
+
+    <button class="btn btn--icon" id="btnTheme" title="Toggle light / dark theme">◐</button>
+  </header>
+
+  <!-- ═════════════════════════════════ TABS ════════════════════════════ -->
+  <nav class="tabs" role="tablist">
+    <!-- Buttons are generated from the TABS table in optimizer.js. -->
+    <span class="tab-list" id="tabList"></span>
+    <div class="spacer"></div>
+    <div class="asof" id="hdrStamp"></div>
+  </nav>
+
+  <!-- ═══════════════════════════════ VIEWPORT ══════════════════════════ -->
+  <main class="viewport">
+    <!-- One <section class="pane"> per tab, generated from TABS. The
+         "Input & Results" pane is split 2/3 Inputs + 1/3 Results. -->
+    <div id="panes"></div>
+  </main>
+
+  <!-- ═══════════════════════════════ STATUS ════════════════════════════ -->
+  <footer class="statusbar">
+    <span><span class="dot dot--ok" id="stDot"></span><span id="stText">Ready</span></span>
+    <span id="stTab"></span>
+    <div class="spacer"></div>
+    <span class="mono">ENGINE STUBBED</span>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="xlsx.full.min.js"></script>
+<script src="optimizer.js"></script>
+<script src="optimizer_coverages.js"></script>
+<script src="optimizer_insureds.js"></script>
+<script src="optimizer_backdate.js"></script>
+<script src="optimizer_rates.js"></script>
+<script src="optimizer_history.js"></script>
+</body>
+</html>

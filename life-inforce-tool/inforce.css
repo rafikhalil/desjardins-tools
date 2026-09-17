@@ -1,0 +1,483 @@
+/* ===========================================================================
+   Inforce Tool — Life
+   ---------------------------------------------------------------------------
+   Design tokens follow the house institutional mockup; the accent family is
+   rebuilt around #35663E. Saturated colour encodes state, never decoration:
+
+     green (accent)  brand, interactive, coverage identity
+     gold  (edit)    a value that differs from the imported extract
+     brick (neg)     validation failure, removal
+     amber (warn)    advisory
+
+   Coverage cards are uniform: one dark green band across every card, so the
+   coverage number itself does the identifying rather than a shifting hue.
+
+   This is the INFORCE TOOL stylesheet. optimizer.css is the same component
+   set with the palette rotated to slate blue; keep the two in step when a
+   component rule changes.
+   =========================================================================== */
+:root {
+  --canvas:        #EDF1EE;
+  --surface:       #FFFFFF;
+  --surface-sunk:  #F5F8F5;
+  --surface-head:  #F9FBF9;
+
+  --line:          #DCE3DD;
+  --line-strong:   #C1CDC3;
+  --line-hair:     #E7EDE8;
+
+  --ink:           #111713;
+  --ink-2:         #47544A;
+  --ink-3:         #5C6B5F;
+  --ink-4:         #697A6D;
+
+  --accent:        #35663E;
+  --accent-2:      #43804F;
+  --accent-soft:   #E9F2EB;
+  --accent-line:   #B7CFBE;
+  --on-accent:     #FFFFFF;
+
+  --edit:          #7E6115;
+  --edit-soft:     #FBF4E3;
+  --edit-line:     #E0CFA2;
+
+  --pos:           #226B45;
+  --neg:           #9B2C22;
+  --neg-soft:      #F8ECEA;
+  --warn:          #7A5310;
+  --warn-soft:     #FAF2E3;
+
+  --focus:         #43804F;
+
+  /* Coverage header band. Deliberately darker than --accent so the strip
+     carrying the coverage number reads as a header, not as a tinted row. */
+  --cov-band:      #2A5233;
+  --cov-band-ink:  #FFFFFF;
+  --cov-band-sub:  rgba(255, 255, 255, .74);
+  --cov-band-line: #1F3E27;
+
+  /* Insured sub-header. A lighter sage than the coverage band, so the two
+     bands read as a hierarchy rather than as two peers. */
+  --ins-band:      #74A880;
+  --ins-band-ink:  #14261A;
+  --ins-band-line: rgba(0, 0, 0, .18);
+
+  /* Container outlines. Darker than --line so each coverage, and the insured
+     block nested inside it, reads as a discrete box. */
+  --cov-border:    #2A5233;
+  --ins-border:    #5C8E69;
+
+  --r:    2px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Light is the default. Dark is opt-in through the toggle only — the OS
+   preference is deliberately not consulted, so the tool looks the same on
+   every workstation when two people compare the same policy side by side. */
+:root[data-theme="dark"] {
+  --canvas: #0D110E; --surface: #151B17; --surface-sunk: #111713; --surface-head: #1A211C;
+  --line: #262E28; --line-strong: #3A453D; --line-hair: #1E251F;
+  --ink: #E3EAE5; --ink-2: #A6B3A9; --ink-3: #94A297; --ink-4: #839185;
+  --accent: #7FB88F; --accent-2: #9ECFAB; --accent-soft: #18241B; --accent-line: #2E4534;
+  --on-accent: #0D110E;
+  --edit: #D2AE5F; --edit-soft: #241F10; --edit-line: #4A3F1E;
+  --pos: #56BC88; --neg: #E4756A; --neg-soft: #2A1917;
+  --warn: #D9AC5A; --warn-soft: #26200F; --focus: #7FB88F;
+  --cov-band: #1E3A26; --cov-band-ink: #DCEBE0;
+  --cov-band-sub: rgba(220, 235, 224, .66); --cov-band-line: #2C523A;
+  --ins-band: #3F6E50; --ins-band-ink: #E4F0E7; --ins-band-line: rgba(0, 0, 0, .3);
+  --cov-border: #3D6349; --ins-border: #48785A;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--canvas); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.num, table, input, select, .mono { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.micro { font-size: 9.5px; font-weight: 600; letter-spacing: .07em;
+         text-transform: uppercase; color: var(--ink-3); }
+.spacer { flex: 1; }
+.muted  { color: var(--ink-4); }
+[hidden] { display: none !important; }
+
+/* ══════════════════════════════ SHELL ════════════════════════════════ */
+.app {
+  display: grid; grid-template-rows: 46px auto 1fr 24px;
+  height: 100vh; min-width: 900px;
+}
+
+.topbar {
+  display: flex; align-items: center; gap: 14px; padding: 0 14px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+/* The brand block doubles as the tool switcher. It stays visually quiet until
+   hovered so it reads as a title first and a control second. */
+.brand { position: relative; display: flex; align-items: center; }
+.mark {
+  width: 22px; height: 22px; border-radius: var(--r);
+  background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center; font-size: 10px; font-weight: 700;
+  flex: none;
+}
+.brand-name { font-size: 13px; font-weight: 650; letter-spacing: -.01em; }
+.brand-sub  { font-size: 9.5px; color: var(--ink-4); letter-spacing: .05em; text-transform: uppercase; }
+
+.brand-select {
+  display: flex; align-items: center; gap: 9px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid transparent; border-radius: var(--r);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.brand-select:hover { background: var(--surface-sunk); border-color: var(--line); }
+.brand-select[aria-expanded="true"] { background: var(--surface-sunk); border-color: var(--line-strong); }
+.brand-txt { display: flex; flex-direction: column; line-height: 1.25; }
+.brand-caret { font-size: 9px; color: var(--ink-4); margin-left: 1px; }
+
+.brand-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+  min-width: 250px; padding: 3px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--r); box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.brand-opt {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 6px 8px; border: 0; border-radius: var(--r);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.brand-opt:hover { background: var(--surface-sunk); }
+.brand-opt[aria-selected="true"] { background: var(--accent-soft); }
+.brand-opt-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.brand-opt-name { font-size: 12.5px; font-weight: 600; }
+.brand-opt-note { font-size: 10px; color: var(--ink-4); }
+.brand-opt .tick { margin-left: auto; color: var(--accent); font-size: 11px; font-weight: 700; }
+.divider-v  { width: 1px; height: 22px; background: var(--line); flex: none; }
+.policy-id .pn { font-size: 12.5px; font-weight: 620; }
+.policy-id .ps { font-size: 10px; color: var(--ink-4); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 21px; padding: 0 9px;
+  border: 1px solid var(--line); border-radius: 11px;
+  font-size: 10.5px; font-weight: 550; color: var(--ink-2);
+  background: var(--surface-sunk); white-space: nowrap;
+}
+.chip--warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.chip--edit { background: var(--edit-soft); border-color: var(--edit-line); color: var(--edit); }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; display: inline-block; margin-right: 5px; }
+.dot--ok { background: var(--pos); } .dot--err { background: var(--neg); }
+.dot--warn { background: var(--warn); } .dot--idle { background: var(--ink-4); }
+
+.btn {
+  height: 27px; padding: 0 11px;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 11.5px; font-weight: 550; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--surface-sunk); border-color: var(--ink-4); }
+.btn:disabled { opacity: .42; cursor: not-allowed; }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn--primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+.btn--danger { color: var(--neg); }
+.btn--danger:hover:not(:disabled) { background: var(--neg-soft); border-color: var(--neg); }
+.btn--icon { width: 27px; padding: 0; justify-content: center; }
+.btn--sm { height: 21px; padding: 0 7px; font-size: 10.5px; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex; align-items: flex-end; padding: 0 14px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.tab {
+  height: 33px; padding: 0 15px; border: 0; background: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3); font: inherit; font-size: 12px; font-weight: 550; cursor: pointer;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 650; }
+.asof { font-size: 10px; color: var(--ink-4); padding-bottom: 9px; }
+/* The tab buttons are generated into this span; `contents` makes it vanish
+   from the flex layout so the buttons sit directly in the bar. */
+.tab-list { display: contents; }
+
+
+.viewport { overflow-y: auto; }
+.pane { padding: 12px 14px 40px; }
+
+.statusbar {
+  display: flex; align-items: center; gap: 14px; padding: 0 14px;
+  background: var(--surface); border-top: 1px solid var(--line);
+  font-size: 10px; color: var(--ink-4);
+}
+
+/* ══════════════════════════ HOME GRID ════════════════════════════════ */
+/* Two-thirds / one-third split. `.split` is the generic form; `.home-grid`
+   is the same thing under its original name, kept so the Inforce markup does
+   not have to change. */
+.home-grid, .split {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; align-items: start;
+}
+.col-cov, .split-main { grid-column: span 2; min-width: 0; }
+.col-pol, .split-side { grid-column: span 1; min-width: 0; position: sticky; top: 0; }
+@media (max-width: 1240px) {
+  .home-grid, .split { grid-template-columns: minmax(0, 1fr); }
+  .col-cov, .col-pol, .split-main, .split-side { grid-column: span 1; }
+  .col-pol, .split-side { position: static; }
+}
+
+/* ══════════════════════════════ CARD ═════════════════════════════════ */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); margin-bottom: 10px;
+}
+.card-head {
+  display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 4px 10px;
+  background: var(--surface-head); border-bottom: 1px solid var(--line-hair);
+}
+.card-title { font-size: 12px; font-weight: 650; }
+.card-note  { font-size: 10px; color: var(--ink-4); }
+.card-foot {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: var(--surface-sunk); border-top: 1px solid var(--line-hair);
+}
+.card-body { padding: 9px 10px; }
+
+/* Sidebar containers carry the same treatment as a coverage container: the
+   dark green band on top, the same outline around the box. */
+.card--out { border-color: var(--cov-border); }
+.card-head--band {
+  background: var(--cov-band);
+  border-bottom: 1px solid var(--cov-band-line);
+}
+.card-head--band .card-title { color: var(--cov-band-ink); }
+.card-head--band .card-note  { color: var(--cov-band-sub); }
+/* The policy-number chip inverts the band, matching the coverage number badge.
+   A gold "changed" chip keeps its own colours — it is already light enough to
+   read on the band, and its meaning must not be diluted. */
+.card-head--band .chip:not(.chip--edit) {
+  background: var(--cov-band-ink); color: var(--cov-band);
+  border-color: transparent; font-weight: 700;
+}
+
+/* ═══════════════════════════ COVERAGE ════════════════════════════════ */
+/* Every coverage card carries the same band. The number badge inverts the
+   band colours, so it stays the highest-contrast element in the header. */
+.cov { margin-bottom: 10px; border: 1px solid var(--cov-border); }
+.cov-head {
+  display: flex; align-items: center; gap: 8px; padding: 5px 9px;
+  background: var(--cov-band);
+  border-bottom: 1px solid var(--cov-band-line);
+}
+.cov-no {
+  display: inline-grid; place-items: center; min-width: 34px; height: 19px; padding: 0 7px;
+  background: var(--cov-band-ink); color: var(--cov-band); border-radius: var(--r);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  font-family: var(--mono);
+}
+.cov-plan {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--cov-band-ink);
+}
+.cov-sum { font-size: 10.5px; color: var(--cov-band-sub); }
+.cov-sum b { color: var(--cov-band-ink); font-weight: 600; }
+.cov.is-removed { opacity: .5; }
+.cov.is-removed .cov-no { text-decoration: line-through; }
+.cov.is-new .cov-head::after {
+  content: 'NEW'; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  color: var(--cov-band-ink);
+}
+
+/* ── Dense field grid: 4 columns of label/value rows ─────────────────── */
+/* One column per field group. Columns stretch to the tallest group so the
+   dividers run the full height of the card.
+
+   Queried against the coverage column, not the viewport: below 1240px the
+   home grid stacks and the coverage column goes full width, so a viewport
+   media query would collapse the columns at exactly the moment there is more
+   room for them. Browsers without container query support keep the 4-column
+   default, which is the intended layout anyway. */
+.col-cov { container-type: inline-size; }
+.fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@container (max-width: 780px) { .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 400px) { .fgrid { grid-template-columns: minmax(0, 1fr); } }
+
+.fgroup { min-width: 0; border-right: 1px solid var(--line); }
+.fgrid > .fgroup:last-child { border-right: 0; }
+.fgroup-head {
+  font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); padding: 4px 9px 3px;
+  background: var(--surface-sunk); border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.fr {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 6px;
+  padding: 2px 9px; min-height: 24px;
+  border-bottom: 1px solid var(--line-hair);
+}
+.fgroup .fr:last-child { border-bottom: 0; }
+.fk {
+  font-size: 11px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Editable inputs stay neutral. Gold is reserved for a value that differs
+   from the extract — if every editable field were tinted, the one field the
+   operator actually changed would stop standing out. */
+.fi {
+  width: 92px; height: 19px; padding: 0 5px; text-align: right;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 11.5px; font-weight: 550;
+}
+.fi--txt { text-align: left; }
+.fi:hover { border-color: var(--line-strong); }
+.fi:focus { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: -2px; }
+.fi--bad  { border-color: var(--neg); background: var(--neg-soft); color: var(--neg); }
+
+/* Read-only: sunk, dashed and muted. Editable fields are now the minority, so
+   the styling makes them the salient ones rather than flagging every lock. */
+.fi--ro {
+  background: var(--surface-sunk);
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-3); font-weight: 500;
+  cursor: default;
+}
+.fi--ro:hover { border-color: var(--line-strong); }
+.fi--ro:focus { outline: none; border-color: var(--line-strong); }
+.fi--ro::placeholder { color: var(--ink-4); }
+select.fi { width: 92px; padding: 0 2px; }
+
+.fr.is-chg { background: var(--edit-soft); }
+.fr.is-chg .fk { color: var(--edit); font-weight: 600; }
+.fr.is-chg .fk::after { content: ' CF'; font-size: 8px; }
+.fr.is-chg .fi { background: var(--surface); border-color: var(--edit); }
+
+/* ── Insured lives ──────────────────────────────────────────────────── */
+.ins-wrap {
+  margin: 7px; border: 1px solid var(--ins-border);
+  border-radius: var(--r); overflow: hidden;
+}
+.ins { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.ins thead th {
+  font-size: 10.5px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase;
+  color: var(--ins-band-ink); text-align: left; padding: 4px 9px;
+  background: var(--ins-band); border-bottom: 1px solid var(--ins-band-line);
+  white-space: nowrap;
+}
+.ins th.r, .ins td.r { text-align: right; }
+.ins tbody td { padding: 3px 9px; border-bottom: 1px solid var(--line-hair); white-space: nowrap; }
+.ins tbody tr:last-child td { border-bottom: 0; }
+.ins tbody tr.is-removed td { opacity: .5; text-decoration: line-through; }
+.ins td.act { width: 1%; text-align: right; padding: 2px 9px; }
+.ins td { vertical-align: middle; }
+.ins .fi { height: 19px; }
+.fi--name { width: 100%; min-width: 130px; }
+.fi::placeholder { color: var(--ink-4); font-weight: 400; }
+
+/* ══════════════════════════ POLICY SIDEBAR ═══════════════════════════ */
+.kv {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px; align-items: center;
+  padding: 3px 10px; min-height: 24px;
+  border-bottom: 1px solid var(--line-hair);
+}
+.kv:last-child { border-bottom: 0; }
+.kv dt { font-size: 12px; color: var(--ink-3); }
+.kv dd { font-size: 12px; font-weight: 550; text-align: right; }
+.kv dd.is-empty { color: var(--ink-4); font-weight: 400; }
+.kv .fi { width: 110px; font-size: 12px; }
+.kv.is-chg { background: var(--edit-soft); }
+.kv.is-chg dt { color: var(--edit); font-weight: 600; }
+.kv.is-chg .fi { border-color: var(--edit); }
+.kv.is-total { background: var(--surface-sunk); }
+.kv.is-total dt { color: var(--ink-2); font-weight: 600; }
+.kv.is-total dd { font-weight: 650; }
+
+.grouphead {
+  padding: 6px 10px 5px;
+  background: var(--ins-band);
+  border-top: 1px solid var(--ins-border);
+  border-bottom: 1px solid var(--ins-border);
+}
+.grouphead .micro { font-size: 10.5px; color: var(--ins-band-ink); }
+
+.inline-form {
+  padding: 8px 10px; background: var(--accent-soft);
+  border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line);
+}
+.inline-form .row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.inline-form label { flex: 1; font-size: 11px; color: var(--ink-2); }
+.inline-form input {
+  width: 110px; height: 21px; padding: 0 5px; text-align: right;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px;
+}
+.inline-form .acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 7px; }
+
+/* ══════════════════════════ CHANGE LOG ═══════════════════════════════ */
+.diff { width: 100%; border-collapse: collapse; font-size: 11px; }
+.diff thead th {
+  font-size: 9px; font-weight: 600; letter-spacing: .055em; text-transform: uppercase;
+  color: var(--ink-4); text-align: left; padding: 4px 10px;
+  background: var(--surface-sunk); border-bottom: 1px solid var(--line-hair);
+}
+.diff th.r, .diff td.r { text-align: right; }
+.diff tbody td { padding: 3px 10px; border-bottom: 1px solid var(--line-hair); font-variant-numeric: tabular-nums; }
+.diff tbody tr:last-child td { border-bottom: 0; }
+.diff .from { color: var(--ink-4); text-decoration: line-through; }
+.diff .to   { color: var(--edit); font-weight: 600; }
+.diff .where { font-family: var(--mono); font-size: 10px; }
+.tag {
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.tag--mod { background: var(--edit-soft); color: var(--edit); }
+.tag--add { background: var(--accent-soft); color: var(--accent); }
+.tag--del { background: var(--neg-soft); color: var(--neg); }
+
+/* ══════════════════════════ EMPTY / MISC ═════════════════════════════ */
+.empty { display: grid; place-items: center; min-height: calc(100vh - 200px); padding: 30px 16px; }
+.drop {
+  width: 100%; max-width: 560px; background: var(--surface);
+  border: 1px dashed var(--line-strong); border-radius: var(--r);
+  padding: 34px 30px; text-align: center;
+}
+.drop.is-over { border-color: var(--accent); background: var(--accent-soft); }
+.drop h2 { font-size: 15px; font-weight: 650; margin-bottom: 5px; }
+.drop p  { font-size: 12px; color: var(--ink-3); margin-bottom: 16px; }
+.drop .acts { display: flex; gap: 8px; justify-content: center; }
+.drop .fmt {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-hair);
+  font-size: 10.5px; color: var(--ink-4); text-align: left;
+}
+.drop .fmt code { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.drop .fmt .micro { margin-bottom: 4px; }
+.drop .fmt .warnline { margin-top: 6px; color: var(--warn); }
+
+.proj-slot {
+  min-height: 340px; display: grid; place-items: center; align-content: center;
+  background: var(--surface-sunk); border: 1px dashed var(--line-strong);
+  border-radius: var(--r); margin: 10px; padding: 24px; text-align: center;
+}
+.proj-slot .t { font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+.proj-slot .s { font-size: 11px; color: var(--ink-4); max-width: 460px; line-height: 1.55; }
+
+.toast {
+  position: fixed; right: 14px; bottom: 34px; z-index: 40;
+  max-width: 380px; padding: 8px 11px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--accent); border-radius: var(--r);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .13);
+  font-size: 11.5px; color: var(--ink-2);
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity .12s, transform .12s;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast--err { border-left-color: var(--neg); color: var(--neg); }

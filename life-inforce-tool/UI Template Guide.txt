@@ -1,0 +1,190 @@
+I am looking to build a life insurance illustration tool.
+
+
+
+The tool is for internal purposes only, no deployment to any other team or to the public. It will be used to validate values against another platform.
+
+
+
+I want the platform to have a professional/corporate style (nothing overly fancy in terms of design, kind of similar to the DCF Model UI you had generated, see attachment).
+
+
+
+So, initially, the way that tool works is it's gonna scrape data from an internal terminal system, which contains data about the, policy, coverages, and insureds on on the policy. Once the data has been scraped, It will be output in a Excel file. which will have a specific structure on how the data is organized within that file. The goal is to then use all that data to project a current situation illustration, but also to be able to do modifications on the policy.
+
+
+
+There will be a total of eight different scenarios possible when doing an illustration with this tool : 
+
+
+
+
+
+Current situation
+
+
+
+Coverage termination
+
+
+
+Coverage amount reduction
+
+
+
+Change of smoker status
+
+
+
+Extra premium revision
+
+
+
+Adding a new coverage
+
+
+
+Withdrawal of an insured
+
+
+
+Loan on a policy
+
+
+
+
+
+
+
+
+
+
+
+I want the UI to be as simple as intuitive as possible. So for now, it would only have two tabs. The first tab is called home, and the second tab is called projection. In the first tab home, we will find all the information related to the information scraped from a policy. So that means policy information and values, coverage information and values, and insured information. Every coverage will be displayed on the left side of the page and will take about two third of the space of the page. For each coverage, we have the following information :
+
+
+
+
+
+Coverage number (3 characters | C01, C02, etc...)
+
+
+
+Plan ID (5 characters | alphanumeric)
+
+
+
+Rate Scale (1 character | alphanumeric)
+
+
+
+Sex  (1 character | M / F)
+
+
+
+smoker status (1 character | N / S)
+
+
+
+STB1 (2 character | alphanumeric)
+
+
+
+STB2 (3 character | alphanumeric)
+
+
+
+Face amount (1 to 999 999 999 | $CAD | Integer/Full dollar amount only)
+
+
+
+Sum insured (1 to 999 999 999 | $CAD | Integer/Full dollar amount only)
+
+
+
+Permanent Extra Premium (%)  
+
+
+
+Flat Rate ($) (0.00 to 999.99 | $CAD | Decimal)
+
+
+
+Flat Rate Duration (1 to 999 | integer)
+
+
+
+Policy Fee (1 to 999 | $CAD | Integer)
+
+
+
+Coverage Issue Date (DD-MMM-YYYY | Date | ex.: 20-AUG-2020)
+
+
+
+Maturity/Expiry Date (DD-MMM-YYYY | Date | ex.: 20-AUG-2030)
+
+
+
+Paid-up Date (DD-MMM-YYYY | Date | ex.: 20-AUG-2025)
+
+
+
+Coverage Status (1 character | alphanumeric)
+
+
+
+Modal Premium (0.00 to 999 999 999.99 | $CAD | Decimal)
+
+
+
+Rate Date  (DD-MMM-YYYY | Date | ex.: 20-AUG-2019)
+
+
+
+Premium/COI Adjustement (%) (0% to 1000000% | Percentage)
+
+
+
+Premium/COI Adjustement Duration (1 to 999 | integer)
+
+
+
+GRP Total Amount (0.00 to 999 999 999.99 | $CAD | Decimal)
+
+
+
+Business Premium Allocation Duration (1 to 999 | integer)
+
+
+
+Cash Value (0.00 to 999 999 999.99 | $CAD | Decimal)
+
+Under every coverage, in the same box, we will have the insureds associated to that coverage :
+
+
+
+
+
+Full name (First Last)
+
+
+
+Birthdate (DD-MMM-YYYY | Date | ex.: 20-AUG-1990)
+
+
+
+Sex (1 character | M / F)
+
+
+
+
+
+On the right hand side, which will represent about one third of the page, we will have policy information.
+
+
+
+
+
+
+

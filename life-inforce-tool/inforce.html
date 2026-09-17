@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Inforce Tool — Life</title>
+<link rel="stylesheet" href="inforce.css">
+</head>
+<body>
+
+<div class="app">
+
+  <!-- ═══════════════════════════════ TOP BAR ═══════════════════════════ -->
+  <header class="topbar">
+    <div class="brand" id="brandBlock">
+      <button class="brand-select" id="toolSelect" aria-haspopup="listbox" aria-expanded="false"
+              title="Switch tool">
+        <span class="mark" id="toolMark">IT</span>
+        <span class="brand-txt">
+          <span class="brand-name" id="toolName">Inforce Tool</span>
+          <span class="brand-sub">Life · internal · v0.1.0</span>
+        </span>
+        <span class="brand-caret" aria-hidden="true">▾</span>
+      </button>
+      <!-- Options are generated from the TOOLS table in inforce.js;
+           picking the other tool navigates to its page. -->
+      <div class="brand-menu" id="toolMenu" role="listbox" aria-label="Tool" hidden></div>
+    </div>
+
+    <div class="divider-v"></div>
+
+    <div class="policy-id">
+      <div class="pn" id="hdrPolicy">No extract loaded</div>
+      <div class="ps mono" id="hdrFile">—</div>
+    </div>
+
+    <span class="chip chip--warn" id="hdrMock" hidden>
+      <span class="dot dot--warn"></span>Mock parser
+    </span>
+
+    <div class="spacer"></div>
+
+    <button class="btn btn--icon" id="btnTheme" title="Toggle light / dark theme">◐</button>
+    <button class="btn" id="btnSample">Load Sample</button>
+    <button class="btn" id="btnImport">Import Extract…</button>
+    <button class="btn btn--danger" id="btnClear" hidden>Clear</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+  </header>
+
+  <!-- ═════════════════════════════════ TABS ════════════════════════════ -->
+  <nav class="tabs" role="tablist">
+    <span class="tab-list" id="tabList">
+      <button class="tab" role="tab" data-pane="paneHome" aria-selected="true">Home</button>
+      <button class="tab" role="tab" data-pane="paneProjection" aria-selected="false">Projection</button>
+    </span>
+    <div class="spacer"></div>
+    <div class="asof" id="hdrStamp"></div>
+  </nav>
+
+  <!-- ═══════════════════════════════ VIEWPORT ══════════════════════════ -->
+  <main class="viewport">
+
+    <!-- ── Empty state ────────────────────────────────────────────────── -->
+    <section class="pane" id="paneEmpty">
+      <div class="empty">
+        <div class="drop" id="dropZone">
+          <h2>Import a policy extract</h2>
+          <p>Drop the workbook scraped from the terminal, or choose a file.
+             The extract is parsed locally — nothing is uploaded anywhere.</p>
+          <div class="acts">
+            <button class="btn btn--primary" id="btnSelect">Select Extract…</button>
+            <button class="btn" id="btnSample2">Load Sample Extract</button>
+          </div>
+          <div class="fmt">
+            <div class="micro">Expected</div>
+            <div>Sheet <code>POLICY_EXTRACT</code> — one policy header row followed by one
+                 row per coverage, insured lives in the trailing columns.</div>
+            <div class="warnline">Parsing is mocked in this build — any accepted file returns fixture data.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── Home ───────────────────────────────────────────────────────── -->
+    <section class="pane" id="paneHome" role="tabpanel" hidden>
+      <div class="home-grid">
+        <div class="col-cov">
+          <div id="coverageList"></div>
+          <div class="card">
+            <div class="card-foot">
+              <span class="card-note" id="covCount"></span>
+              <span class="spacer"></span>
+              <button class="btn btn--primary" id="btnAddCoverage">+ Add Coverage</button>
+            </div>
+          </div>
+        </div>
+        <div class="col-pol" id="policyCol"></div>
+      </div>
+    </section>
+
+    <!-- ── Projection (placeholder) ───────────────────────────────────── -->
+    <section class="pane" id="paneProjection" role="tabpanel" hidden>
+      <div class="card">
+        <div class="card-head">
+          <span class="card-title">Projection Results</span>
+          <span class="spacer"></span>
+          <button class="btn btn--primary btn--sm" id="btnRun">Run Projection</button>
+        </div>
+        <!-- Calculated tables and charts render here. -->
+        <div class="proj-slot" id="projectionSlot">
+          <div class="t">No projection has been run</div>
+          <div class="s">The calculation engine is not wired in yet. This container is
+              where the projection tables and charts will render.</div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ═══════════════════════════════ STATUS ════════════════════════════ -->
+  <footer class="statusbar">
+    <span><span class="dot dot--idle" id="stDot"></span><span id="stText">Awaiting extract</span></span>
+    <span class="mono" id="stFile"></span>
+    <span id="stChanges"></span>
+    <div class="spacer"></div>
+    <span class="mono">PARSER MOCKED · ENGINE STUBBED</span>
+  </footer>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="inforce.js"></script>
+</body>
+</html>

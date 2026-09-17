@@ -1,0 +1,20 @@
+/* ===========================================================================
+   Coverage Optimizer — Coverages tab
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html) rather
+   than added to it — see OPTIMIZER_REFERENCE.md §2d for why this tab's
+   JS/CSS live in their own files. Uses ONLY existing tokens/classes from
+   optimizer.css (.card, .ins, .fi, .table-scroll-wrap, .cell-pending, …);
+   nothing here restyles or redefines any of them. The scrolling wrapper and
+   the "formula not yet provided" cell look both live in optimizer.css
+   itself, not here — shared with the Insureds tab (§2e), which needs the
+   identical two things.
+   =========================================================================== */
+
+/* 16 columns, more than any realistic width could show at once without
+   compressing every figure into illegibility — this table is explicitly
+   allowed a horizontal scrollbar (`.table-scroll-wrap`, optimizer.css). The
+   one thing genuinely specific to THIS table: Unit Value's input needs to
+   be narrower than `.fi`'s own 92px default to sit comfortably in a cell
+   this dense. */
+.cov-tab-table .fi { width: 84px; }

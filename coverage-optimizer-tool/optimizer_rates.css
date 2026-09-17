@@ -1,0 +1,37 @@
+/* ===========================================================================
+   Coverage Optimizer — Rates tab
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html) — see
+   OPTIMIZER_REFERENCE.md §1/§2d/§2e for why a split-off tab gets its own file
+   pair. Uses existing tokens/classes wherever they fit (.card, .card--out,
+   .card-head--band, .ins, .table-scroll-wrap, .cell-pending, .col-hard-sep,
+   .proj-slot, …); new here: the two-table "scrollable insureds beside static
+   totals" layout the request specifically asks for (§ optimizer_rates.js
+   header), and a lighter separator for "insured" boundaries, distinct from
+   .col-hard-sep's stronger one used for the Total/BD_Total/BD_Final groups.
+   =========================================================================== */
+
+.rate-import-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.rate-status { font-size: 10.5px; margin-top: 6px; }
+.rate-status--warn { color: var(--warn); }
+.rate-status--err { color: var(--neg); }
+
+/* One coverage's rate card splits into two independent table regions, side
+   by side: the per-insured PR_i/EPR_i/… section (can scroll on its own,
+   §2b-style .table-scroll-wrap) and the Total/BD_Total/BD_Final section
+   (never scrolls — stays visible per the request). Both tables share the
+   same row axis (rate bands) and identical .ins row/font/padding, so their
+   rows line up without any extra alignment work. */
+.rate-body { display: flex; align-items: flex-start; border-top: 1px solid var(--cov-band-line); }
+.rate-scroll { flex: 1 1 auto; min-width: 0; }
+.rate-fixed { flex: 0 0 auto; border-left: 1px solid var(--cov-border); }
+/* Overrides .ins's own `width: 100%` (optimizer.css, shared with inforce.css)
+   — a 100%-wide table can't grow past its container, which would silently
+   defeat .rate-scroll's overflow-x rather than triggering it. `min-width:
+   100%` keeps it filling the container when content is narrower. */
+.rate-tab-table { width: auto; min-width: 100%; }
+
+/* Lighter than .col-hard-sep's 2px `--ins-border` line — this marks where
+   one INSURED's 4-column group ends and the next begins, a weaker boundary
+   than a group-of-groups separator (Total | BD_Total | BD_Final) deserves. */
+.col-soft-sep { border-left: 1px solid var(--line-strong); }

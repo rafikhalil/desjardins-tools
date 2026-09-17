@@ -1,0 +1,753 @@
+/* ===========================================================================
+   Coverage Optimizer — Life
+   ---------------------------------------------------------------------------
+   Design tokens follow the house institutional mockup. This is the COVERAGE
+   OPTIMIZER stylesheet: the same component set as inforce.css with the
+   palette rotated from forest green (hue 131) to slate blue (hue 205) at
+   identical saturation and lightness, so the two tools are recognisably one
+   product and unmistakably two tools. Saturated colour encodes state:
+
+     blue  (accent)  brand, interactive, container identity
+     gold  (edit)    a value that differs from the imported extract
+     brick (neg)     validation failure, removal
+     amber (warn)    advisory
+
+   Semantic colours (gold = changed, brick = rejected, amber = advisory) are
+   identical to inforce.css on purpose — meaning must not depend on the tool.
+   =========================================================================== */
+:root {
+  --canvas:        #EDEFF2;
+  --surface:       #FFFFFF;
+  --surface-sunk:  #F5F7FA;
+  --surface-head:  #F9FAFC;
+
+  --line:          #DCE0E6;
+  --line-strong:   #C1C8D2;
+  --line-hair:     #E7EAEF;
+
+  --ink:           #111418;
+  --ink-2:         #474F5A;
+  --ink-3:         #5C6570;
+  --ink-4:         #69737F;
+
+  --accent:        #345165;
+  --accent-2:      #436780;
+  --accent-soft:   #E9EEF3;
+  --accent-line:   #B7C6D2;
+  --on-accent:     #FFFFFF;
+
+  --edit:          #7E6115;
+  --edit-soft:     #FBF4E3;
+  --edit-line:     #E0CFA2;
+
+  --pos:           #226B45;
+  --neg:           #9B2C22;
+  --neg-soft:      #F8ECEA;
+  --warn:          #7A5310;
+  --warn-soft:     #FAF2E3;
+
+  --focus:         #436780;
+
+  /* Container header band. Deliberately darker than --accent so the strip
+     carrying a container title reads as a header, not as a tinted row. */
+  --cov-band:      #2A4256;
+  --cov-band-ink:  #FFFFFF;
+  --cov-band-sub:  rgba(255, 255, 255, .74);
+  --cov-band-line: #1F3242;
+
+  /* Sub-header band. A lighter slate than the container band, so the two
+     bands read as a hierarchy rather than as two peers. */
+  --ins-band:      #7492A8;
+  --ins-band-ink:  #142026;
+  --ins-band-line: rgba(0, 0, 0, .18);
+
+  /* Container outlines. Darker than --line so each coverage, and the insured
+     block nested inside it, reads as a discrete box. */
+  --cov-border:    #2A4256;
+  --ins-border:    #5C7E93;
+
+  --r:    2px;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Light is the default. Dark is opt-in through the toggle only — the OS
+   preference is deliberately not consulted, so the tool looks the same on
+   every workstation when two people compare the same policy side by side. */
+:root[data-theme="dark"] {
+  --canvas: #0D0F12; --surface: #151920; --surface-sunk: #111419; --surface-head: #1A1F26;
+  --line: #262B33; --line-strong: #3A414D; --line-hair: #1E222A;
+  --ink: #E3E7EC; --ink-2: #A6ADB8; --ink-3: #949CA8; --ink-4: #838B97;
+  --accent: #7FA0B8; --accent-2: #9EBCD0; --accent-soft: #18202B; --accent-line: #2E3E4C;
+  --on-accent: #0D0F12;
+  --edit: #D2AE5F; --edit-soft: #241F10; --edit-line: #4A3F1E;
+  --pos: #56BC88; --neg: #E4756A; --neg-soft: #2A1917;
+  --warn: #D9AC5A; --warn-soft: #26200F; --focus: #7FA0B8;
+  --cov-band: #1E2E3A; --cov-band-ink: #DCE5EB;
+  --cov-band-sub: rgba(220, 229, 235, .66); --cov-band-line: #2C4152;
+  --ins-band: #3F5A6E; --ins-band-ink: #E4EBF0; --ins-band-line: rgba(0, 0, 0, .3);
+  --cov-border: #3D5163; --ins-border: #486478;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body {
+  background: var(--canvas); color: var(--ink);
+  font-family: var(--sans); font-size: 13px; line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+.num, table, input, select, .mono { font-variant-numeric: tabular-nums; }
+.mono { font-family: var(--mono); }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.micro { font-size: 9.5px; font-weight: 600; letter-spacing: .07em;
+         text-transform: uppercase; color: var(--ink-3); }
+.spacer { flex: 1; }
+.muted  { color: var(--ink-4); }
+[hidden] { display: none !important; }
+
+/* ══════════════════════════════ SHELL ════════════════════════════════ */
+.app {
+  display: grid; grid-template-rows: 46px auto 1fr 24px;
+  height: 100vh; min-width: 900px;
+}
+
+.topbar {
+  display: flex; align-items: center; gap: 14px; padding: 0 14px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+/* The brand block doubles as the tool switcher. It stays visually quiet until
+   hovered so it reads as a title first and a control second. */
+.brand { position: relative; display: flex; align-items: center; }
+.mark {
+  width: 22px; height: 22px; border-radius: var(--r);
+  background: var(--accent); color: var(--on-accent);
+  display: grid; place-items: center; font-size: 10px; font-weight: 700;
+  flex: none;
+}
+.brand-name { font-size: 13px; font-weight: 650; letter-spacing: -.01em; }
+.brand-sub  { font-size: 9.5px; color: var(--ink-4); letter-spacing: .05em; text-transform: uppercase; }
+
+.brand-select {
+  display: flex; align-items: center; gap: 9px;
+  padding: 3px 7px 3px 4px;
+  border: 1px solid transparent; border-radius: var(--r);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.brand-select:hover { background: var(--surface-sunk); border-color: var(--line); }
+.brand-select[aria-expanded="true"] { background: var(--surface-sunk); border-color: var(--line-strong); }
+.brand-txt { display: flex; flex-direction: column; line-height: 1.25; }
+.brand-caret { font-size: 9px; color: var(--ink-4); margin-left: 1px; }
+
+.brand-menu {
+  position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+  min-width: 250px; padding: 3px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-radius: var(--r); box-shadow: 0 8px 24px rgba(0, 0, 0, .14);
+}
+.brand-opt {
+  display: flex; align-items: center; gap: 9px; width: 100%;
+  padding: 6px 8px; border: 0; border-radius: var(--r);
+  background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.brand-opt:hover { background: var(--surface-sunk); }
+.brand-opt[aria-selected="true"] { background: var(--accent-soft); }
+.brand-opt-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
+.brand-opt-name { font-size: 12.5px; font-weight: 600; }
+.brand-opt-note { font-size: 10px; color: var(--ink-4); }
+.brand-opt .tick { margin-left: auto; color: var(--accent); font-size: 11px; font-weight: 700; }
+.divider-v  { width: 1px; height: 22px; background: var(--line); flex: none; }
+.policy-id .pn { font-size: 12.5px; font-weight: 620; }
+.policy-id .ps { font-size: 10px; color: var(--ink-4); }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px; height: 21px; padding: 0 9px;
+  border: 1px solid var(--line); border-radius: 11px;
+  font-size: 10.5px; font-weight: 550; color: var(--ink-2);
+  background: var(--surface-sunk); white-space: nowrap;
+}
+.chip--warn { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); }
+.chip--edit { background: var(--edit-soft); border-color: var(--edit-line); color: var(--edit); }
+.dot { width: 6px; height: 6px; border-radius: 50%; flex: none; display: inline-block; margin-right: 5px; }
+.dot--ok { background: var(--pos); } .dot--err { background: var(--neg); }
+.dot--warn { background: var(--warn); } .dot--idle { background: var(--ink-4); }
+
+.btn {
+  height: 27px; padding: 0 11px;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 11.5px; font-weight: 550; cursor: pointer;
+  display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover:not(:disabled) { background: var(--surface-sunk); border-color: var(--ink-4); }
+.btn:disabled { opacity: .42; cursor: not-allowed; }
+.btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.btn--primary:hover:not(:disabled) { background: var(--accent-2); border-color: var(--accent-2); }
+.btn--danger { color: var(--neg); }
+.btn--danger:hover:not(:disabled) { background: var(--neg-soft); border-color: var(--neg); }
+.btn--icon { width: 27px; padding: 0; justify-content: center; }
+.btn--sm { height: 21px; padding: 0 7px; font-size: 10.5px; }
+
+/* ── Tabs ───────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex; align-items: flex-end; padding: 0 14px;
+  background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.tab {
+  height: 33px; padding: 0 15px; border: 0; background: none;
+  border-bottom: 2px solid transparent;
+  color: var(--ink-3); font: inherit; font-size: 12px; font-weight: 550; cursor: pointer;
+}
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); font-weight: 650; }
+.asof { font-size: 10px; color: var(--ink-4); padding-bottom: 9px; }
+/* The tab buttons are generated into this span; `contents` makes it vanish
+   from the flex layout so the buttons sit directly in the bar. */
+.tab-list { display: contents; }
+
+
+.viewport { overflow-y: auto; }
+.pane { padding: 12px 14px 40px; }
+
+.statusbar {
+  display: flex; align-items: center; gap: 14px; padding: 0 14px;
+  background: var(--surface); border-top: 1px solid var(--line);
+  font-size: 10px; color: var(--ink-4);
+}
+
+/* ══════════════════════════ HOME GRID ════════════════════════════════ */
+/* Two-thirds / one-third split. `.split` is the generic form; `.home-grid`
+   is the same thing under its original name, kept so the Inforce markup does
+   not have to change. */
+.home-grid, .split {
+  display: grid; grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px; align-items: start;
+}
+.col-cov, .split-main { grid-column: span 2; min-width: 0; }
+.col-pol, .split-side { grid-column: span 1; min-width: 0; position: sticky; top: 0; }
+@media (max-width: 1240px) {
+  .home-grid, .split { grid-template-columns: minmax(0, 1fr); }
+  .col-cov, .col-pol, .split-main, .split-side { grid-column: span 1; }
+  .col-pol, .split-side { position: static; }
+}
+
+/* ══════════════════════════════ CARD ═════════════════════════════════ */
+.card {
+  background: var(--surface); border: 1px solid var(--line);
+  border-radius: var(--r); margin-bottom: 10px;
+}
+.card-head {
+  display: flex; align-items: center; gap: 9px; min-height: 30px; padding: 4px 10px;
+  background: var(--surface-head); border-bottom: 1px solid var(--line-hair);
+}
+.card-title { font-size: 12px; font-weight: 650; }
+.card-note  { font-size: 10px; color: var(--ink-4); }
+.card-foot {
+  display: flex; align-items: center; gap: 8px; padding: 7px 10px;
+  background: var(--surface-sunk); border-top: 1px solid var(--line-hair);
+}
+.card-body { padding: 9px 10px; }
+
+/* Sidebar containers carry the same treatment as a coverage container: the
+   dark green band on top, the same outline around the box. */
+.card--out { border-color: var(--cov-border); }
+.card-head--band {
+  background: var(--cov-band);
+  border-bottom: 1px solid var(--cov-band-line);
+}
+.card-head--band .card-title { color: var(--cov-band-ink); }
+.card-head--band .card-note  { color: var(--cov-band-sub); }
+/* The policy-number chip inverts the band, matching the coverage number badge.
+   A gold "changed" chip keeps its own colours — it is already light enough to
+   read on the band, and its meaning must not be diluted. */
+.card-head--band .chip:not(.chip--edit) {
+  background: var(--cov-band-ink); color: var(--cov-band);
+  border-color: transparent; font-weight: 700;
+}
+
+/* ── Results strip (Optimizer-only: Input & Results tab) ────────────────
+   One thin row above the Coverage/Insured Input containers, holding the
+   calculated headline figures. Plain text, never an input — these are engine
+   outputs the operator never sets by hand, and the row stays a fraction of
+   the height of the containers below it by design: label above value, tight
+   padding, no card-head band of its own. */
+.resultbar {
+  display: flex; align-items: stretch;
+  background: var(--surface); border: 1px solid var(--cov-border);
+  border-radius: var(--r); margin-bottom: 12px; overflow-x: auto;
+}
+.resultbar-tag {
+  flex: none; display: flex; align-items: center; padding: 0 12px;
+  background: var(--cov-band); color: var(--cov-band-ink);
+  font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase;
+  border-radius: var(--r) 0 0 var(--r); white-space: nowrap;
+}
+.rs {
+  flex: 1; min-width: 132px;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  padding: 6px 14px;
+  border-right: 1px solid var(--line-hair);
+}
+.rs:last-child { border-right: 0; }
+.rs-k {
+  font-size: 9px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--ink-4); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rs-v {
+  font-size: 12.5px; font-weight: 650; color: var(--ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.rs-v.is-empty { color: var(--ink-4); font-weight: 400; }
+/* Settings reuses this exact cell for a live control (input/select/switch)
+   instead of plain text — give it the same full-cell width .insured-fields
+   already establishes for the same reason. */
+.rs .fi { width: 100%; }
+
+/* ── Settings panel (Optimizer-only) ──────────────────────────────────────
+   Reference Date through Prem. Adj. $ Dur. (7 fields — § 2a), full width,
+   standalone above Insured Input/Coverage Input/Results. Built from the SAME
+   markup and classes as a Results-style figures strip
+   (.resultbar/.resultbar-tag/.rs/.rs-k), not a card with its own header
+   band: label on top, control below, laid out horizontally. It no longer
+   needs to match another container's height (it did, briefly, when a
+   Results strip used to sit beside it at 1/3 width — that pairing is gone
+   now that Results moved into its own richer container), so there's no
+   height pin here any more; every control just uses its ordinary size. */
+.switch {
+  flex: none; min-width: 44px; height: 20px; padding: 0 8px;
+  border: 1px solid var(--line-strong); border-radius: 10px;
+  background: var(--surface-sunk); color: var(--ink-3);
+  font: inherit; font-size: 9.5px; font-weight: 700; letter-spacing: .04em;
+  cursor: pointer;
+}
+.switch:hover { border-color: var(--ink-4); }
+.switch[aria-checked="true"] {
+  background: var(--accent); border-color: var(--accent); color: var(--on-accent);
+}
+/* ── Insured Input container (Optimizer-only) ────────────────────────────
+   Each insured is its own sub-container inside the Insured Input card,
+   banded in the same sage the Inforce insured table uses — dark band =
+   primary container, sage band = insured/secondary container, consistent
+   across both tools. */
+.insured-card {
+  border: 1px solid var(--ins-border); border-radius: var(--r);
+  margin: 8px 8px 0;
+}
+.insured-card:last-of-type { margin-bottom: 8px; }
+.insured-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 9px;
+  background: var(--ins-band); border-bottom: 1px solid var(--ins-band-line);
+  border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+}
+.insured-no {
+  flex: none;
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--ins-band-ink); color: var(--ins-band);
+  border-radius: var(--r); font-size: 10px; font-weight: 700; font-family: var(--mono);
+}
+.insured-title {
+  flex: 1; min-width: 0;
+  font-size: 11.5px; font-weight: 650; color: var(--ins-band-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Field cell primitive — unscoped, so ANY dense field grid on this page (not
+   just Insured Input any more) can drop a `.fc-row` of `.fc` cells in
+   without re-deriving this shape. Only the column WEIGHTS stay grid-specific
+   (each grid gets its own modifier class below); the shared shell — grid row
+   with a bottom border, cell padding/border-right, a control filling its
+   cell, and a higher-contrast label than the Results/Settings bar's .rs-k —
+   lives here once. A dense grid needs to read at a glance; a thin summary
+   bar does not, which is why .rs-k itself stays dim outside a .fc.
+
+   Dividers use `--ink-4`, not the shared `--line-strong` every other border
+   on the page uses — a dense grid's cell-to-cell lines were reported hard to
+   tell apart at `--line-strong`'s weight. `--line-strong` itself is left
+   alone (it's a shared token; changing it would restyle every card/field
+   border on both tools), so this reuses an existing, darker INK token
+   instead of introducing a new one. */
+.fc-row { display: grid; border-bottom: 1px solid var(--ink-4); }
+.fc-row:last-child { border-bottom: 0; }
+.fc {
+  min-width: 0; padding: 4px 6px;
+  display: flex; flex-direction: column; justify-content: center; gap: 2px;
+  border-right: 1px solid var(--ink-4);
+}
+.fc:last-child { border-right: 0; }
+.fc .fi { width: 100%; }
+.fc .rs-k { color: var(--ink-2); }
+
+/* All 7 fields on one line — Name / Sex / Rate / Birthdate / Age Calculation
+   / Age Real / Age Calculated — was a 3-then-4 two-row split; moving Insured
+   Input to 2/3 width (§2, up from the 1/3 it used to have) is what makes
+   this fit. Rate ("Preferred / Non-smoker") gets the most room of the three
+   selects, then Age Calculation ("Last Birthday"), since a <select> can't
+   ellipsis its closed value the way an overflowing text input can and so
+   clips outright rather than degrading gracefully; Sex and the two derived
+   age cells are never more than a couple of characters. Verified against
+   the longest real value in every cell (including a 30-character Name, this
+   page's own max) at 1250px, the narrowest width before the split stacks. */
+.insured-fields .fc-row--7 { grid-template-columns: 2fr 0.5fr 1.4fr 0.95fr 1.05fr 0.55fr 0.65fr; }
+
+/* ── Coverage Input container (Optimizer-only) ───────────────────────────
+   Same repeatable-record shell as an Insured Input card — .coverage-card
+   duplicates .insured-card's rules verbatim under its own names, rather than
+   sharing the classes, because a coverage nests one level deeper (an
+   insured-slot list, each slot with its own Extra Premium box) that Insured
+   Input never needed, and keeping them separate lets that structure grow
+   without retrofitting Insured Input's own docs and CSS. */
+.coverage-card {
+  border: 1px solid var(--ins-border); border-radius: var(--r);
+  margin: 8px 8px 0;
+}
+.coverage-card:last-of-type { margin-bottom: 8px; }
+.coverage-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 9px;
+  background: var(--ins-band); border-bottom: 1px solid var(--ins-band-line);
+  border-radius: calc(var(--r) - 1px) calc(var(--r) - 1px) 0 0;
+}
+.coverage-no {
+  flex: none;
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  background: var(--ins-band-ink); color: var(--ins-band);
+  border-radius: var(--r); font-size: 10px; font-weight: 700; font-family: var(--mono);
+}
+.coverage-title {
+  flex: 1; min-width: 0;
+  font-size: 11.5px; font-weight: 650; color: var(--ins-band-ink);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* All 6 coverage-level fields on one line, per the compaction request — was
+   a 3-then-3 split; the ratio of column weights (not the total count) is
+   what keeps the three cascading dropdowns' worst-case option text (a
+   Critical Illness product name, or "Joint Last-to-Die, Paid-up 1st Death")
+   from clipping, since a <select> can't ellipsis its closed value the way
+   an overflowing text input can. Fee/Calculation Type/Input never need more
+   than a short figure or two words, so they give up most of their share to
+   Category/Coverage/Coverage Type. This row also carries its own tighter
+   padding and a smaller control font (below) — the margin a 6-way split
+   leaves at this container's width doesn't support the general `.fc`
+   padding and the base 11.5px `.fi` size the way a 3-cell row did. */
+.cov-row-all { grid-template-columns: 1.6fr 1.85fr 1.65fr 0.85fr 0.8fr 0.85fr; }
+.cov-row-all .fc { padding: 2px 4px; }
+.cov-row-all .fi { font-size: 9.5px; }
+
+/* The insured(s)-on-this-coverage subcontainer. Tinted with the accent
+   (blue) soft background and a matching top border, rather than staying a
+   plain extension of the card's own surface — this box was hard to tell
+   apart from the coverage card around it otherwise; the tint gives it a
+   visually distinct zone without adding a third band colour. Each slot
+   inside is a `--accent-line`-bordered box floating on that tint, plus the
+   same .card-foot "+ Add" pattern Insured Input itself uses. */
+.cov-insured-wrap {
+  padding: 8px;
+  background: var(--accent-soft);
+  border-top: 1px solid var(--accent-line);
+  border-radius: 0 0 calc(var(--r) - 1px) calc(var(--r) - 1px);
+}
+.cov-insured-head {
+  display: flex; align-items: baseline; justify-content: space-between;
+  padding: 0 1px 6px;
+}
+.cov-ins-slot {
+  border: 1px solid var(--accent-line); border-radius: var(--r);
+  background: var(--surface); margin-top: 6px;
+}
+.cov-ins-slot:first-child { margin-top: 0; }
+.cov-ins-slot-head { display: flex; justify-content: flex-end; padding: 4px 6px 0; }
+/* One line per insured slot, Extra Premium included (was its own box below
+   this row) — Extra Premium now gets the largest share (it holds 4 controls,
+   not 1); Insured still comes next since a name can run long; Sex/Age/Rate
+   are never more than a couple of characters. */
+.cov-ins-row { grid-template-columns: 1.4fr 0.45fr 0.45fr 0.55fr 2.5fr; }
+
+/* Extra Premium's 4 sub-fields, nested inside their one cell in the row
+   above instead of a separate bordered box beneath it: a label over an
+   input, four of them side by side. `title` on each (see
+   covInsExtraMiniField) carries the full field name (e.g. "Temporary
+   $/1000") since the visible label is the shorter "Perm %"/"Perm $"/
+   "Term $"/"Term $ Dur." */
+/* Centered, unlike every other .fc label on the page — this cell's "control"
+   is 4 side-by-side sub-fields rather than 1, so a left-aligned label reads
+   as belonging to just the first of them; centered, it reads as the whole
+   cell's heading instead. */
+.cov-extra-cell > .rs-k { text-align: center; }
+.cov-extra-mini { display: flex; gap: 4px; }
+.cov-extra-f { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.cov-extra-f-k {
+  font-size: 9.5px; font-weight: 600; color: var(--ink-2); text-align: center;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.cov-extra-f .fi { padding: 0 2px; font-size: 10.5px; text-align: center; }
+
+/* ── Results container (Optimizer-only) ──────────────────────────────────
+   Right side of optInput's one .split, sticky beside the stacked Insured
+   Input + Coverage Input column. Its first subcontainer is a table (one row
+   per coverage), its second reuses .resultbar/.rs verbatim (§ "The Results
+   strip", above) for a 3-figure summary — two very different shapes inside
+   one .card, which is why only the table needs a rule of its own here.
+
+   Reuses the Inforce insured table's own classes (.ins) for the header band
+   and row dividers rather than a new set — same figures-table look already
+   established elsewhere on this page. `overflow-x: auto` stays as a safety
+   net (not .ins-wrap's own `overflow: hidden`, which clips rather than
+   scrolls), but the real fix for "fits without scrolling" is below: a fixed
+   layout with narrow, WRAPPING header/cell text, rather than the .ins
+   default of a single nowrap line per cell forcing every column as wide as
+   its longest word. */
+.results-cov-wrap {
+  margin: 8px; border: 1px solid var(--ins-border); border-radius: var(--r);
+  overflow-x: auto;
+}
+/* Selectors repeat `.ins` alongside `.results-cov-wrap` specifically to
+   out-specify `.ins thead th` / `.ins tbody td` (§ "Insured lives") — those
+   are a SHARED rule with inforce.css and must stay untouched (and must keep
+   winning everywhere else `.ins` appears), so this table's own behaviour has
+   to out-rank them by specificity, not by editing them or relying on being
+   later in the file. */
+.results-cov-wrap .ins { table-layout: fixed; }
+.results-cov-wrap .ins thead th,
+.results-cov-wrap .ins tbody td {
+  white-space: normal; word-break: break-word; line-height: 1.25;
+  padding: 3px 5px;
+}
+.results-cov-wrap .ins thead th { font-size: 8.5px; }
+.results-cov-wrap .ins tbody td { font-size: 10px; }
+/* Coverage gets a larger share (it's a full title, "N. Category —
+   Coverage"); the 5 figure columns split the rest evenly. */
+.results-cov-wrap .ins th:first-child,
+.results-cov-wrap .ins td:first-child { width: 30%; }
+
+/* ── Shared wide-table helpers (Optimizer-only) ──────────────────────────
+   Every split-off tab's own flat figures table (Coverages, Insureds, more
+   to follow — § OPTIMIZER_REFERENCE.md §2d/§2e) needs the identical "scroll
+   instead of clip" wrapper and the identical "formula not yet provided"
+   cell look; defined once here rather than once per tab file/stylesheet. */
+.table-scroll-wrap {
+  margin: 8px; border: 1px solid var(--ins-border); border-radius: var(--r);
+  overflow-x: auto;
+}
+.cell-pending { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+/* A vertical divider between column GROUPS in one of these wide tables —
+   `.ins` itself only ever separates ROWS (a bottom hairline); this is
+   stronger, and appears only where a request explicitly calls for a "hard
+   separator" between one group of columns and the next. */
+.col-hard-sep { border-left: 2px solid var(--ins-border); }
+
+/* ═══════════════════════════ COVERAGE ════════════════════════════════ */
+/* Every coverage card carries the same band. The number badge inverts the
+   band colours, so it stays the highest-contrast element in the header. */
+.cov { margin-bottom: 10px; border: 1px solid var(--cov-border); }
+.cov-head {
+  display: flex; align-items: center; gap: 8px; padding: 5px 9px;
+  background: var(--cov-band);
+  border-bottom: 1px solid var(--cov-band-line);
+}
+.cov-no {
+  display: inline-grid; place-items: center; min-width: 34px; height: 19px; padding: 0 7px;
+  background: var(--cov-band-ink); color: var(--cov-band); border-radius: var(--r);
+  font-size: 11px; font-weight: 700; letter-spacing: .02em;
+  font-family: var(--mono);
+}
+.cov-plan {
+  font-family: var(--mono); font-size: 11px; font-weight: 600;
+  color: var(--cov-band-ink);
+}
+.cov-sum { font-size: 10.5px; color: var(--cov-band-sub); }
+.cov-sum b { color: var(--cov-band-ink); font-weight: 600; }
+.cov.is-removed { opacity: .5; }
+.cov.is-removed .cov-no { text-decoration: line-through; }
+.cov.is-new .cov-head::after {
+  content: 'NEW'; font-size: 9px; font-weight: 700; letter-spacing: .06em;
+  color: var(--cov-band-ink);
+}
+
+/* ── Dense field grid: 4 columns of label/value rows ─────────────────── */
+/* One column per field group. Columns stretch to the tallest group so the
+   dividers run the full height of the card.
+
+   Queried against the coverage column, not the viewport: below 1240px the
+   home grid stacks and the coverage column goes full width, so a viewport
+   media query would collapse the columns at exactly the moment there is more
+   room for them. Browsers without container query support keep the 4-column
+   default, which is the intended layout anyway. */
+.col-cov { container-type: inline-size; }
+.fgrid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@container (max-width: 780px) { .fgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 400px) { .fgrid { grid-template-columns: minmax(0, 1fr); } }
+
+.fgroup { min-width: 0; border-right: 1px solid var(--line); }
+.fgrid > .fgroup:last-child { border-right: 0; }
+.fgroup-head {
+  font-size: 10px; font-weight: 650; letter-spacing: .06em; text-transform: uppercase;
+  color: var(--ink-3); padding: 4px 9px 3px;
+  background: var(--surface-sunk); border-bottom: 1px solid var(--line);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.fr {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center; gap: 6px;
+  padding: 2px 9px; min-height: 24px;
+  border-bottom: 1px solid var(--line-hair);
+}
+.fgroup .fr:last-child { border-bottom: 0; }
+.fk {
+  font-size: 11px; color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* Editable inputs stay neutral. Gold is reserved for a value that differs
+   from the extract — if every editable field were tinted, the one field the
+   operator actually changed would stop standing out. */
+.fi {
+  width: 92px; height: 19px; padding: 0 5px; text-align: right;
+  border: 1px solid var(--line); border-radius: var(--r);
+  background: var(--surface); color: var(--ink);
+  font: inherit; font-size: 11.5px; font-weight: 550;
+}
+.fi--txt { text-align: left; }
+.fi:hover { border-color: var(--line-strong); }
+.fi:focus { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: -2px; }
+.fi--bad  { border-color: var(--neg); background: var(--neg-soft); color: var(--neg); }
+
+/* Read-only: sunk, dashed and muted. Editable fields are now the minority, so
+   the styling makes them the salient ones rather than flagging every lock. */
+.fi--ro {
+  background: var(--surface-sunk);
+  border: 1px dashed var(--line-strong);
+  color: var(--ink-3); font-weight: 500;
+  cursor: default;
+}
+.fi--ro:hover { border-color: var(--line-strong); }
+.fi--ro:focus { outline: none; border-color: var(--line-strong); }
+.fi--ro::placeholder { color: var(--ink-4); }
+select.fi { width: 92px; padding: 0 2px; }
+
+.fr.is-chg { background: var(--edit-soft); }
+.fr.is-chg .fk { color: var(--edit); font-weight: 600; }
+.fr.is-chg .fk::after { content: ' CF'; font-size: 8px; }
+.fr.is-chg .fi { background: var(--surface); border-color: var(--edit); }
+
+/* ── Insured lives ──────────────────────────────────────────────────── */
+.ins-wrap {
+  margin: 7px; border: 1px solid var(--ins-border);
+  border-radius: var(--r); overflow: hidden;
+}
+.ins { width: 100%; border-collapse: collapse; font-size: 11.5px; }
+.ins thead th {
+  font-size: 10.5px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase;
+  color: var(--ins-band-ink); text-align: left; padding: 4px 9px;
+  background: var(--ins-band); border-bottom: 1px solid var(--ins-band-line);
+  white-space: nowrap;
+}
+.ins th.r, .ins td.r { text-align: right; }
+.ins tbody td { padding: 3px 9px; border-bottom: 1px solid var(--line-hair); white-space: nowrap; }
+.ins tbody tr:last-child td { border-bottom: 0; }
+.ins tbody tr.is-removed td { opacity: .5; text-decoration: line-through; }
+.ins td.act { width: 1%; text-align: right; padding: 2px 9px; }
+.ins td { vertical-align: middle; }
+.ins .fi { height: 19px; }
+.fi--name { width: 100%; min-width: 130px; }
+.fi::placeholder { color: var(--ink-4); font-weight: 400; }
+
+/* ══════════════════════════ POLICY SIDEBAR ═══════════════════════════ */
+.kv {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px; align-items: center;
+  padding: 3px 10px; min-height: 24px;
+  border-bottom: 1px solid var(--line-hair);
+}
+.kv:last-child { border-bottom: 0; }
+.kv dt { font-size: 12px; color: var(--ink-3); }
+.kv dd { font-size: 12px; font-weight: 550; text-align: right; }
+.kv dd.is-empty { color: var(--ink-4); font-weight: 400; }
+.kv .fi { width: 110px; font-size: 12px; }
+.kv.is-chg { background: var(--edit-soft); }
+.kv.is-chg dt { color: var(--edit); font-weight: 600; }
+.kv.is-chg .fi { border-color: var(--edit); }
+.kv.is-total { background: var(--surface-sunk); }
+.kv.is-total dt { color: var(--ink-2); font-weight: 600; }
+.kv.is-total dd { font-weight: 650; }
+
+.grouphead {
+  padding: 6px 10px 5px;
+  background: var(--ins-band);
+  border-top: 1px solid var(--ins-border);
+  border-bottom: 1px solid var(--ins-border);
+}
+.grouphead .micro { font-size: 10.5px; color: var(--ins-band-ink); }
+
+.inline-form {
+  padding: 8px 10px; background: var(--accent-soft);
+  border-top: 1px solid var(--accent-line); border-bottom: 1px solid var(--accent-line);
+}
+.inline-form .row { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
+.inline-form label { flex: 1; font-size: 11px; color: var(--ink-2); }
+.inline-form input {
+  width: 110px; height: 21px; padding: 0 5px; text-align: right;
+  border: 1px solid var(--line-strong); border-radius: var(--r);
+  background: var(--surface); color: var(--ink); font: inherit; font-size: 11.5px;
+}
+.inline-form .acts { display: flex; gap: 6px; justify-content: flex-end; margin-top: 7px; }
+
+/* ══════════════════════════ CHANGE LOG ═══════════════════════════════ */
+.diff { width: 100%; border-collapse: collapse; font-size: 11px; }
+.diff thead th {
+  font-size: 9px; font-weight: 600; letter-spacing: .055em; text-transform: uppercase;
+  color: var(--ink-4); text-align: left; padding: 4px 10px;
+  background: var(--surface-sunk); border-bottom: 1px solid var(--line-hair);
+}
+.diff th.r, .diff td.r { text-align: right; }
+.diff tbody td { padding: 3px 10px; border-bottom: 1px solid var(--line-hair); font-variant-numeric: tabular-nums; }
+.diff tbody tr:last-child td { border-bottom: 0; }
+.diff .from { color: var(--ink-4); text-decoration: line-through; }
+.diff .to   { color: var(--edit); font-weight: 600; }
+.diff .where { font-family: var(--mono); font-size: 10px; }
+.tag {
+  display: inline-block; padding: 0 4px; border-radius: 2px;
+  font-size: 8.5px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase;
+}
+.tag--mod { background: var(--edit-soft); color: var(--edit); }
+.tag--add { background: var(--accent-soft); color: var(--accent); }
+.tag--del { background: var(--neg-soft); color: var(--neg); }
+
+/* ══════════════════════════ EMPTY / MISC ═════════════════════════════ */
+.empty { display: grid; place-items: center; min-height: calc(100vh - 200px); padding: 30px 16px; }
+.drop {
+  width: 100%; max-width: 560px; background: var(--surface);
+  border: 1px dashed var(--line-strong); border-radius: var(--r);
+  padding: 34px 30px; text-align: center;
+}
+.drop.is-over { border-color: var(--accent); background: var(--accent-soft); }
+.drop h2 { font-size: 15px; font-weight: 650; margin-bottom: 5px; }
+.drop p  { font-size: 12px; color: var(--ink-3); margin-bottom: 16px; }
+.drop .acts { display: flex; gap: 8px; justify-content: center; }
+.drop .fmt {
+  margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line-hair);
+  font-size: 10.5px; color: var(--ink-4); text-align: left;
+}
+.drop .fmt code { font-family: var(--mono); font-size: 10px; color: var(--ink-3); }
+.drop .fmt .micro { margin-bottom: 4px; }
+.drop .fmt .warnline { margin-top: 6px; color: var(--warn); }
+
+.proj-slot {
+  min-height: 340px; display: grid; place-items: center; align-content: center;
+  background: var(--surface-sunk); border: 1px dashed var(--line-strong);
+  border-radius: var(--r); margin: 10px; padding: 24px; text-align: center;
+}
+.proj-slot .t { font-size: 12.5px; font-weight: 600; color: var(--ink-2); margin-bottom: 4px; }
+.proj-slot .s { font-size: 11px; color: var(--ink-4); max-width: 460px; line-height: 1.55; }
+
+.toast {
+  position: fixed; right: 14px; bottom: 34px; z-index: 40;
+  max-width: 380px; padding: 8px 11px;
+  background: var(--surface); border: 1px solid var(--line-strong);
+  border-left: 2px solid var(--accent); border-radius: var(--r);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, .13);
+  font-size: 11.5px; color: var(--ink-2);
+  opacity: 0; transform: translateY(6px); pointer-events: none;
+  transition: opacity .12s, transform .12s;
+}
+.toast.show { opacity: 1; transform: none; }
+.toast--err { border-left-color: var(--neg); color: var(--neg); }

@@ -1,0 +1,21 @@
+/* ===========================================================================
+   Coverage Optimizer — History / Save Test
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html) — see
+   OPTIMIZER_REFERENCE.md §1/§2d/§2e for why a split-off tab gets its own file
+   pair. Uses existing tokens/classes wherever they already fit (.card,
+   .card--out, .card-head--band, .ins, .table-scroll-wrap, .btn, .proj-slot,
+   …); the only thing genuinely new here is sizing the two top-bar controls
+   (Test Case Name, Username) to match the 27px-tall theme-toggle button they
+   sit beside — the base `.fi` class defaults to a dense 19px, tuned for
+   table/row cells, not a title-bar. Those controls live in optimizer.html's
+   static markup (topbar isn't tab-generated), but this whole feature — bar
+   controls included — is one file/CSS pair (§ optimizer_history.js header).
+   =========================================================================== */
+
+#tcName, #tcUser { height: 27px; }
+#tcName { width: 170px; }
+
+/* Reserved hook, same convention as .ins-tab-table/.cov-tab-table/
+   .bd-tab-table — no rule needed yet, kept for consistency. */
+.hist-tab-table {}

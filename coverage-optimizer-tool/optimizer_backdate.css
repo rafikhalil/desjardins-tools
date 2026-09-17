@@ -1,0 +1,55 @@
+/* ===========================================================================
+   Coverage Optimizer — Backdate tab
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html) — see
+   OPTIMIZER_REFERENCE.md §1/§2d/§2e for why a split-off tab gets its own file
+   pair. Uses existing tokens/classes from optimizer.css (.card, .card--out,
+   .card-head--band, .ins, .table-scroll-wrap, .cell-pending, .proj-slot, …)
+   wherever they already fit; the one thing genuinely new here is the 3-figure
+   strip embedded IN a container's own card-head--band (Illustration Date /
+   Max. Backdate Date / Final Backdate Date) — that placement doesn't exist
+   anywhere else on the page yet, so it needs its own small component.
+   =========================================================================== */
+
+/* `.rs-k`/`.rs-v` (optimizer.css) already is a "micro label over a value"
+   pair, but it's tuned for a light .resultbar background; the dark
+   .card-head--band needs its own light-on-dark variant rather than reusing
+   .rs-k/.rs-v somewhere they were never styled for. Deliberately NOT `.chip`
+   either — `.card-head--band .chip:not(.chip--edit)` (optimizer.css, shared
+   with inforce.css) force-inverts every chip in a band to the band's own
+   colours, which would swallow the amber "pending" look Final Backdate Date
+   needs; a new class sidesteps that collision instead of touching a shared
+   rule for one page-local case. */
+.bd-band-figs { display: flex; align-items: stretch; flex: none; }
+.bd-band-fig {
+  display: flex; flex-direction: column; justify-content: center; gap: 1px;
+  padding: 2px 12px; border-left: 1px solid var(--cov-band-line);
+  white-space: nowrap;
+}
+.bd-band-fig:first-child { border-left: 0; padding-left: 0; }
+.bd-band-fig-k {
+  font-size: 8.5px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase;
+  color: var(--cov-band-sub);
+}
+.bd-band-fig-v { font-size: 11.5px; font-weight: 650; color: var(--cov-band-ink); }
+
+/* Final Backdate Date — its formula isn't provided yet, same amber/"warn"
+   pending semantic core.pendingCell() uses for a table cell (reused tokens,
+   not a new colour); a filled pill reads on its own regardless of the dark
+   band sitting behind it. */
+.bd-band-fig--warn {
+  background: var(--warn-soft); border: 1px solid var(--warn); border-radius: var(--r);
+  padding: 2px 10px;
+}
+.bd-band-fig--warn .bd-band-fig-k,
+.bd-band-fig--warn .bd-band-fig-v { color: var(--warn); }
+
+/* Backdate Projection's own table has no formula for any of its 6 columns
+   yet, so every HEADER cell wears core.pendingCell()'s amber "pending" look
+   instead of just individual body cells (there are no body rows to carry it
+   yet either). `.cell-pending` alone loses to `.ins thead th`'s own
+   background/colour (more specific — one more class+type than a bare
+   class) — out-specify it the same way `.results-cov-wrap .ins thead th`
+   already does for the same reason, scoped to this table only rather than
+   touching the shared `.ins thead th` rule itself. */
+.bd-proj-table thead th.cell-pending { background: var(--warn-soft); color: var(--warn); }

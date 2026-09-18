@@ -1579,7 +1579,10 @@
     var typeChar = c.covType === 'Individual' ? '_' : (c.covType === 'Joint First-to-Die' ? 'C' : null);
     var coverageCode = COVERAGE_ABBR[c.coverage];
     if (typeChar === null || !coverageCode || !slot.rate) return null;
-    var mcdBlock = settings.mcd ? 'RMC_2509_' : '____2509_';
+    // Joint First-to-Die has no MCD-rated table — the block stays blank
+    // (no rate would be found under "_RMC_") even when Has MCD is TRUE.
+    var mcdOn = settings.mcd && c.covType !== 'Joint First-to-Die';
+    var mcdBlock = mcdOn ? 'RMC_2509_' : '____2509_';
     return 'DT' + typeChar + coverageCode + '______' + mcdBlock + ins.sex + insuredRateCode(ins) + slot.rate + '_';
   }
 

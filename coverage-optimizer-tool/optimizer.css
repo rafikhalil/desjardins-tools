@@ -529,6 +529,10 @@ body {
   overflow-x: auto;
 }
 .cell-pending { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+/* A rate lookup that ran but could not resolve to a real number (no axis
+   key yet, no rate file loaded, no matching row, …) — distinct from
+   .cell-pending, which means "no formula coded yet" (Rates tab, PR_N/PR_BD_N). */
+.cell-error { background: var(--neg-soft); color: var(--neg); font-weight: 600; }
 /* A vertical divider between column GROUPS in one of these wide tables —
    `.ins` itself only ever separates ROWS (a bottom hairline); this is
    stronger, and appears only where a request explicitly calls for a "hard

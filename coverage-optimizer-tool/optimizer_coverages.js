@@ -74,7 +74,8 @@
   }
 
   function modalFactorFor() {
-    return core.settings.freq === 'annually' ? '1.00' : '0.09';
+    var freq = core.settings.freq;
+    return freq === 'annually' ? '1.00' : freq === 'monthly' ? '0.09' : '—';   // blank frequency → no factor
   }
 
   function moneyOrDash(v) {
@@ -89,9 +90,9 @@
     var s = core.settings;
     return '<tr>' +
         '<td class="r">' + (idx + 1) + '</td>' +
-        '<td class="r">' + (s.freq === 'annually' ? 'Annually' : 'Monthly') + '</td>' +
-        '<td class="r">' + core.esc(core.COVERAGE_CATEGORY_MAP[c.category]) + '</td>' +
-        '<td class="r">' + core.esc(core.COVERAGE_ABBR[c.coverage] || c.coverage) + '</td>' +
+        '<td class="r">' + (s.freq === 'annually' ? 'Annually' : s.freq === 'monthly' ? 'Monthly' : '—') + '</td>' +
+        '<td class="r">' + core.esc(core.COVERAGE_CATEGORY_MAP[c.category] || '—') + '</td>' +
+        '<td class="r">' + core.esc(core.COVERAGE_ABBR[c.coverage] || c.coverage || '—') + '</td>' +
         '<td class="r">' + core.group(s.premAdjPct, core.decimals(s.premAdjPct)) + '</td>' +
         '<td class="r">' + core.group(s.premAdjPctDur, 0) + '</td>' +
         '<td class="r">' + core.group(s.premAdjAmt, 2) + '</td>' +

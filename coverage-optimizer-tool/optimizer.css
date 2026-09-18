@@ -66,6 +66,13 @@
   --cov-border:    #2A4256;
   --ins-border:    #5C7E93;
 
+  /* The Joint container under a Permanent Life joint coverage's insureds
+     (.cov-joint-slot) — a mint, so it reads apart from the two white insured
+     boxes above it without borrowing a status colour (amber/red/gold are
+     spoken for). */
+  --joint:         #9DD4BC;
+  --joint-line:    #6DAF93;
+
   --r:    2px;
   --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
   --sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
@@ -87,6 +94,7 @@
   --cov-band-sub: rgba(220, 229, 235, .66); --cov-band-line: #2C4152;
   --ins-band: #3F5A6E; --ins-band-ink: #E4EBF0; --ins-band-line: rgba(0, 0, 0, .3);
   --cov-border: #3D5163; --ins-border: #486478;
+  --joint: #24483A; --joint-line: #3F7A62;
 }
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html, body { height: 100%; }
@@ -481,6 +489,19 @@ body {
 }
 .cov-extra-f .fi { padding: 0 2px; font-size: 10.5px; text-align: center; }
 
+/* The Joint container (optimizer.js covJointSlot) — the same slot-shaped box
+   and .cov-ins-row grid as an insured, tinted mint. Its labels are longer than
+   a slot's ("Joint Sex", "Flat Extra Prem. $ Duration") in the same narrow
+   columns, so they wrap here instead of ellipsizing, and each control is
+   pinned to the bottom of its cell so the boxes still line up across the row
+   whichever labels took two lines. */
+.cov-joint-slot { background: var(--joint); border-color: var(--joint-line); }
+.cov-joint-slot .cov-ins-slot-head { justify-content: flex-start; }
+.cov-joint-slot .fc,
+.cov-joint-slot .cov-extra-f { justify-content: space-between; }
+.cov-joint-slot .rs-k,
+.cov-joint-slot .cov-extra-f-k { white-space: normal; line-height: 1.15; }
+
 /* ── Results container (Optimizer-only) ──────────────────────────────────
    Right side of optInput's one .split, sticky beside the stacked Insured
    Input + Coverage Input column. Its first subcontainer is a table (one row
@@ -613,6 +634,12 @@ body {
 .fi--txt { text-align: left; }
 .fi:hover { border-color: var(--line-strong); }
 .fi:focus { border-color: var(--focus); outline: 2px solid var(--focus); outline-offset: -2px; }
+/* A required Insured Input / Coverage Input field still waiting on the
+   operator — the amber "attention" pair .cell-pending uses, not a new colour.
+   The class is derived from the record on every render (optimizer.js
+   needCls), so it drops off the moment a value is filled in. Sits before
+   .fi--bad so a value that is also invalid still reads red. */
+.fi--need { border-color: var(--warn); background: var(--warn-soft); }
 .fi--bad  { border-color: var(--neg); background: var(--neg-soft); color: var(--neg); }
 
 /* Read-only: sunk, dashed and muted. Editable fields are now the minority, so

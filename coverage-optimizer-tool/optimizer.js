@@ -198,8 +198,12 @@
      created — Remove is always a hard delete, never a soft withdraw. */
   var INSURED_FIELDS = [
     { k: 'name', l: 'Name', t: 'txt', maxLen: 30 },
-    { k: 'sex', l: 'Sex', t: 'enum', opts: [['M', 'M'], ['F', 'F']] },
-    { k: 'rate', l: 'Rate', t: 'enum',
+    // `blank: true` — starts unset (''); the dropdown gets a leading "— Select —"
+    // option (blankOpt) and validateIns lets it be chosen again to clear. A
+    // string instead of `true` is that option's own label — Sex's column is
+    // only wide enough for "M"/"F", so its blank option is a bare "—".
+    { k: 'sex', l: 'Sex', t: 'enum', blank: '—', opts: [['M', 'M'], ['F', 'F']] },
+    { k: 'rate', l: 'Rate', t: 'enum', blank: true,
       opts: [['pref', 'Preferred / Non-smoker'], ['reg', 'Regular / Smoker']] },
     { k: 'birthdate', l: 'Birthdate', t: 'date', ph: 'DD-MMM-YYYY' },
     { k: 'ageCalc', l: 'Age Calculation', t: 'enum',
@@ -216,7 +220,7 @@
   function validateIns(f, raw) {
     var s = typeof raw === 'string' ? raw.trim() : raw;
     if (s === '' || s === null || s === undefined) {
-      return { ok: false, msg: f.l + ' is required' };
+      return f.blank ? { ok: true, v: '' } : { ok: false, msg: f.l + ' is required' };
     }
 
     if (f.t === 'txt') {
@@ -249,13 +253,30 @@
     return { ok: true, v: fmtDate(dt) };
   }
 
+  /* Two small pieces shared by every field that can start unset (Insured
+     Input, Coverage Input, Settings' Payment Frequency):
+       blankOpt — the leading "— Select —" <option> of an enum flagged
+         `blank: true`, selected while the value is blank. Without it a blank
+         value matches no <option> and the browser DISPLAYS the first real one
+         — the same display/model split covRateControl's own comment describes.
+       needCls  — ` fi--need`, the yellow "still to fill in" highlight, while a
+         value is blank. Derived from the record on every render, never
+         stored, so it disappears the moment a value lands. */
+  function blankOpt(f, v) {
+    return f.blank ? '<option value=""' + (v ? '' : ' selected') + '>' + (f.blank === true ? '— Select —' : f.blank) + '</option>' : '';
+  }
+  function needCls(v) {
+    return (v === '' || v === null || v === undefined) ? ' fi--need' : '';
+  }
+
   function insControl(f, v, fk) {
+    var need = needCls(v);
     if (f.t === 'enum') {
-      return '<select class="fi" data-fk="' + fk + '">' + f.opts.map(function (o) {
+      return '<select class="fi' + need + '" data-fk="' + fk + '">' + blankOpt(f, v) + f.opts.map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
       }).join('') + '</select>';
     }
-    return '<input class="fi fi--txt" data-fk="' + fk + '"' +
+    return '<input class="fi fi--txt' + need + '" data-fk="' + fk + '"' +
            ' value="' + esc(v) + '" spellcheck="false" autocomplete="off"' +
            (f.ph ? ' placeholder="' + esc(f.ph) + '"' : '') +
            (f.maxLen ? ' maxlength="' + f.maxLen + '"' : '') + '>';
@@ -288,8 +309,8 @@
     return {
       _id: 'ins' + (++insSeq),
       name: nextInsuredName(),
-      sex: 'M',
-      rate: 'pref',
+      sex: '',                 // no default — the operator picks (highlighted until then)
+      rate: '',                // no default — same
       birthdate: '',
       ageCalc: 'nearest'
     };
@@ -416,6 +437,7 @@
     var f = resolveIns(el.dataset.fk).f;
     if (!f) return;
     el.classList.toggle('fi--bad', !validateIns(f, el.value).ok);
+    if (el.tagName === 'INPUT') el.classList.toggle('fi--need', el.value.trim() === '');   // clears as they type
   }
 
   function initInsuredInput() {
@@ -445,7 +467,7 @@
   var settings = {
     refDate: todayStr(),
     mcd: false,            // Multi-Coverage Discount — no stated default; off until the operator opts in
-    freq: 'monthly',       // Payment Frequency — no stated default; Monthly chosen as the common case
+    freq: '',              // Payment Frequency — no default; blank until the operator picks one
     premAdjPct: 100,       // Prem. Adj. % — 100% ("unchanged") is the stated default for a multiplicative factor
     premAdjPctDur: 0,      // Prem. Adj. % Dur. — stated default; see the field's own `min: 0` note below
     premAdjAmt: 0,         // Prem. Adj. $ — stated default, an additive adjustment so 0 means "none"
@@ -454,7 +476,7 @@
 
   var SETTINGS_FIELDS = [
     { k: 'refDate', l: 'Reference Date', t: 'date', ph: 'DD-MMM-YYYY' },
-    { k: 'freq', l: 'Payment Frequency', t: 'enum',
+    { k: 'freq', l: 'Payment Frequency', t: 'enum', blank: true,
       opts: [['monthly', 'Monthly'], ['annually', 'Annually']] },
     { k: 'premAdjPct', l: 'Prem. Adj. %', t: 'pct', min: 0, max: 1000000, u: '%' },
     // Specified range is "1 to 999", but the specified DEFAULT is 0 — outside
@@ -474,10 +496,13 @@
      once Settings grew the 4 Prem. Adj. fields — date/enum were the only
      two types here before that. None of these fields are optional: unlike
      Coverage Input's numeric fields, every Settings field always holds
-     something, even if that something is a stated default of 0. */
+     something, even if that something is a stated default of 0 — except
+     Payment Frequency, which starts blank (`blank: true`). */
   function validateSettings(f, raw) {
     var s = typeof raw === 'string' ? raw.trim() : raw;
-    if (s === '' || s === null || s === undefined) return { ok: false, msg: f.l + ' is required' };
+    if (s === '' || s === null || s === undefined) {
+      return f.blank ? { ok: true, v: '' } : { ok: false, msg: f.l + ' is required' };
+    }
 
     if (f.t === 'date') {
       var dt = parseDate(s);
@@ -515,7 +540,7 @@
   function settingsControl(f) {
     var fk = 'set|' + f.k, v = settings[f.k];
     if (f.t === 'enum') {
-      return '<select class="fi" data-fk="' + fk + '">' + f.opts.map(function (o) {
+      return '<select class="fi" data-fk="' + fk + '">' + blankOpt(f, v) + f.opts.map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
       }).join('') + '</select>';
     }
@@ -690,17 +715,28 @@
     return [];
   }
 
-  /* Individual = exactly one insured slot. Joint First-to-Die = up to 5
-     (Term Life or Permanent Life, same cap either way). Joint Last-to-Die
+  /* Individual = exactly one insured slot. Joint First-to-Die = up to 5 for
+     Term Life but only 2 for Permanent Life (it used to be 5 for both), so
+     the cap depends on Category as well as Coverage Type. Joint Last-to-Die
      and Joint Last-to-Die, Paid-up 1st Death (Permanent Life only) = exactly
      2 — a "last to die" benefit is only meaningful between two lives. An
      unset Coverage Type (today, only the CI categories, whose Coverage Type
      isn't implemented yet) is treated as Individual — the conservative
      single-insured default until that logic exists. */
-  function maxInsuredsFor(covType) {
-    if (covType === 'Joint First-to-Die') return 5;
+  function maxInsuredsFor(category, covType) {
+    if (covType === 'Joint First-to-Die') return category === 'permLife' ? 2 : 5;
     if (covType === 'Joint Last-to-Die' || covType === 'Joint Last-to-Die, Paid-up 1st Death') return 2;
     return 1;
+  }
+
+  /* Permanent Life with any joint Coverage Type — the one combination that
+     gets the third, "Joint" container under a coverage's insured slots in
+     Coverage Input (covJointSlot), and whose Axis Key uses the fixed joint
+     Sex/Rate below instead of an insured's own. */
+  var JOINT_SEX = 'M', JOINT_RATE = 'N';
+  function isJointPerm(c) {
+    return c.category === 'permLife' && (c.covType === 'Joint First-to-Die' ||
+      c.covType === 'Joint Last-to-Die' || c.covType === 'Joint Last-to-Die, Paid-up 1st Death');
   }
 
   /* Term Life has 3 preferred / 2 regular rate codes; every other category
@@ -722,12 +758,16 @@
      read as one line, not two: Category through Input). See coverageCard().
      `coverage` and `covType`'s option lists depend on the record itself,
      hence `optsFn` instead of a fixed `opts` array — the generic enum
-     handling below calls whichever is present. */
+     handling below calls whichever is present.
+
+     `blank: true` — starts unset (''); the dropdown gets a leading "— Select —"
+     option (blankOpt) and validateCov lets it be chosen again to clear.
+     `need: true` — highlighted yellow (needCls) while the field is blank. */
   var COV_FIELDS = [
-    { k: 'category', l: 'Coverage Category', t: 'enum', opts: COVERAGE_CATEGORIES },
-    { k: 'coverage', l: 'Coverage', t: 'enum',
-      optsFn: function (rec) { return COVERAGE_OPTIONS[rec.category].map(function (s) { return [s, s]; }); } },
-    { k: 'covType', l: 'Coverage Type', t: 'enum',
+    { k: 'category', l: 'Coverage Category', t: 'enum', blank: true, need: true, opts: COVERAGE_CATEGORIES },
+    { k: 'coverage', l: 'Coverage', t: 'enum', blank: true, need: true,
+      optsFn: function (rec) { return (COVERAGE_OPTIONS[rec.category] || []).map(function (s) { return [s, s]; }); } },
+    { k: 'covType', l: 'Coverage Type', t: 'enum', blank: true, need: true,
       optsFn: function (rec) { return covTypeOptions(rec.category, rec.coverage).map(function (s) { return [s, s]; }); } },
     { k: 'fee', l: 'Coverage Fee', t: 'money', min: 0, max: 999999999.99, dec: 2, opt: 1, u: 'CAD' },
     { k: 'calcType', l: 'Calculation Type', t: 'enum',
@@ -735,7 +775,7 @@
     // Shortened from "Input Premium/Insurance Amount" — the field holds
     // whichever of the two Calculation Type means, and the row is now too
     // tight for the full name. No unit suffix either, for the same reason.
-    { k: 'amount', l: 'Input', t: 'money', min: 0, max: 999999999.99, dec: 2, opt: 1 }
+    { k: 'amount', l: 'Input', t: 'money', min: 0, max: 999999999.99, dec: 2, opt: 1, need: true }
   ];
   var COV_FIELD_MAP = {};
   COV_FIELDS.forEach(function (f) { COV_FIELD_MAP[f.k] = f; });
@@ -761,6 +801,22 @@
     { k: 'extraTempAmt', l: 'Temporary $/1000', t: 'money', min: 0, max: 999999999.99, dec: 2, u: 'CAD' },
     { k: 'extraTempYears', l: 'Years', t: 'int', min: 0, max: 999 }
   ];
+  /* The Joint container's own inputs (rec.joint — one set per coverage, not
+     per slot). Same descriptor shape as COV_FIELDS, so validateCov/covControl/
+     covRaw/covLive apply unchanged. All five start blank and are highlighted
+     (`need`) until filled; `opt` lets a cleared box commit back to blank —
+     unlike an insured slot's Extra Premium, whose defaults are a real 0.
+     Nothing reads them yet (no calculation, no other tab). */
+  var JOINT_FIELDS = [
+    { k: 'age', l: 'Joint Age', t: 'int', min: 0, max: 999, opt: 1, need: true },
+    { k: 'extraPct', l: 'Equiv. Substd. %', t: 'pct', min: 0, max: 10000, u: '%', opt: 1, need: true },
+    { k: 'extraFlat', l: 'Flat Extra Prem. $ Perm', t: 'money', min: 0, max: 9999.99, dec: 2, u: 'CAD', opt: 1, need: true },
+    { k: 'extraTempAmt', l: 'Flat Extra Prem. $ Term', t: 'money', min: 0, max: 9999.99, dec: 2, u: 'CAD', opt: 1, need: true },
+    { k: 'extraTempYears', l: 'Flat Extra Prem. $ Duration', t: 'int', min: 0, max: 999, opt: 1, need: true }
+  ];
+  var JOINT_FIELD_MAP = {};
+  JOINT_FIELDS.forEach(function (f) { JOINT_FIELD_MAP[f.k] = f; });
+
   var COVINS_FIELD_MAP = {};
   COVINS_FIELDS.forEach(function (f) { COVINS_FIELD_MAP[f.k] = f; });
 
@@ -770,7 +826,7 @@
   function validateCov(f, raw, rec) {
     var s = typeof raw === 'string' ? raw.trim() : raw;
     if (s === '' || s === null || s === undefined) {
-      return f.opt ? { ok: true, v: '' } : { ok: false, msg: f.l + ' is required' };
+      return (f.opt || f.blank) ? { ok: true, v: '' } : { ok: false, msg: f.l + ' is required' };
     }
     if (f.t === 'enum') {
       var opts = f.optsFn ? f.optsFn(rec) : f.opts;
@@ -807,19 +863,21 @@
       treatment Inforce gives a locked field — rather than a dropdown with
       nothing in it. */
   function covControl(f, v, fk, rec) {
+    var need = f.need ? needCls(v) : '';
     if (f.t === 'enum') {
       var opts = f.optsFn ? f.optsFn(rec) : f.opts;
       if (!opts.length) {
+        // Nothing to pick from: either no Category chosen yet, or a CI one.
         return '<input class="fi fi--ro" value="" readonly tabindex="-1" placeholder="—"' +
-               ' title="Not available for this Coverage Category yet">';
+               ' title="' + (rec.category ? 'Not available for this Coverage Category yet' : 'Select a Coverage Category first') + '">';
       }
-      return '<select class="fi" data-fk="' + fk + '">' + opts.map(function (o) {
+      return '<select class="fi' + need + '" data-fk="' + fk + '">' + blankOpt(f, v) + opts.map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
       }).join('') + '</select>';
     }
     // Every non-enum field on this page is numeric (money/int/pct) — right-
     // aligned via the base .fi rule, same as Inforce's own numeric fields.
-    return '<input class="fi" data-fk="' + fk + '"' +
+    return '<input class="fi' + need + '" data-fk="' + fk + '"' +
            ' value="' + esc(covRaw(f, v)) + '" spellcheck="false" autocomplete="off">';
   }
 
@@ -903,7 +961,7 @@
   function insRefControl(rec, slot) {
     var fk = 'covins|' + rec._id + '~' + slot._id + '|insuredId';
     var opts = insuredRefOptions(rec, slot);
-    return '<select class="fi" data-fk="' + fk + '">' + opts.map(function (o) {
+    return '<select class="fi' + needCls(slot.insuredId) + '" data-fk="' + fk + '">' + opts.map(function (o) {
       return '<option value="' + o[0] + '"' + (o[0] === slot.insuredId ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
     }).join('') + '</select>';
   }
@@ -911,10 +969,12 @@
   /** Rate options come from the CATEGORY (this coverage) and the referenced
       insured's own Rate (pref/reg, from Insured Input) — nothing stored on
       the slot decides this. No insured chosen yet -> no options -> the same
-      inert placeholder box covControl gives an empty enum. */
+      inert placeholder box covControl gives an empty enum. Same when the
+      insured has no Rate yet, or the coverage no Category yet — rateOptionsFor
+      would otherwise fall through to the Preferred codes and invent one. */
   function covRateOptions(rec, slot) {
     var ins = findInsured(slot.insuredId);
-    return ins ? rateOptionsFor(rec.category, ins.rate).map(function (s) { return [s, s]; }) : [];
+    return ins && ins.rate && rec.category ? rateOptionsFor(rec.category, ins.rate).map(function (s) { return [s, s]; }) : [];
   }
 
   /* The blank "— Select —" first option is load-bearing, not decoration, and
@@ -936,10 +996,11 @@
     var fk = 'covins|' + rec._id + '~' + slot._id + '|rate';
     var opts = covRateOptions(rec, slot);
     if (!opts.length) {
-      return '<input class="fi fi--ro" value="" readonly tabindex="-1" placeholder="—" title="Select an insured first">';
+      return '<input class="fi fi--ro" value="" readonly tabindex="-1" placeholder="—"' +
+             ' title="Select a Coverage Category and an insured (with a Rate) first">';
     }
     opts = [['', '— Select —']].concat(opts);
-    return '<select class="fi" data-fk="' + fk + '">' + opts.map(function (o) {
+    return '<select class="fi' + needCls(slot.rate) + '" data-fk="' + fk + '">' + opts.map(function (o) {
       return '<option value="' + o[0] + '"' + (o[0] === slot.rate ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
     }).join('') + '</select>';
   }
@@ -975,17 +1036,26 @@
     };
   }
 
+  /* Category, Coverage and Coverage Type start blank — no default; the
+     operator picks each (highlighted until then). Calculation Type is the
+     one field with a stated default: Coverage Amount. */
   function newCoverageRecord() {
-    var category = 'termLife';
-    var coverage = COVERAGE_OPTIONS[category][0];
-    var covType = covTypeOptions(category, coverage)[0] || '';
     return {
       _id: 'cov' + (++covSeq),
-      category: category, coverage: coverage, covType: covType,
+      category: '', coverage: '', covType: '',
       fee: null, feeManual: false,
-      calcType: 'premium', amount: null,
-      insureds: [newCovInsuredSlot()]
+      calcType: 'amount', amount: null,
+      insureds: [newCovInsuredSlot()],
+      joint: newJoint()
     };
+  }
+
+  /* All blank — the Joint container's inputs (JOINT_FIELDS) start unset and
+     highlighted. Kept on the record even while the Coverage Type isn't a joint
+     one, so flipping between joint types (or back) doesn't lose what was
+     typed; it's simply not shown, and nothing reads it, unless isJointPerm. */
+  function newJoint() {
+    return { age: null, extraPct: null, extraFlat: null, extraTempAmt: null, extraTempYears: null };
   }
 
   /* Coverage Fee auto-default. Term Life: whichever Term Life coverage has
@@ -996,9 +1066,11 @@
      correct. Permanent Life is always $40, unconditionally. Critical Illness
      is left alone entirely (no default — "leave blank for now"). A record
      the operator has directly edited (`feeManual`) is skipped by all of
-     this; see covCommit. */
+     this; see covCommit. A Term Life record with no Coverage chosen yet has
+     no duration to rank, so it sits out entirely (fee stays blank) rather
+     than winning the $40 by default. */
   function recalcFees() {
-    var termRecs = coverages.filter(function (c) { return c.category === 'termLife'; });
+    var termRecs = coverages.filter(function (c) { return c.category === 'termLife' && c.coverage; });
     var bestIdx = -1, bestRec = null;
     termRecs.forEach(function (c) {
       var idx = TERM_LIFE_DURATION_PRIORITY.indexOf(c.coverage);
@@ -1014,7 +1086,7 @@
       truncate to the cap and say so, rather than leaving an invalid excess
       in place silently. */
   function enforceInsuredCap(rec) {
-    var cap = maxInsuredsFor(rec.covType);
+    var cap = maxInsuredsFor(rec.category, rec.covType);
     if (rec.insureds.length > cap) {
       rec.insureds = rec.insureds.slice(0, cap);
       toast('Coverage Type change reduced this coverage to ' + cap + ' insured' + (cap === 1 ? '' : 's') + '.');
@@ -1069,11 +1141,18 @@
       });
       return { kind: 'covins', rec: rec2, slot: slot, key: p[2], f: COVINS_FIELD_MAP[p[2]] };
     }
+    if (p[0] === 'joint') {                         // 'joint' | covId | fieldKey
+      var rec3 = null;
+      coverages.forEach(function (c) { if (c._id === p[1]) rec3 = c; });
+      return { kind: 'joint', rec: rec3, key: p[2], f: JOINT_FIELD_MAP[p[2]] };
+    }
     return {};
   }
 
   function coverageTitle(rec) {
-    return COVERAGE_CATEGORY_MAP[rec.category] + ' — ' + rec.coverage;
+    var cat = COVERAGE_CATEGORY_MAP[rec.category];
+    if (!cat) return 'New Coverage';                  // no Category chosen yet
+    return rec.coverage ? cat + ' — ' + rec.coverage : cat;
   }
 
   /* One row per insured slot: Insured / Sex / Age / Rate / Extra Premium,
@@ -1099,11 +1178,53 @@
       '</div>';
   }
 
+  /* The Joint container — a third slot-shaped box under the insured slots,
+     only for Permanent Life with a joint Coverage Type (isJointPerm). Same
+     `.cov-ins-row` grid as a real slot so every column lines up with the two
+     insureds above it: Insured / Joint Sex / Joint Age / Joint Rate / Extra
+     Premium. Insured is read-only, "Joint <name 1> / <name 2>" from the two
+     slots just above (—, not a partial name, until both are chosen); Joint
+     Sex and Joint Rate are fixed (JOINT_SEX/JOINT_RATE, locked boxes); Joint
+     Age and the four Extra Premium boxes are the operator's own input
+     (rec.joint, JOINT_FIELDS). */
+  function covJointField(f, rec) {
+    return covControl(f, rec.joint[f.k], 'joint|' + rec._id + '|' + f.k, rec);
+  }
+  function covJointFixed(label, v) {
+    return '<div class="fc"><span class="rs-k">' + esc(label) + '</span>' +
+           '<input class="fi fi--ro" value="' + esc(v) + '" readonly tabindex="-1" title="Fixed — can\'t be changed"></div>';
+  }
+  function covJointMiniField(f, rec) {
+    return '<div class="cov-extra-f" title="' + esc(f.l + (f.u ? ' (' + f.u + ')' : '')) + '">' +
+        '<span class="cov-extra-f-k">' + esc(f.l) + '</span>' + covJointField(f, rec) +
+      '</div>';
+  }
+  function covJointSlot(rec) {
+    var names = rec.insureds.map(function (s) { var i = findInsured(s.insuredId); return i ? (i.name || 'Insured') : ''; });
+    var label = (names.length === 2 && names[0] && names[1]) ? 'Joint ' + names[0] + ' / ' + names[1] : null;
+    var row = '<div class="fc-row cov-ins-row">' +
+        '<div class="fc"><span class="rs-k">Insured</span>' +
+          '<span class="rs-v' + (label ? '' : ' is-empty') + '"' + (label ? ' title="' + esc(label) + '"' : '') + '>' +
+            (label ? esc(label) : '—') + '</span></div>' +
+        covJointFixed('Joint Sex', JOINT_SEX) +
+        '<div class="fc"><span class="rs-k">' + esc(JOINT_FIELD_MAP.age.l) + '</span>' + covJointField(JOINT_FIELD_MAP.age, rec) + '</div>' +
+        covJointFixed('Joint Rate', JOINT_RATE) +
+        '<div class="fc cov-extra-cell"><span class="rs-k">Extra Premium</span><div class="cov-extra-mini">' +
+          ['extraPct', 'extraFlat', 'extraTempAmt', 'extraTempYears'].map(function (k) {
+            return covJointMiniField(JOINT_FIELD_MAP[k], rec);
+          }).join('') +
+        '</div></div>' +
+      '</div>';
+    return '<div class="cov-ins-slot cov-joint-slot">' +
+        '<div class="cov-ins-slot-head"><span class="micro">Joint</span></div>' + row +
+      '</div>';
+  }
+
   function coverageCard(rec, idx) {
     var canRemoveCov = coverages.length > 1;
     var fieldsRow = COV_FIELDS.map(function (f) { return covFieldCell(f, rec); }).join('');
 
-    var maxIns = maxInsuredsFor(rec.covType);
+    var maxIns = maxInsuredsFor(rec.category, rec.covType);
     var canAddIns = rec.insureds.length < maxIns;
     var canRemoveIns = rec.insureds.length > 1;
     var slotsHtml = rec.insureds.map(function (slot) { return covInsuredSlot(rec, slot, canRemoveIns); }).join('');
@@ -1120,6 +1241,7 @@
           '<div class="cov-insured-head"><span class="micro">Insured(s)</span>' +
             '<span class="muted mono" style="font-size:10px">' + rec.insureds.length + ' of ' + maxIns + '</span></div>' +
           slotsHtml +
+          (isJointPerm(rec) ? covJointSlot(rec) : '') +
           '<div class="card-foot">' +
             '<span class="spacer"></span>' +
             '<button class="btn btn--sm btn--primary" data-act="addcovins" data-cov="' + rec._id + '"' +
@@ -1196,17 +1318,17 @@
       var res = validateCov(f, el.value, rec);
       if (!res.ok) { el.classList.add('fi--bad'); el.title = res.msg; toast(res.msg, 'err'); return; }
       el.classList.remove('fi--bad');
-      rec[key] = res.v === '' ? null : res.v;
+      rec[key] = (res.v === '' && f.t !== 'enum') ? null : res.v;   // a cleared dropdown stays '' (never null)
 
       if (key === 'category') {
-        rec.coverage = COVERAGE_OPTIONS[rec.category][0];
-        rec.covType = covTypeOptions(rec.category, rec.coverage)[0] || '';
+        rec.coverage = ''; rec.covType = '';                   // no defaults — the operator re-picks both
         rec.feeManual = false; rec.fee = null;
         rec.insureds.forEach(function (s) { s.rate = ''; });   // Rate options depend on category
         enforceInsuredCap(rec);
       } else if (key === 'coverage') {
-        var validTypes = covTypeOptions(rec.category, rec.coverage);
-        if (validTypes.indexOf(rec.covType) === -1) rec.covType = validTypes[0] || '';
+        // Keep the Coverage Type if it's still offered (Term to 65 has no
+        // Joint First-to-Die); otherwise back to blank, not the first option.
+        if (covTypeOptions(rec.category, rec.coverage).indexOf(rec.covType) === -1) rec.covType = '';
         rec.feeManual = false; rec.fee = null;                 // duration changed — re-derive the default
         enforceInsuredCap(rec);
       } else if (key === 'covType') {
@@ -1217,6 +1339,16 @@
         // of the auto-default until cleared again.
         rec.feeManual = (res.v !== '' && res.v !== null);
       }
+      deferRenderCoverages();
+      return;
+    }
+
+    if (r.kind === 'joint') {
+      if (!r.f) return;
+      var resJ = validateCov(r.f, el.value, r.rec);
+      if (!resJ.ok) { el.classList.add('fi--bad'); el.title = resJ.msg; toast(resJ.msg, 'err'); return; }
+      el.classList.remove('fi--bad');
+      r.rec.joint[r.key] = resJ.v === '' ? null : resJ.v;
       deferRenderCoverages();
       return;
     }
@@ -1255,6 +1387,7 @@
     var r = resolveCov(el.dataset.fk);
     if (!r.f || r.f.t === 'enum' || r.key === 'insuredId' || r.key === 'rate') return;
     el.classList.toggle('fi--bad', !validateCov(r.f, el.value, r.rec).ok);
+    if (r.f.need) el.classList.toggle('fi--need', el.value.trim() === '');   // clears as they type
   }
 
   function initCoverageInput() {
@@ -1275,7 +1408,7 @@
       if (add && !add.disabled) {
         var rec = null;
         coverages.forEach(function (c) { if (c._id === add.dataset.cov) rec = c; });
-        if (rec && rec.insureds.length < maxInsuredsFor(rec.covType)) {
+        if (rec && rec.insureds.length < maxInsuredsFor(rec.category, rec.covType)) {
           rec.insureds.push(newCovInsuredSlot());
           renderCoverageList();
         }
@@ -1538,6 +1671,7 @@
     // coverage) must hold regardless of what was loaded.
     insureds = (snap.insureds && snap.insureds.length) ? snap.insureds : [newInsuredRecord()];
     coverages = (snap.coverages && snap.coverages.length) ? snap.coverages : [newCoverageRecord()];
+    coverages.forEach(function (c) { if (!c.joint) c.joint = newJoint(); });   // saved before the Joint container existed
 
     insSeq = Math.max(insSeq, maxIdSeq(insureds.map(function (i) { return i._id; }), 'ins'));
     covSeq = Math.max(covSeq, maxIdSeq(coverages.map(function (c) { return c._id; }), 'cov'));
@@ -1558,13 +1692,14 @@
   }
 
   // ----------------------------------------------------------------- axis key
-  /* Preferred/Non-smoker -> N, Regular/Smoker -> S. Originally local to
+  /* Preferred/Non-smoker -> N, Regular/Smoker -> S, blank Rate -> '' (never
+     defaulted to N). Originally local to
      optimizer_insureds.js (its own "Insured Rate" column, §2e); moved here
      once axisKeyPrefix() below became a SECOND consumer needing the exact
      same mapping — the same "shared pieces move to the bridge the moment a
      second file needs them" rule COVERAGE_ABBR/COVTYPE_ABBR already follow. */
   function insuredRateCode(ins) {
-    return ins.rate === 'reg' ? 'S' : 'N';
+    return ins.rate === 'reg' ? 'S' : ins.rate === 'pref' ? 'N' : '';
   }
 
   /* The 26-character Axis Key PREFIX — everything except the 6-character
@@ -1578,7 +1713,7 @@
   function axisKeyPrefixTermLife(c, ins, slot) {
     var typeChar = c.covType === 'Individual' ? '_' : (c.covType === 'Joint First-to-Die' ? 'C' : null);
     var coverageCode = COVERAGE_ABBR[c.coverage];
-    if (typeChar === null || !coverageCode || !slot.rate) return null;
+    if (typeChar === null || !coverageCode || !slot.rate || !ins.sex || !ins.rate) return null;
     // Joint First-to-Die has no MCD-rated table — the block stays blank
     // (no rate would be found under "_RMC_") even when Has MCD is TRUE.
     var mcdOn = settings.mcd && c.covType !== 'Joint First-to-Die';
@@ -1594,11 +1729,11 @@
      yet (null below); every other Permanent Life product is unaffected. */
   function axisKeyPrefixPermLife(c, ins) {
     var coverageCode = COVERAGE_ABBR[c.coverage];
-    if (!coverageCode || coverageCode.length !== 5) return null;
-    var isJoint = c.covType === 'Joint First-to-Die' || c.covType === 'Joint Last-to-Die' ||
-      c.covType === 'Joint Last-to-Die, Paid-up 1st Death';
-    var sexChar = isJoint ? 'M' : ins.sex;
-    var rateChar = isJoint ? 'N' : insuredRateCode(ins);
+    if (!coverageCode || coverageCode.length !== 5 || !c.covType) return null;   // blank Coverage Type ≠ Individual
+    var isJoint = isJointPerm(c);
+    if (!isJoint && (!ins.sex || !ins.rate)) return null;
+    var sexChar = isJoint ? JOINT_SEX : ins.sex;
+    var rateChar = isJoint ? JOINT_RATE : insuredRateCode(ins);
     return 'DT' + '_' + coverageCode + '________2007_' + sexChar + rateChar + '___';
   }
 

@@ -85,16 +85,16 @@
     var age = calcAge(r.ins);
     return '<tr>' +
         td((r.cIdx + 1) + '_' + (r.insIdx + 1)) +
-        td(core.esc(r.ins.sex)) +
-        td(core.insuredRateCode(r.ins)) +
+        td(core.esc(r.ins.sex || '—')) +
+        td(core.insuredRateCode(r.ins) || '—') +
         td(age === null ? '—' : String(age)) +
         td(r.slot.rate ? core.esc(r.slot.rate) : '—') +
         td(core.group(r.slot.extraPct, core.decimals(r.slot.extraPct))) +
         td(core.group(r.slot.extraFlat, 2)) +
         td(core.group(r.slot.extraTempAmt, 2)) +
         td(core.group(r.slot.extraTempYears, 0)) +
-        td(core.esc(core.COVERAGE_CATEGORY_MAP[r.c.category])) +
-        td(core.esc(core.COVERAGE_ABBR[r.c.coverage] || r.c.coverage)) +
+        td(core.esc(core.COVERAGE_CATEGORY_MAP[r.c.category] || '—')) +
+        td(core.esc(core.COVERAGE_ABBR[r.c.coverage] || r.c.coverage || '—')) +
         td(core.esc(core.COVTYPE_ABBR[r.c.covType] || '—')) +
         td(core.settings.mcd ? 'TRUE' : 'FALSE') +
         core.pendingCell('col-hard-sep') +   // Joint Sex

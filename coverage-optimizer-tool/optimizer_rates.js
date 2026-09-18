@@ -23,8 +23,9 @@
  * One container per coverage. Per the request: each coverage's card splits
  * into TWO table regions sharing one row axis (the Coverage Category's fixed
  * rate bands) —
- *   - LEFT, scrollable: one 4-column group per insured on that coverage
- *     (PR_i / EPR_i / PR_BD_i / EPR_BD_i), light separators between insureds.
+ *   - LEFT, scrollable: one 6-column group per insured on that coverage
+ *     (PR_i / EPR_i / PEP_i / PR_BD_i / EPR_BD_i / PEP_BD_i), light separators
+ *     between insureds; the Rate Band Code column stays pinned at the left.
  *   - RIGHT, always visible: Total / BD_Total / BD_Final, 3 columns each,
  *     hard separators between the three groups.
  *
@@ -60,17 +61,41 @@
  *     folded into the joint-age branch — revisit once Joint Age exists.
  *     Today JLTDPU behaves like Individual (own age, not joint), same as the
  *     old formula.
- *   - Extra Premium Rate (EPR_i/EPR_BD_i) comes from somewhere other than
- *     either rate file — not yet explained, still core.pendingCell().
+ *   - EPR_i / EPR_BD_i are wired too (extraRateResult(), § below). Term Life:
+ *     EPR_N is simply PR_N, for every Term Life coverage (T10-T65),
+ *     Individual or Joint First-to-Die. Permanent Life, Individual: the
+ *     SUBSTANDARD rate — the insured's own Axis Key with its first 3
+ *     characters ("DT_") replaced by "DTS" (S = Substandard), looked up in
+ *     the same perm_rates workbook by that key and the insured's Age
+ *     Nearest/Last (Calculated), exactly like PR_N; EPR_BD_i is the same
+ *     lookup at age - 1. Same Error/pending conventions as PR_i above.
+ *   - TODO: Permanent Life EPR_i/EPR_BD_i for Joint First-to-Die / Joint
+ *     Last-to-Die / Joint Last-to-Die, Paid-up 1st Death — the substandard
+ *     lookup for joint coverages isn't specified yet ("come back to it
+ *     later"), so those three stay core.pendingCell(). Unlike PR_i, JLTDPU
+ *     does NOT fall through to the individual lookup here.
+ *   - PEP_i / PEP_BD_i (pepResult(), § below): the insured's "Perm Extra
+ *     Prem. %" (the Insureds tab's column, slot.extraPct — a percentage, so
+ *     100 means x1.00) times EPR_i / EPR_BD_i. Permanent Life joint coverages
+ *     name the Insureds tab's "Joint Extra Prem. %" instead, but the request
+ *     says it's the same value, so there is one % to read for every case.
+ *     Pending/Error exactly when the EPR it's built on is — so the three
+ *     Permanent Life joint types stay pending until their EPR exists.
  *   - PR_BD_Final/EPR_BD_Final/PEP_BD_Final's own formulas are still coming
  *     (you said "refer to the Backdate tab" for what counts as backdatable,
  *     but the exact formula itself isn't final) — pending regardless of
  *     whether the rest of a row is ever filled in.
- *   - PR_Total/EPR_Total/PEP_Total and the BD_Total trio use the page's
- *     other "blocked on missing upstream data" convention instead (plain
- *     muted "—", not amber) — their SUM formula is fully specified; only the
- *     PR_i/EPR_i inputs they'd sum are what's missing right now. Matches how
- *     Results' own "Modal Premium" is treated (§ optimizer.js Results).
+ *   - PR_Total/EPR_Total/PEP_Total and the BD_Total trio (totalResult(), §
+ *     below) are the SUM of the matching per-insured column: every insured
+ *     for Term Life (Individual, Joint First-to-Die) and Permanent Life
+ *     Individual; Insured 1 alone (PR_Total = PR_1, …) for Permanent Life
+ *     Joint First-to-Die / Joint Last-to-Die / JLTDPU. An Error in any
+ *     counted cell makes the total an Error (never a partial sum); a pending
+ *     one — or no insured on the coverage yet — leaves the page's other
+ *     "blocked on missing upstream data" convention (plain muted "—", not
+ *     amber): the SUM formula is specified, only its inputs are missing.
+ *     Matches how Results' own "Modal Premium" is treated (§ optimizer.js
+ *     Results).
  */
 (function () {
   'use strict';
@@ -595,68 +620,158 @@
     return { value: rate };
   }
 
-  /** LEFT table: Rate Band Code + one 4-column group per insured actually
+  /** EPR_N / EPR_BD_N — the Extra Premium Rate. `ageOffset` works exactly
+      like baseRateResult()'s (0 for EPR_i, -1 for EPR_BD_i).
+        - Term Life: EPR_N is simply PR_N — every Term Life coverage
+          (T10-T65), Individual or Joint First-to-Die alike — so this just
+          returns baseRateResult()'s own result unchanged (a PR error is an
+          EPR error too, never a separately guessed figure).
+        - Permanent Life, Individual: the SUBSTANDARD rate — the insured's
+          own Axis Key with its first 3 characters ("DT_") replaced by "DTS"
+          (S = Substandard), looked up in the same perm_rates workbook by
+          that key and the insured's Age Nearest/Last (Calculated), the same
+          way PR_N is. (Substandard rows sit in the same sheet under their
+          own "DTS…" Axis Keys, so ingestPermLifeWorkbook() already has them.)
+        - Permanent Life, anything else (Joint First-to-Die, Joint
+          Last-to-Die, Joint Last-to-Die Paid-up 1st Death): TODO — not
+          specified yet ("come back to it later"), so pending. Unlike PR_N
+          above, JLTDPU waits here too rather than using the individual
+          lookup.
+      Same { pending } / { error } / { value } return shape as
+      baseRateResult() — never a guessed number. */
+  function extraRateResult(c, ins, slot, band, ageOffset) {
+    if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset);
+    if (c.covType && c.covType !== 'Individual') return { pending: true };   // blank type falls through to the lookup → no Axis Key → Error
+    if (!ins) return { error: true };
+    var age = insuredAge(ins);
+    if (age === null) return { error: true };
+    age += ageOffset;
+    var prefix = core.axisKeyPrefix(c, slot);
+    if (!prefix) return { error: true };
+    var rate = lookupPermLifeRate('DTS' + (prefix + band.code).slice(3), age);
+    if (rate === null) return { error: true };
+    return { value: rate };
+  }
+
+  /** PEP_N / PEP_BD_N — the insured's Perm Extra Prem. % (the Insureds tab's
+      column, slot.extraPct; a percentage, hence / 100) times EPR_N /
+      EPR_BD_N. Permanent Life joint coverages name "Joint Extra Prem. %"
+      instead, but the request says it's the same value — one % to read.
+      Pending or error exactly when the EPR it's built on is. */
+  function pepResult(c, ins, slot, band, ageOffset) {
+    var epr = extraRateResult(c, ins, slot, band, ageOffset);
+    if (epr.pending || epr.error) return epr;
+    return { value: epr.value * slot.extraPct / 100 };
+  }
+
+  /** One per-insured cell's result. `j` is the column's 0-5 position inside
+      an insured's group — PR, EPR, PEP, then the same three at age - 1 — the
+      index insuredRatesTable() and totalResult() both walk, so the two
+      tables can't disagree on which lookup a column means. */
+  function cellResult(c, ins, slot, band, j) {
+    var ageOffset = j >= 3 ? -1 : 0;                                   // the backdated trio uses age - 1
+    return j % 3 === 0 ? baseRateResult(c, ins, slot, band, ageOffset)     // PR_i / PR_BD_i
+      : j % 3 === 1 ? extraRateResult(c, ins, slot, band, ageOffset)       // EPR_i / EPR_BD_i
+      : pepResult(c, ins, slot, band, ageOffset);                          // PEP_i / PEP_BD_i
+  }
+
+  /** Total / BD_Total cell: the SUM of per-insured column `j` (cellResult()'s
+      own index — 0-2 for Total, 3-5 for BD_Total) over the insureds that
+      count. Term Life and Permanent Life Individual: all of them. Permanent
+      Life Joint First-to-Die / Joint Last-to-Die / JLTDPU: Insured 1 alone
+      (PR_Total = PR_1, and likewise EPR/PEP). Returns null when there's no
+      insured to sum yet; an Error anywhere in the sum is an Error, else a
+      pending anywhere is pending — never a partial sum. The raw rates are
+      summed, only the display rounds. */
+  function totalResult(c, slots, band, j) {
+    var counted = c.category === 'permLife' && c.covType !== 'Individual' ? slots.slice(0, 1) : slots;
+    if (!counted.length) return null;
+    var sum = 0, pending = false;
+    // ponytail: re-runs the lookups the left table already did — a handful of
+    // property reads per cell; cache per render if a lookup ever gets costly.
+    for (var i = 0; i < counted.length; i++) {
+      var res = cellResult(c, core.findInsured(counted[i].insuredId), counted[i], band, j);
+      if (res.error) return res;
+      if (res.pending) pending = true;
+      else sum += res.value;
+    }
+    return pending ? { pending: true } : { value: sum };
+  }
+
+  /** LEFT table: Rate Band Code + one 6-column group per insured actually
       assigned to this coverage (an empty "— Select —" slot contributes no
-      group — nothing to look up yet). PR_i/PR_BD_i are computed via
-      baseRateResult() above; EPR_i/EPR_BD_i stay core.pendingCell() (§ file
-      header — not yet specified). */
+      group — nothing to look up yet): PR, EPR, PEP, then the same three at
+      age - 1 (the backdated trio, tinted via `.rate-bd`). Every cell is
+      cellResult(): PR via baseRateResult(), EPR via extraRateResult(), PEP
+      via pepResult() (§ file header). */
   function insuredRatesTable(c, slots) {
-    var headGroup = '<th rowspan="2" class="r">Rate Band Code</th>' + slots.map(function (s, i) {
+    var headGroup = '<th rowspan="2" class="r rate-band-col">Rate Band Code</th>' + slots.map(function (s, i) {
       var ins = core.findInsured(s.insuredId);
       var label = 'Insured ' + (i + 1) + (ins ? ' — ' + core.esc(ins.name) : '');
-      return '<th colspan="4" class="r' + (i > 0 ? ' col-soft-sep' : '') + '">' + label + '</th>';
+      return '<th colspan="6" class="rate-grp' + (i > 0 ? ' col-soft-sep' : '') + '">' + label + '</th>';
     }).join('');
     var headSub = slots.map(function (s, i) {
-      return ['PR_' + (i + 1), 'EPR_' + (i + 1), 'PR_BD_' + (i + 1), 'EPR_BD_' + (i + 1)]
-        .map(function (l, j) { return '<th class="r' + (j === 0 && i > 0 ? ' col-soft-sep' : '') + '">' + l + '</th>'; })
+      return ['PR_', 'EPR_', 'PEP_', 'PR_BD_', 'EPR_BD_', 'PEP_BD_']
+        .map(function (l, j) {
+          return '<th class="r' + (j === 0 && i > 0 ? ' col-soft-sep' : '') + (j >= 3 ? ' rate-bd' : '') + '">' + l + (i + 1) + '</th>';
+        })
         .join('');
     }).join('');
+    // No insureds → the second header row is empty and collapses to 0 height,
+    // leaving the band rows one header row above the Totals table's. A hidden
+    // filler cell in each header row keeps both tables' rows aligned.
+    var ph = slots.length ? '' : '<th class="rate-ph">&nbsp;</th>';
 
     var bandRows = BAND_TABLES[c.category].map(function (b) {
       var cells = slots.map(function (s, i) {
         var ins = core.findInsured(s.insuredId);
-        return [0, 1, 2, 3].map(function (j) {
-          var extraClass = (j === 0 && i > 0) ? 'col-soft-sep' : null;
-          if (j === 1 || j === 3) return core.pendingCell(extraClass);  // EPR_i / EPR_BD_i — not specified yet
-          var res = baseRateResult(c, ins, s, b, j === 2 ? -1 : 0);      // PR_i / PR_BD_i
+        return [0, 1, 2, 3, 4, 5].map(function (j) {
+          var extraClass = (j === 0 && i > 0) ? 'col-soft-sep' : (j >= 3 ? 'rate-bd' : null);
+          var res = cellResult(c, ins, s, b, j);
           if (res.pending) return core.pendingCell(extraClass);
           if (res.error) return errorCell(extraClass);
           return '<td class="r' + (extraClass ? ' ' + extraClass : '') + '">' + core.esc(core.group(res.value, 2)) + '</td>';
         }).join('');
       }).join('');
-      return '<tr><td class="r">' + core.esc(b.code) + '</td>' + cells + '</tr>';
+      return '<tr><td class="r rate-band-col">' + core.esc(b.code) + '</td>' + cells + '</tr>';
     }).join('');
 
     return '<table class="ins rate-tab-table">' +
-        '<thead><tr>' + headGroup + '</tr><tr>' + headSub + '</tr></thead>' +
+        '<thead><tr>' + headGroup + ph + '</tr><tr>' + headSub + ph + '</tr></thead>' +
         '<tbody>' + bandRows + '</tbody>' +
       '</table>';
   }
 
-  /** RIGHT table: Total (muted "—" — sum formula known, blocked on the
-      pending PR_i/EPR_i inputs) / BD_Total (same) / BD_Final (amber pending
-      — its own formula isn't final yet, § file header). Always the same 9
-      columns regardless of how many insureds are on the coverage. */
-  function totalsRatesTable(c) {
+  /** RIGHT table: Total / BD_Total (the sums of totalResult() — a figure, a
+      red Error, or the muted "—" while an input is missing; `first` is the
+      group's opening column index for cellResult()) / BD_Final (amber
+      pending — its own formula isn't final yet, § file header). Always the
+      same 9 columns regardless of how many insureds are on the coverage;
+      `slots` is the same assigned-insured list insuredRatesTable() gets. */
+  function totalsRatesTable(c, slots) {
     var GROUPS = [
-      { label: 'Total', cols: ['PR_Total', 'EPR_Total', 'PEP_Total'], pending: false },
-      { label: 'BD_Total', cols: ['PR_BD_Total', 'EPR_BD_Total', 'PEP_BD_Total'], pending: false },
+      { label: 'Total', cols: ['PR_Total', 'EPR_Total', 'PEP_Total'], first: 0, pending: false },
+      { label: 'BD_Total', cols: ['PR_BD_Total', 'EPR_BD_Total', 'PEP_BD_Total'], first: 3, pending: false, bd: true },
       { label: 'BD_Final', cols: ['PR_BD_Final', 'EPR_BD_Final', 'PEP_BD_Final'], pending: true }
     ];
     var headGroup = GROUPS.map(function (g, gi) {
-      return '<th colspan="3" class="r' + (gi > 0 ? ' col-hard-sep' : '') + '">' + g.label + '</th>';
+      return '<th colspan="3" class="rate-grp' + (gi > 0 ? ' col-hard-sep' : '') + '">' + g.label + '</th>';
     }).join('');
     var headSub = GROUPS.map(function (g, gi) {
       return g.cols.map(function (l, j) {
-        return '<th class="r' + (j === 0 && gi > 0 ? ' col-hard-sep' : '') + '">' + l + '</th>';
+        return '<th class="r' + (j === 0 && gi > 0 ? ' col-hard-sep' : '') + (g.bd ? ' rate-bd' : '') + '">' + l + '</th>';
       }).join('');
     }).join('');
 
-    var bandRows = BAND_TABLES[c.category].map(function () {
+    var bandRows = BAND_TABLES[c.category].map(function (b) {
       return '<tr>' + GROUPS.map(function (g, gi) {
         return g.cols.map(function (l, j) {
-          var extra = (j === 0 && gi > 0) ? 'col-hard-sep' : null;
-          return g.pending ? core.pendingCell(extra) : dashCell(extra);
+          var extra = [(j === 0 && gi > 0) ? 'col-hard-sep' : '', g.bd ? 'rate-bd' : ''].join(' ').trim();
+          if (g.pending) return core.pendingCell(extra);
+          var res = totalResult(c, slots, b, g.first + j);
+          if (!res || res.pending) return dashCell(extra);
+          if (res.error) return errorCell(extra);
+          return '<td class="r' + (extra ? ' ' + extra : '') + '">' + core.esc(core.group(res.value, 2)) + '</td>';
         }).join('');
       }).join('') + '</tr>';
     }).join('');
@@ -673,7 +788,8 @@
       return '<div class="card card--out">' +
           '<div class="card-head card-head--band"><span class="card-title">' + title + '</span></div>' +
           '<div class="proj-slot"><div class="t">' + title + '</div>' +
-            '<div class="s">Rates for this Coverage Category aren\'t built yet.</div></div>' +
+            '<div class="s">' + (c.category ? 'Rates for this Coverage Category aren\'t built yet.'
+            : 'Choose a Coverage Category in Coverage Input to see its rates.') + '</div></div>' +
         '</div>';
     }
     var slots = c.insureds.filter(function (s) { return s.insuredId; });
@@ -684,8 +800,8 @@
           '<span class="card-note">' + bandCount + ' rate band' + (bandCount === 1 ? '' : 's') + '</span>' +
         '</div>' +
         '<div class="rate-body">' +
-          '<div class="rate-scroll table-scroll-wrap">' + insuredRatesTable(c, slots) + '</div>' +
-          '<div class="rate-fixed">' + totalsRatesTable(c) + '</div>' +
+          '<div class="rate-scroll">' + insuredRatesTable(c, slots) + '</div>' +
+          '<div class="rate-fixed">' + totalsRatesTable(c, slots) + '</div>' +
         '</div>' +
       '</div>';
   }

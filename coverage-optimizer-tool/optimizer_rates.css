@@ -4,7 +4,7 @@
    Own stylesheet, loaded alongside optimizer.css (optimizer.html) — see
    OPTIMIZER_REFERENCE.md §1/§2d/§2e for why a split-off tab gets its own file
    pair. Uses existing tokens/classes wherever they fit (.card, .card--out,
-   .card-head--band, .ins, .table-scroll-wrap, .cell-pending, .col-hard-sep,
+   .card-head--band, .ins, .cell-pending, .col-hard-sep,
    .proj-slot, …); new here: the two-table "scrollable insureds beside static
    totals" layout the request specifically asks for (§ optimizer_rates.js
    header), and a lighter separator for "insured" boundaries, distinct from
@@ -25,21 +25,53 @@
 .rate-progress-bar { width: 100%; height: 8px; accent-color: var(--accent); }
 
 /* One coverage's rate card splits into two independent table regions, side
-   by side: the per-insured PR_i/EPR_i/… section (can scroll on its own,
-   §2b-style .table-scroll-wrap) and the Total/BD_Total/BD_Final section
-   (never scrolls — stays visible per the request). Both tables share the
-   same row axis (rate bands) and identical .ins row/font/padding, so their
-   rows line up without any extra alignment work. */
+   by side: the per-insured PR_i/EPR_i/… section (scrolls on its own) and the
+   Total/BD_Total/BD_Final section (never scrolls — stays visible per the
+   request). Both tables share the same row axis (rate bands) and identical
+   .ins row/font/padding, and both sit flush under the card's band — which is
+   why .rate-scroll is NOT a .table-scroll-wrap (that adds an 8px margin and
+   its own border) — so their header rows and band rows line up exactly. */
 .rate-body { display: flex; align-items: flex-start; border-top: 1px solid var(--cov-band-line); }
-.rate-scroll { flex: 1 1 auto; min-width: 0; }
+.rate-scroll { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
 .rate-fixed { flex: 0 0 auto; border-left: 1px solid var(--cov-border); }
 /* Overrides .ins's own `width: 100%` (optimizer.css, shared with inforce.css)
    — a 100%-wide table can't grow past its container, which would silently
-   defeat .rate-scroll's overflow-x rather than triggering it. `min-width:
-   100%` keeps it filling the container when content is narrower. */
-.rate-tab-table { width: auto; min-width: 100%; }
+   defeat .rate-scroll's overflow-x rather than triggering it. No `min-width:
+   100%` either: with no insureds yet the table is just the Rate Band Code
+   column, which should keep its own natural width at the left with blank
+   space up to the Totals block rather than stretch across the whole region. */
+.rate-tab-table { width: auto; }
+
+/* Rate Band Code stays pinned at the left while the insured columns scroll
+   past it — the tab exists to spot a wrong figure at "Cov1 / PR_1 / B00050",
+   which is no use once B00050 has scrolled out of view. The td needs its own
+   opaque background or the scrolled columns show through (the th already has
+   --ins-band from .ins thead th). */
+.rate-tab-table .rate-band-col { position: sticky; left: 0; z-index: 1; box-shadow: 1px 0 0 var(--line-strong); }
+.rate-tab-table tbody .rate-band-col { background: var(--surface); }
+
+/* Invisible filler that keeps both header rows full height while no insureds
+   are on the coverage (insuredRatesTable) — visibility, not display, so it
+   still takes up its row height. */
+.rate-tab-table .rate-ph { visibility: hidden; }
+
+/* A group header ("Insured 1 — Name", "TOTAL", …) spans several columns, so
+   it reads better centred than right-aligned like a single figure column.
+   The selector out-specifies `.ins th.r`/`.ins thead th` (shared rules). */
+.rate-tab-table thead th.rate-grp { text-align: center; }
+
+/* Current vs. backdated: the backdated columns (PR_BD/EPR_BD/PEP_BD, and the
+   BD_Total group) get a soft accent tint, header and body alike. Deliberately
+   NOT amber — amber already means "no formula yet" (.cell-pending) on this
+   tab, so a pending backdated cell would be amber on amber. A pending/error
+   cell keeps its own semantic colour; only real figures/dashes take the tint.
+   Blended off --surface (header: off its own band) rather than reusing
+   --accent-soft, which in the dark theme is almost the page surface; the
+   plain declaration first is the fallback for a browser without color-mix. */
+.rate-tab-table thead th.rate-bd { background: var(--ins-band); background: color-mix(in srgb, var(--ins-band) 70%, var(--surface)); }
+.rate-tab-table tbody td.rate-bd:not(.cell-pending):not(.cell-error) { background: var(--accent-soft); background: color-mix(in srgb, var(--accent) 12%, var(--surface)); }
 
 /* Lighter than .col-hard-sep's 2px `--ins-border` line — this marks where
-   one INSURED's 4-column group ends and the next begins, a weaker boundary
+   one INSURED's 6-column group ends and the next begins, a weaker boundary
    than a group-of-groups separator (Total | BD_Total | BD_Final) deserves. */
 .col-soft-sep { border-left: 1px solid var(--line-strong); }

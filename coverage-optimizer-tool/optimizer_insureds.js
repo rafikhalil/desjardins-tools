@@ -12,9 +12,20 @@
  * produces 2 rows, one per insured. The first 13 columns mirror Coverage
  * Input/Insured Input/Coverages (read-only here); a hard separator, then 8
  * "Joint" columns with no formula yet; another hard separator, then Axis
- * Key, also pending. Nothing in this tab is editable — every column is
- * either mirrored or pending, so there's no commit/live handler pair here
- * (same as Results, §2c).
+ * Key. Nothing in this tab is editable — every column is either mirrored,
+ * pending, or (Axis Key, for Term/Permanent Life rows) computed from the
+ * others — so there's no commit/live handler pair here (same as Results,
+ * §2c).
+ *
+ * Axis Key is the 26-character PREFIX only (core.axisKeyPrefix() —
+ * optimizer.js, computed there since it needs settings.mcd/coverages/
+ * insureds directly, not just what this tab already mirrors) — the
+ * 6-character rate band code that completes the real 32-character key is a
+ * Rates-tab concept (one row per band) with no home on a per-insured row
+ * here. Falls back to the usual pending cell for Critical Illness (no
+ * format given) and for the two Permanent Life products whose own
+ * abbreviation doesn't fit the format's fixed-width slot (VEG100, T100 —
+ * see axisKeyPrefixPermLife's own comment, optimizer.js).
  */
 (function () {
   'use strict';
@@ -58,12 +69,6 @@
     return rows;
   }
 
-  /** Preferred/Non-smoker -> N, Regular/Smoker -> S — the request's own
-      2-letter code, distinct from Coverage Rate's own P/R-based codes. */
-  function insuredRateCode(ins) {
-    return ins.rate === 'reg' ? 'S' : 'N';
-  }
-
   /** Same rule Insured Input's own "Age Calculated" cell and Coverage
       Input's own "Age" cell both use (§2, §2b): Age Real or Age Nearest,
       whichever that insured's own Age Calculation setting picks. */
@@ -81,7 +86,7 @@
     return '<tr>' +
         td((r.cIdx + 1) + '_' + (r.insIdx + 1)) +
         td(core.esc(r.ins.sex)) +
-        td(insuredRateCode(r.ins)) +
+        td(core.insuredRateCode(r.ins)) +
         td(age === null ? '—' : String(age)) +
         td(r.slot.rate ? core.esc(r.slot.rate) : '—') +
         td(core.group(r.slot.extraPct, core.decimals(r.slot.extraPct))) +
@@ -100,8 +105,22 @@
         core.pendingCell() +                  // Joint Age Backdated
         core.pendingCell() +                  // Joint Extra Prem. % Backdated
         core.pendingCell() +                  // Joint Extra Prem. $ Backdated
-        core.pendingCell('col-hard-sep') +   // Axis Key
+        axisKeyCell(r) +
       '</tr>';
+  }
+
+  /** The 26-character prefix (§ file header) when the category/product/
+      covType combination supports one, else the usual pending cell — same
+      fallback core.pendingCell() already gives Coverage Type/Coverage Fee
+      for Critical Illness elsewhere on this page. `mono` keeps the fixed-
+      width string reading as the exact character sequence it is, the same
+      reason table figures use tabular-nums. */
+  function axisKeyCell(r) {
+    var key = core.axisKeyPrefix(r.c, r.slot);
+    return key
+      ? '<td class="r col-hard-sep mono" title="Axis Key prefix — the 6-character rate band code is appended in the Rates tab">' +
+          core.esc(key) + '</td>'
+      : core.pendingCell('col-hard-sep');
   }
 
   function renderInsuredsTab() {

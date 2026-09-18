@@ -653,6 +653,22 @@
     ciBiz: ['Health Priorities - Business, Term to 75', 'Health Priorities - Business, Term to 100']
   };
 
+  /* Display abbreviation maps — named vars (not just inline in the
+     OptimizerCore object literal below) so axisKeyPrefix() (§ below) can
+     read them too, not only external split-off tabs through the bridge. */
+  var COVERAGE_ABBR = {
+    'Term 10': 'T10', 'Term 15': 'T15', 'Term 20': 'T20',
+    'Term 25': 'T25', 'Term 30': 'T30', 'Term to 65': 'T65',
+    'WL 10 Pay': 'VEG10', 'WL 15 Pay': 'VEG15', 'WL 20 Pay': 'VEG20',
+    'WL to 65': 'VEG65', 'WL to 100': 'VEG100', 'Term to 100': 'T100'
+  };
+  var COVTYPE_ABBR = {
+    'Individual': 'Individual',
+    'Joint First-to-Die': 'JFTD',
+    'Joint Last-to-Die': 'JLTD',
+    'Joint Last-to-Die, Paid-up 1st Death': 'JLTDPU'
+  };
+
   /* Highest duration first — the order the spec gives for which Term Life
      coverage in the whole list gets the $40 fee (every other Term Life
      coverage gets $20). A coverage type not in this list (shouldn't happen)
@@ -1541,6 +1557,56 @@
     renderInsuredList();
   }
 
+  // ----------------------------------------------------------------- axis key
+  /* Preferred/Non-smoker -> N, Regular/Smoker -> S. Originally local to
+     optimizer_insureds.js (its own "Insured Rate" column, §2e); moved here
+     once axisKeyPrefix() below became a SECOND consumer needing the exact
+     same mapping — the same "shared pieces move to the bridge the moment a
+     second file needs them" rule COVERAGE_ABBR/COVTYPE_ABBR already follow. */
+  function insuredRateCode(ins) {
+    return ins.rate === 'reg' ? 'S' : 'N';
+  }
+
+  /* The 26-character Axis Key PREFIX — everything except the 6-character
+     rate band code, which is a Rates-tab concept (one row per band, §
+     optimizer_rates.js) that has no place on a per-insured Insureds-tab row.
+     Two category-specific layouts; both return null (never a guessed
+     string) when the category isn't one of these two, or a value the
+     format depends on isn't available yet (no Coverage Rate chosen, an
+     unrecognised covType, …) — the same "blank stays blank" rule as
+     everywhere else on this page. */
+  function axisKeyPrefixTermLife(c, ins, slot) {
+    var typeChar = c.covType === 'Individual' ? '_' : (c.covType === 'Joint First-to-Die' ? 'C' : null);
+    var coverageCode = COVERAGE_ABBR[c.coverage];
+    if (typeChar === null || !coverageCode || !slot.rate) return null;
+    var mcdBlock = settings.mcd ? 'RMC_2509_' : '____2509_';
+    return 'DT' + typeChar + coverageCode + '______' + mcdBlock + ins.sex + insuredRateCode(ins) + slot.rate + '_';
+  }
+
+  /* VEG100 ('WL to 100') and T100 ('Term to 100') are 6 and 4 characters —
+     COVERAGE_ABBR's own values, unchanged since they're also what the
+     Coverages/Insureds tabs display — neither fits the stated 5-character
+     slot for Permanent Life. Rather than guess at a truncated/padded form
+     that was never specified, those two products simply can't produce a key
+     yet (null below); every other Permanent Life product is unaffected. */
+  function axisKeyPrefixPermLife(c, ins) {
+    var coverageCode = COVERAGE_ABBR[c.coverage];
+    if (!coverageCode || coverageCode.length !== 5) return null;
+    var isJoint = c.covType === 'Joint First-to-Die' || c.covType === 'Joint Last-to-Die' ||
+      c.covType === 'Joint Last-to-Die, Paid-up 1st Death';
+    var sexChar = isJoint ? 'M' : ins.sex;
+    var rateChar = isJoint ? 'N' : insuredRateCode(ins);
+    return 'DT' + '_' + coverageCode + '________2007_' + sexChar + rateChar + '___';
+  }
+
+  function axisKeyPrefix(c, slot) {
+    var ins = findInsured(slot.insuredId);
+    if (!ins) return null;
+    if (c.category === 'termLife') return axisKeyPrefixTermLife(c, ins, slot);
+    if (c.category === 'permLife') return axisKeyPrefixPermLife(c, ins);
+    return null;   // Critical Illness — no Axis Key format given yet
+  }
+
   // ------------------------------------------------------------ public bridge
   /* The one deliberate exception to "everything lives inside one IIFE, no
      globals" (§0). Some tabs — starting with Coverages — live in their own
@@ -1583,23 +1649,20 @@
        own date arithmetic (surrounding birthdays, a midpoint date, Illustration
        Date minus 6 months). Extended here rather than re-ported a second time. */
     parseDate: parseDate, fmtDate: fmtDate, buildDate: buildDate,
-    /* Display abbreviation maps. Defined here, not in optimizer_coverages.js
-       (where they were first needed), specifically so a SECOND split-off tab
-       (Insureds, §2e — its own Coverage/Coverage Type columns need the exact
-       same codes) reads the one shared copy rather than a second hand-typed
-       one that could quietly drift out of sync with the first. */
-    COVERAGE_ABBR: {
-      'Term 10': 'T10', 'Term 15': 'T15', 'Term 20': 'T20',
-      'Term 25': 'T25', 'Term 30': 'T30', 'Term to 65': 'T65',
-      'WL 10 Pay': 'VEG10', 'WL 15 Pay': 'VEG15', 'WL 20 Pay': 'VEG20',
-      'WL to 65': 'VEG65', 'WL to 100': 'VEG100', 'Term to 100': 'T100'
-    },
-    COVTYPE_ABBR: {
-      'Individual': 'Individual',
-      'Joint First-to-Die': 'JFTD',
-      'Joint Last-to-Die': 'JLTD',
-      'Joint Last-to-Die, Paid-up 1st Death': 'JLTDPU'
-    },
+    /* Display abbreviation maps — named vars now (§ COVERAGE_OPTIONS,
+       above), referenced here rather than redefined, specifically so a
+       SECOND split-off tab (Insureds, §2e — its own Coverage/Coverage Type
+       columns need the exact same codes) reads the one shared copy rather
+       than a second hand-typed one that could quietly drift out of sync. */
+    COVERAGE_ABBR: COVERAGE_ABBR,
+    COVTYPE_ABBR: COVTYPE_ABBR,
+    /** Preferred/Non-smoker -> N, Regular/Smoker -> S (§ axis key, above). */
+    insuredRateCode: insuredRateCode,
+    /** The 26-character Axis Key prefix for one (coverage, insured slot)
+        pair — null if the category/product/covType combination can't
+        produce one yet (§ axis key, above). The Rates tab appends its own
+        6-character rate band code to complete the full 32-character key. */
+    axisKeyPrefix: axisKeyPrefix,
     /** One "formula not yet provided" cell — `.cell-pending` (optimizer.css),
         amber/warn rather than the page's usual muted "—" for a plain
         not-yet-calculated figure, since these are explicitly flagged as

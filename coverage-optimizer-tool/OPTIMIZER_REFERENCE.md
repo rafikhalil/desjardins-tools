@@ -8,21 +8,25 @@ The sibling page, the Inforce Tool (`inforce.*`), has its own reference:
 `INFORCE_REFERENCE.md`. The two share a component set and a header switcher,
 nothing else; this document describes the Optimizer page only.
 
-**Read this first, in full, before writing code.** The Optimizer is mostly a
-**scaffold** — five of six tabs are still empty containers — but **the entire
-Input & Results tab (Settings, Insured Input, Coverage Input, and Results) is
-already live and working**: add/remove/edit, validation, cascading
-dropdowns, an exact specified age algorithm, focus-safe re-rendering. Read
-all four before building anything new; they are this page's own reference
-implementation, not just Inforce's. Your job is to build the rest into the
-containers that already exist, using the classes and conventions that
-already exist.
+**Read this first, in full, before writing code.** The Optimizer is no longer
+mostly scaffold: **six of seven tabs are live** — Input & Results (Settings,
+Insured Input, Coverage Input, Results), Coverages, Insureds, Rates, Backdate
+and History all add/remove/edit, validate, cascade dropdowns, run the exact
+specified age algorithm, and re-render focus-safely. **Eq. Age / Substd
+Prem. is the one tab still an empty container.** Read the live tabs before
+building anything new — they are this page's own reference implementation,
+not just Inforce's, and the newer ones (§2f–§2h) are the current template for
+how a split-off tab is structured, not just §2b–§2e. Your job on anything
+still open is to build into the containers/conventions that already exist,
+the same way each of these did.
 
-- Version: UI v0.1.0
-- Stack: hand-written HTML + CSS + ES5 JavaScript. **Zero dependencies, zero
-  build step, no framework, no bundler, no package.json.**
-- Files: `optimizer.html`, `optimizer.css`, `optimizer.js`, plus this reference
-  and `OPTIMIZER_INSTRUCTIONS.md`.
+- Version: UI v0.4.0
+- Stack: hand-written HTML + CSS + ES5 JavaScript, plus one vendored parsing
+  library (`xlsx.full.min.js`, SheetJS — §0 rule 2, §2f). **Zero other
+  dependencies, zero build step, no framework, no bundler, no package.json.**
+- Files: `optimizer.html`, `optimizer.css`, `optimizer.js`, the five split-off
+  tab file pairs (§1), `xlsx.full.min.js`, `start-server.bat`, plus this
+  reference and `OPTIMIZER_INSTRUCTIONS.md`.
 
 ---
 
@@ -34,13 +38,27 @@ likely way to produce an unusable result.
 1. **Do not add dependencies.** No React, Vue, jQuery, lodash, date-fns,
    charting libraries, bundlers, or transpilers. If you need something
    external, load it as a single vendored `<script>` file or write it by hand.
-   The tool must keep running by opening `optimizer.html` directly.
+   The tool must keep running by opening `optimizer.html` directly. **This
+   allowance has been exercised exactly once**: `xlsx.full.min.js` (SheetJS,
+   §2f) — a real `.xlsx` reader is not something anyone hand-writes, unlike
+   everything else on this page. It's a plain vendored `<script>`, no build
+   step, still works via `file://`; only the *optional* "Load from `rates/`"
+   convenience button (§2f) needs an http(s) server (`fetch()` of a local
+   path is blocked on `file://`) — the manual file picker next to it does not
+   and is what keeps rule 1's file://-first guarantee intact.
 2. **Do not add files** beyond what is strictly required. A large calculation
    engine (`optimizer-engine.js`) is acceptable, and so is a live TAB getting
-   its own file pair when it earns its keep (`optimizer_coverages.css`/`.js`,
-   §1, §2d, is the first) — reading shared state through the one deliberate
-   global that pattern requires (`window.OptimizerCore`), never a second one.
-   Anything beyond that needs justification.
+   its own file pair when it earns its keep — `optimizer_coverages.css`/`.js`
+   (§1, §2d) was the first; `optimizer_insureds.*` (§2e), `optimizer_rates.*`
+   (§2f), `optimizer_backdate.*` (§2g) and `optimizer_history.*` (§2h)
+   followed the identical pattern, reading shared state through the one
+   deliberate global that pattern requires (`window.OptimizerCore`), never a
+   second one. **History (§2h) is the one exception inside that pattern**: it
+   also calls the bridge's one deliberate WRITE path (`OptimizerCore.
+   restoreState`, §2d) — every other split-off tab stays strictly read-only.
+   `start-server.bat` is a dev convenience (wraps §1 "Running it"), not part
+   of the running app, and isn't held to this rule. Anything beyond all of
+   this needs justification.
 3. **ES5 syntax only in `optimizer.js`** (and any file that splits off from
    it the same way `optimizer_coverages.js` did). `var`, `function`, string
    concatenation. No arrow functions, `const`/`let`, template literals, or
@@ -70,13 +88,23 @@ likely way to produce an unusable result.
 
 ```
 inforce-tool/
-├── optimizer.html               static shell: top bar, tab bar, pane host, status bar, toast
+├── optimizer.html               static shell: top bar (incl. Save Test, §2h), tab bar, pane host, status bar, toast
 ├── optimizer.css                slate palette + every component class
-├── optimizer.js                 one IIFE: switcher, theme, tabs, pane generation, the "core" tabs
+├── optimizer.js                 one IIFE: switcher, theme, tabs, pane generation, the "core" tabs, the public bridge
 ├── optimizer_coverages.css      Coverages tab (§2d) — own file, own IIFE, own <link>/<script>
 ├── optimizer_coverages.js
 ├── optimizer_insureds.css       Insureds tab (§2e) — same pattern
 ├── optimizer_insureds.js
+├── optimizer_rates.css          Rates tab (§2f) — same pattern
+├── optimizer_rates.js
+├── optimizer_backdate.css       Backdate tab (§2g) — same pattern
+├── optimizer_backdate.js
+├── optimizer_history.css        History tab + the top-bar Save Test controls (§2h) — same pattern
+├── optimizer_history.js
+├── xlsx.full.min.js             vendored SheetJS build (§0 rule 1) — the one dependency this page has
+├── start-server.bat             double-click convenience for "Running it", below — not part of the app itself
+├── data/                        where Save Test's downloaded .json test cases land (§2h) — created by the browser, not shipped
+├── rates/                       where imported rate workbooks are expected (§2f) — empty until real files are dropped in
 ├── OPTIMIZER_REFERENCE.md       this file
 ├── OPTIMIZER_INSTRUCTIONS.md    custom instructions for the coding platform
 │
@@ -85,37 +113,50 @@ inforce-tool/
 ```
 
 **A live tab may live in its own file pair instead of inside `optimizer.js`/
-`.css`.** Coverages (§2d) and Insureds (§2e) both do: their own `<link>`/
-`<script>` in `optimizer.html`, loaded after `optimizer.js`/`.css` (and, for
-Insureds, after `optimizer_coverages.*` too — load order only matters
-insofar as each file must come after whatever it depends on; the two tab
-files don't depend on each other, only on `optimizer.js`), reading shared
-state through the one deliberate global `window.OptimizerCore` exposes
-rather than folding their own code into an already-large `optimizer.js`.
-This is the `optimizer-engine.js` allowance (§0 rule 2) generalised to "one
-extra file pair per tab, when it earns its keep" rather than one single
-second file — expect Rates/Backdate/Eq. Age to follow the same pattern as
-they're built, not to land inside `optimizer.js` itself. **A capability two
-split-off tabs both need — an abbreviation map, a cell-formatting helper —
-moves onto the bridge once the SECOND tab needs it** (§2d), not duplicated
-into a second copy; `COVERAGE_ABBR`/`COVTYPE_ABBR`/`pendingCell` are the
-worked example.
+`.css`.** Coverages (§2d), Insureds (§2e), Rates (§2f), Backdate (§2g) and
+History (§2h) all do: their own `<link>`/`<script>` in `optimizer.html`,
+loaded after `optimizer.js`/`.css` (load order only matters insofar as each
+file must come after whatever it depends on — none of the five split-off tab
+files depend on each other, only on `optimizer.js`, and `optimizer_rates.js`
+additionally needs `xlsx.full.min.js` loaded first), reading shared state
+through the one deliberate global `window.OptimizerCore` exposes rather than
+folding their own code into an already-large `optimizer.js`. This is the
+`optimizer-engine.js` allowance (§0 rule 2) generalised to "one extra file
+pair per tab, when it earns its keep" rather than one single second file —
+**Eq. Age / Substd Prem. is the one tab left to build**; expect it to follow
+the same pattern, landing in its own file pair rather than inside
+`optimizer.js` itself. **A capability two split-off tabs both need — an
+abbreviation map, a cell-formatting helper — moves onto the bridge once the
+SECOND tab needs it** (§2d), not duplicated into a second copy;
+`COVERAGE_ABBR`/`COVTYPE_ABBR`/`pendingCell`/`insuredRateCode` are the worked
+examples (§2d's own table lists the rest, including the two, `parseDate`-
+family and `axisKeyPrefix`, added for a tab that needed them without a
+second tab needing them yet — extended pre-emptively only when the requester
+themselves said a near-term second consumer was coming, § §2f/§2g's own notes).
 
 **`optimizer.css` and `inforce.css` share every component rule byte-for-byte;
 only the palette tokens differ.** They were generated from one source. If you
 change a component rule in `optimizer.css`, make the identical change in
 `inforce.css` — visual consistency across the two tools depends on it. Adding
 a *new* rule for an Optimizer-only component is fine; changing a shared one is
-not. `optimizer_coverages.css` has no Inforce equivalent and this rule
-doesn't apply to it — it's free to define whatever it needs, as long as it
-only ever reuses tokens/classes `optimizer.css` already defines rather than
-duplicating or restyling them (§2d).
+not. None of `optimizer_coverages.css`/`optimizer_insureds.css`/
+`optimizer_rates.css`/`optimizer_backdate.css`/`optimizer_history.css` has an
+Inforce equivalent and this rule doesn't apply to any of them — each is free
+to define whatever it needs, as long as it only ever reuses tokens/classes
+`optimizer.css` already defines rather than duplicating or restyling them
+(§2d).
 
 ### Running it
 
 Opening `optimizer.html` directly from disk works — `optimizer.js` is a classic
-script, not a module. For development, prefer a local server so the browser
-does not serve stale files:
+script, not a module — and this must keep working (§0 rule 1); the one thing
+that doesn't work this way is Rates' *optional* "Load from `rates/`" button
+(§2f), which needs an http(s) server because `fetch()` of a local file is
+blocked on `file://`. For development, prefer a local server so the browser
+does not serve stale files, and so that button works too. Either double-click
+**`start-server.bat`** (finds `python`/`py` on PATH, starts the server in its
+own window, opens `optimizer.html` in the default browser automatically,
+closing that window stops the server) or run the same command it wraps by hand:
 
 ```bash
 python -m http.server 8000
@@ -170,21 +211,29 @@ var TABS = [
   { id: 'optInsureds',  label: 'Insureds' },
   { id: 'optRates',     label: 'Rates' },
   { id: 'optBackdate',  label: 'Backdate' },
-  { id: 'optEqAge',     label: 'Eq. Age / Substd Prem.' }
+  { id: 'optEqAge',     label: 'Eq. Age / Substd Prem.' },
+  { id: 'optHistory',   label: 'History' }
 ];
 ```
 
 - `renderTabs()` generates one `<button class="tab">` per entry into `#tabList`.
 - `buildPanes()` generates one `<section class="pane" id="<id>">` per entry
-  into `#panes`, each holding an empty banded container (`slot(title)`).
+  into `#panes`, each holding an empty banded container (`slot(title)`) by
+  default.
 - An entry with `split: [leftTitle, rightTitle]` gets the 2/3 + 1/3
-  two-container layout instead. `optInput` does NOT use this generic form —
-  it's fully special-cased (below) — so it carries neither `split` nor a
-  result-fields list of its own; every other tab still gets it.
+  two-container layout instead — **no current tab actually uses this generic
+  form any more**: `optInput` is fully special-cased (below); `optCoverages`/
+  `optInsureds`/`optRates`/`optBackdate`/`optHistory` are each special-cased
+  too, to a single empty host div (`coveragesTabHost` / `insuredsTabHost` /
+  `ratesTabHost` / `backdateTabHost` / `historyTabHost`) that tab's own
+  `init…Tab()` fills — same idiom as `optInput`'s own hosts, just one host
+  per pane instead of four. `split` is still there for the one tab left to
+  build, `optEqAge`, if its shape turns out to fit it.
 - `showTab(id)` sets `aria-selected` on the buttons, un-hides exactly one pane,
   and writes the tab label into `#stTab` in the status bar.
 - The first tab is shown on load. **Panes are not gated on anything** — there
-  is no extract import on this page.
+  is no extract import on this page; Rates' own rate-file import (§2f) is
+  local to that one tab and never blocks any other pane from showing.
 
 `optInput` is a special case in `buildPanes()`: **Settings stands alone,
 full width, above one `.split`** whose `.split-main` holds Insured Input
@@ -835,15 +884,15 @@ live region on this page.
 
 ## 2d. Coverages tab (live) — `optimizer_coverages.css`/`.js`
 
-The `optCoverages` pane, first of the five tabs that used to be pure
-placeholders. **The first tab built in its own file pair** rather than
-folded into `optimizer.js`/`.css` — see §1 for why, and expect this to be
-the template for Insureds/Rates/Backdate/Eq. Age too, not a one-off.
+The `optCoverages` pane, first of what are now five tabs built as their own
+file pair rather than folded into `optimizer.js`/`.css` — see §1 for why.
+**The template all four later ones (§2e–§2h) followed**, not a one-off; only
+History (§2h) departs from it, and only in the one specific way noted below.
 
 ### The public bridge
 
-`optimizer_coverages.js` never touches `coverages`/`settings` directly and
-knows nothing about `optimizer.js`'s internals beyond one object,
+No split-off tab file touches `coverages`/`settings`/`insureds` directly —
+each knows nothing about `optimizer.js`'s internals beyond one object,
 `window.OptimizerCore` (defined near the end of `optimizer.js`, just before
 its `init` section):
 
@@ -852,11 +901,17 @@ its `init` section):
 | `coverages()`, `insureds()` | return the LIVE arrays (functions, not snapshots — always current); `insureds()` was added when the Insureds tab (§2e) needed it, Coverages never has |
 | `settings` | the live `settings` object itself (read its fields directly; never reassign it) |
 | `COVERAGE_CATEGORY_MAP` | category key → display label |
-| `COVERAGE_ABBR`, `COVTYPE_ABBR` | the two display-abbreviation maps (below) — live here, not in either tab file, specifically so Coverages AND Insureds (§2e) read the one shared copy |
+| `COVERAGE_ABBR`, `COVTYPE_ABBR` | the two display-abbreviation maps — named vars in `optimizer.js` (not just inline in this object literal, so `axisKeyPrefix()` below can read them too), referenced here so every split-off tab reads the one shared copy |
 | `esc`, `group`, `toNum`, `decimals`, `agesAt`, `findInsured` | the same utilities/functions `optimizer.js` itself uses — ported once, reused everywhere, not copied a third time |
+| `parseDate`, `fmtDate`, `buildDate` | date parsing/formatting — not on the bridge until Backdate (§2g) became the first split-off tab to do its own date arithmetic (surrounding birthdays, a midpoint date, Illustration Date minus 6 months) |
+| `insuredRateCode(ins)` | Preferred/Non-smoker → `N`, Regular/Smoker → `S` — started local to the Insureds tab (§2e), moved here once `axisKeyPrefix` (next) became a second consumer |
+| `axisKeyPrefix(coverage, slot)` | the 26-character Axis Key prefix for one (coverage, insured slot) pair — `null` if the category/product/covType combination can't produce one yet (§2e "Axis Key"). Implemented in `optimizer.js`, not a tab file, because it needs `settings.mcd` directly and is already known to have a second consumer coming (Rates, §2f) the moment its own rate-band lookup is wired up |
 | `coverageTitle` | the "N. Category — Coverage" string builder (§2b) |
-| `pendingCell(extraClass)` | builds one "formula not yet provided" `<td>` (`.cell-pending`, `optimizer.css`) — lives on the bridge, not a tab file, for the same reason the two abbreviation maps do: both Coverages and Insureds need the identical cell |
+| `pendingCell(extraClass)` | builds one "formula not yet provided" `<td>` (`.cell-pending`, `optimizer.css`) — lives on the bridge, not a tab file, since every split-off tab ends up needing the identical cell |
 | `onChange(fn)` | registers `fn` to run after any commit that could change `coverages`, `insureds`, or `settings` |
+| `registerSnapshot(key, {get, set})`, `getSnapshot(key)`, `setSnapshot(key, data)` | lets a split-off tab offer its own local state up for Save/Load to include, without `optimizer.js` needing to know that state exists — Rates' own imported-rates cache does NOT use this (§2f explains why: it's not part of a saved test case), Coverages' Unit Value (§ below) is the only user today |
+| `snapshotState()` | a deep-cloned, plain-JSON snapshot of Settings/Insureds/Coverages — read-only, like every other accessor above |
+| `restoreState(snap)` | **the one deliberate WRITE exception to this otherwise read-only bridge** (below) — only ever called from `optimizer_history.js` (§2h) |
 
 `notifyOptimizerCoreChange()` (private to `optimizer.js`) fires this on
 every coverage-list render (`renderCoverageList`, so any coverage add/
@@ -872,15 +927,27 @@ render (§2b).
 them, not before.** `COVERAGE_ABBR`/`COVTYPE_ABBR`/`pendingCell` all started
 out defined inside `optimizer_coverages.js` itself — perfectly fine while
 Coverages was the only tab using them — and moved to `OptimizerCore` once
-the Insureds tab (§2e) needed the exact same three. Don't re-add a local
-copy of any of them to a future split-off tab file "to keep it
-self-contained"; extend the bridge instead, the same way these three were.
+the Insureds tab (§2e) needed the exact same three; `insuredRateCode`
+followed the identical path when `axisKeyPrefix` became its second consumer.
+Don't re-add a local copy of any of these to a future split-off tab file "to
+keep it self-contained"; extend the bridge instead, the same way all of them
+were. `axisKeyPrefix` itself is the one deliberate exception to "wait for a
+second consumer" — it was placed on the bridge the moment it was built, on
+the strength of the request itself already naming Rates (§2f) as the
+near-term second consumer, not a guess at future need (§9).
 
-**This bridge is read-only by design.** There is no `OptimizerCore.setX(…)`
-— every write to `coverages`/`settings` still goes through `optimizer.js`'s
-own commit handlers exclusively; a split-off tab file only ever reads
-through the bridge and manages whatever NEW state is entirely its own (Unit
-Value, below).
+**This bridge is read-only from every split-off tab file EXCEPT ONE
+function.** There is no general `OptimizerCore.setX(…)` — every write to
+`coverages`/`settings`/`insureds` still goes through `optimizer.js`'s own
+commit handlers exclusively, and every split-off tab manages whatever NEW
+state is entirely its own (Unit Value, below) through `registerSnapshot`
+rather than reaching into the core model. `restoreState(snap)` is the one
+narrow, deliberate exception: reloading a saved test case (§2h) is
+inherently a bulk overwrite of `coverages`/`settings`/`insureds`, which only
+`optimizer.js` may ever perform (§9) — implemented and fully validated
+inside `optimizer.js` itself, just invoked from History's own file when the
+operator clicks Load. No other bridge member, and no other split-off tab,
+gets this capability.
 
 ### The table
 
@@ -968,8 +1035,9 @@ Key functions (all in `optimizer_coverages.js` unless noted otherwise):
 
 The `optInsureds` pane, built the same way as Coverages (§2d, §1) — its own
 file pair, reading `window.OptimizerCore` only. **Nothing on this tab is
-editable** — every column is either mirrored (read-only) or pending — so,
-like Results (§2c), there's no commit/live handler pair here at all.
+editable** — every column is mirrored (read-only), pending, or (Axis Key
+only) computed from the others — so, like Results (§2c), there's no
+commit/live handler pair here at all.
 
 ### One row per (coverage, insured-on-that-coverage) pair
 
@@ -1012,7 +1080,27 @@ Rate, Joint Age, Joint Extra Prem. %, Joint Extra Prem. $, Joint Age
 Backdated, Joint Extra Prem. % Backdated, Joint Extra Prem. $ Backdated —
 each `core.pendingCell()` (§2d).
 
-**Hard separator**, then one more pending column — Axis Key.
+**Hard separator**, then one more column — Axis Key.
+
+**Axis Key is a computed 26-character PREFIX, not a pending placeholder —
+`core.axisKeyPrefix(r.c, r.slot)` (§2d).** It's the same Axis Key the Rate
+file's own `TableName` column is keyed by (§2f), minus the 6-character rate
+band code: that part is a Rates-tab concept (one row per band) with no home
+on a per-insured row here, so what's shown is everything BEFORE it — the
+request's own framing is "we now have the basis for our Axis Key". Rendered
+`mono` (tabular, fixed-width reads as the exact character sequence it is)
+with a `title` noting it's a prefix. Falls back to the standard
+`core.pendingCell('col-hard-sep')` in two cases:
+- **Critical Illness** (any of the three categories) — no Axis Key format
+  has been given for these yet, same gap as Coverage Type/Coverage Fee
+  elsewhere (§2b).
+- **Two specific Permanent Life products** — `WL to 100` (`VEG100`, 6
+  characters) and `Term to 100` (`T100`, 4 characters). Permanent Life's own
+  format reserves exactly 5 characters for this segment; neither
+  abbreviation fits it, and `axisKeyPrefixPermLife` (`optimizer.js`) refuses
+  to guess at a truncated/padded form that was never specified. Every other
+  Permanent Life product (`VEG10`/`VEG15`/`VEG20`/`VEG65`, all exactly 5
+  characters) is unaffected.
 
 A "hard separator" is `.col-hard-sep` (`optimizer.css`, §2d) — a visible
 vertical divider between column GROUPS, stronger than `.ins`'s own row
@@ -1020,7 +1108,8 @@ hairlines, which don't separate columns at all by default. It's applied to
 BOTH the header cell and every body cell at that column position (Joint Sex,
 Axis Key) — `core.pendingCell('col-hard-sep')` takes the class as a
 parameter for exactly this, so a pending cell doesn't need `.cell-pending`
-and `.col-hard-sep` reconciled by hand at each of the two boundaries.
+and `.col-hard-sep` reconciled by hand at each of the two boundaries; the
+computed Axis Key cell carries the same class directly for the same reason.
 
 **An empty row set** (no coverage has any insured slot filled yet) shows a
 `.proj-slot`-style placeholder spanning every column, not a headers-only
@@ -1033,11 +1122,435 @@ Key functions (all in `optimizer_insureds.js`):
 |---|---|
 | `COLUMNS`, `HARD_SEP_AT` | the 22-column header list and the two 0-based indices (`13`, `21`) that open a new group |
 | `buildRows()` | the nested coverage-then-slot walk that produces the flat row list |
-| `insuredRateCode(ins)` | Insured Input's `pref`/`reg` → `N`/`S` |
 | `calcAge(ins)` | the Age Nearest/Last rule, via `core.agesAt` |
+| `axisKeyCell(r)` | the Axis Key cell — `core.axisKeyPrefix(r.c, r.slot)` if it returns one, else the standard pending cell (above) |
 | `td(value)`, `rowHtml(r)`, `insuredsTabShell()` | the markup builders |
 | `renderInsuredsTab()` | rebuilds the table body (or the empty-state placeholder); no-ops if `#insTabBody` doesn't exist yet |
 | `initInsuredsTab()` | one-time: render the shell, register with `OptimizerCore.onChange` — no `change`/`input` listener, since nothing here is ever committed |
+
+---
+
+## 2f. Rates tab (live — file import & parsing done, lookup not yet wired) — `optimizer_rates.css`/`.js`
+
+The `optRates` pane, built the same way as Coverages/Insureds (§2d/§2e, §1) —
+its own file pair, reading `window.OptimizerCore` only, plus the one
+vendored dependency this page has, `xlsx.full.min.js` (SheetJS, §0 rule 1),
+loaded before `optimizer_rates.js` in `optimizer.html`. **The most crucial
+tab in the tool, per the request that specified it** — the goal is reading a
+real insurance-rates `.xlsx` workbook, finding the rate at every rate band
+for every insured on every coverage, at both their current age and age − 1
+(for a possible backdate), for both the Premium Rate and the Extra Premium
+Rate. That's four rates × N rate bands × M insureds per coverage.
+
+**What's real today**: importing and parsing BOTH rate file formats
+end-to-end (tested against locally-built sample workbooks shaped exactly
+like the real ones, including the request's own worked examples — see
+below), with a real chunked progress bar. **What's still pending**: the
+Axis Key CONSTRUCTION formula only covers the 26-character *prefix* so far
+(§2e) — completing it with a 6-character rate band code and actually calling
+`lookupTermLifeRate`/`lookupPermLifeRate` from this tab's own cells is the
+next step, not done yet. Every PR_i/EPR_i-family cell is `core.pendingCell()`
+regardless of whether a file is loaded, until that wiring lands.
+
+### Rate bands (fixed, hardcoded)
+
+Given, not derived — 8 bands for Term Life, 6 for Permanent Life. Critical
+Illness has none; a coverage in any of those three categories gets the
+plain "not built yet" placeholder card instead of a table, the same gap as
+Coverage Type/Coverage Fee elsewhere (§2b).
+
+| Category | Bands (code — face amount) |
+|---|---|
+| Term Life | B00025—25,000 · B00050—50,000 · B00100—100,000 · B00250—250,000 · B00500—500,000 · B01000—1,000,000 · B02000—2,000,000 · B10000—10,000,000 |
+| Permanent Life | B00010—10,000 · B00025—25,000 · B00050—50,000 · B00100—100,000 · B00250—250,000 · B00500—500,000 |
+
+`BAND_TABLES` (`optimizer_rates.js`) — a coverage's own row axis in both
+table regions below is exactly its category's band list, in this order.
+
+### One container per coverage — two table regions, one row axis
+
+Per the request's own layout, split into a scrollable region and a
+static one, sharing the same rate-band row axis so they line up without
+extra work (`.rate-body` = flex row; `.rate-scroll` = `.table-scroll-wrap`;
+`.rate-fixed` = never scrolls, §5):
+
+```
+┌───────────────────────────────────────────┬─────────────────────────────┐
+│ Rate Band Code │ Insured 1 (4 cols) │ … ▸ │ Total │ BD_Total │ BD_Final  │
+│      (scrolls within itself)               │   (always visible, 9 cols)  │
+└───────────────────────────────────────────┴─────────────────────────────┘
+```
+
+**LEFT, `.rate-scroll`**: Rate Band Code, then one 4-column group per
+*filled* insured slot on that coverage (`Insured N — <name>`, then
+`PR_N`/`EPR_N`/`PR_BD_N`/`EPR_BD_N`) — an empty `"— Select —"` slot
+contributes no group. A light `.col-soft-sep` divider (thinner than
+`.col-hard-sep`, `--line-strong`, §5) marks where one insured's group ends
+and the next begins — the request's own "light visible separation between
+each insured", distinct from the RIGHT region's stronger one. Every data
+cell is `core.pendingCell()` today regardless of category (above).
+
+**RIGHT, `.rate-fixed`**: three 3-column groups — Total (`PR_Total`/
+`EPR_Total`/`PEP_Total`), BD_Total (same three, backdated), BD_Final (same
+three again) — `.col-hard-sep` between each GROUP, matching the request's
+"another hard separation" language. Total/BD_Total render the page's
+"blocked on missing upstream data" convention (plain muted `—`, `dashCell()`
+— their SUM formula is fully specified, only the PR_i/EPR_i inputs they'd
+sum are missing right now, same treatment Results' own "Modal Premium"
+gets, §2c) — BD_Final renders `core.pendingCell()` instead, since its own
+formula (which insured's rate to use, current or backdated, "based on if
+the insured is backdatable or not") is explicitly not final yet, a
+different reason than "blocked on an input" (§9).
+
+### Importing a rate file
+
+One `<input type="file" accept=".xlsx">` (`#ratesFileInput`, triggered by
+**Import Rates File**) handles both categories: `detectAndIngest()` reads
+the workbook and looks at its OWN sheet names — any `temp_rates_` prefix
+means Term Life, `perm_rates_` means Permanent Life — rather than a second
+button/picker per category. **Load from `rates/`** tries `fetch()`-ing both
+known filenames from the `rates/` folder (§1) independently — this only
+works when the page is served over http(s) (§0 rule 1, §1 "Running it"); on
+`file://` it fails with a calm status message, never a crash, and the
+picker above is unaffected either way.
+
+**Config is one small, clearly-marked block at the top of
+`optimizer_rates.js`** — `RATE_VERSION` (`'2509'`), `PERM_VERSION`
+(`'2007'`), the filenames/sheet names built from them, and
+`TERM_LIFE_DURATIONS` (the six sheet-name suffixes, in Coverage Input's own
+`COVERAGE_OPTIONS.termLife` order). Deliberately hardcoded, not detected
+from the imported file — the request's own answer, given so a future rate
+table revision (a new version stamp) is a one-line edit in an obvious spot,
+not a code hunt.
+
+**Term Life** — `temp_rates_<RATE_VERSION>_combined.xlsx`, 6 sheets
+(`temp_rates_<RATE_VERSION>_t10` … `_t65`), each identically shaped:
+
+| Column | Meaning |
+|---|---|
+| ColA–ColC | Run Id / Section / Shape — ignored |
+| ColD | Axis Key (`TableName`) |
+| ColE | Duration — **every value 1–100 is kept**, not just 1 (below) |
+| ColF | Op — ignored |
+| ColG–ColDB | Age 0–99 (`C1`…`C100`; `ColG` = age 0, 100 columns) |
+| ColDC–ColDE | Scenario / Override Id / RunFilter Id — ignored |
+
+`termLifeTables[suffix][axisKey][duration][age] = rate`. **Every Duration
+1–100 is imported, not filtered down to Duration 1** — only Duration 1 is
+read anywhere today (`lookupTermLifeRate`'s own default parameter), but the
+request specifically asked for the whole workbook up front so a later
+duration-aware feature never needs a re-import. Verified against the
+request's own worked example (Duration 1, ages 19–28 → 1.56, ages 29+ →
+2.56 at one Axis Key) and, separately, against a synthetic file with 8 and
+100 distinct durations on two Axis Keys — every duration retrieved
+correctly and independently (`lookupTermLifeRate(suffix, axisKey, age,
+duration)`).
+
+**Permanent Life** — `perm_rates_<PERM_VERSION>_combined.xlsx`, ONE sheet
+(`perm_rates_<PERM_VERSION>_combined`), no per-product split (every WL
+product's rows live together, distinguished only by Axis Key) and no
+duration axis at all:
+
+| Column | Meaning |
+|---|---|
+| ColA–ColC | Run Id / Section / Shape — ignored |
+| ColD | Axis Key |
+| ColE | "Row" = Age + 1 — a block starts with a `-2` sentinel row (no rate, skipped), then 1–100 (age 0–99); anything outside 1–100 is skipped the same way, not just a literal `-2` |
+| ColF | Op — ignored |
+| ColG | the rate (`$`/1000 of insurance, same convention as Term Life) |
+| ColH–ColJ | Scenario / Override Id / RunFilter Id — ignored |
+
+`permLifeTable[axisKey][age] = rate`. Verified against the request's own
+worked examples exactly: Row 37 → age 36 → the example's own 22.48; Row 20
+→ age 19 → 12.34; the `-2` sentinel and an out-of-range junk row both
+correctly produce no entry.
+
+### Chunked import with a real progress bar
+
+Parsing is NOT one synchronous pass — `processRowsChunked()` walks a
+sheet's rows in `ROW_CHUNK` (500) batches, yielding via `setTimeout(…, 0)`
+between them, driving `#rateProgress` (label + native `<progress>`,
+`accent-color` themed, §5) with real "sheet N of 6" / "row X/Y" text — not
+decorative, since now that Term Life keeps every Duration, a real workbook
+is big enough to freeze the tab for a visible moment otherwise. Verified
+live: caught the bar mid-import reporting "sheet 2 of 6 … 33%", confirmed
+both import buttons disable while it runs and re-enable after.
+
+**One import runs at a time; concurrent requests queue rather than
+collide** (`importQueue`/`runNextImport`/`afterImport`) — "Load from
+`rates/`" fires off Term Life and Permanent Life together, and
+`restorePersistedRates()` does the same on page load; both need to
+complete, just not simultaneously (they'd fight over the one progress bar).
+Verified by firing both imports back-to-back: both completed correctly, in
+sequence, neither's status clobbered by the other.
+
+### Persistence — separate from History, on purpose
+
+Raw file BYTES, not the parsed lookup table, are cached to `localStorage`
+under `coverage-optimizer-rates` (base64, one entry per category so
+importing one never wipes the other) — smaller than a full JSON dump of
+every cell, and a single source of truth: a future fix to the parsing logic
+applies on next load with no cache to invalidate by hand. Falls back to
+session-only with a toast, not a silent failure, if a file is too big for
+the quota. **Deliberately NOT part of a saved History test case** (§2h) —
+the imported rate table is shared reference data the tool operates against,
+not a scenario input a specific test case owns; reloading an old test case
+re-resolves against whatever rates happen to be loaded at the time, not a
+frozen copy from when it was saved.
+
+Key functions (all in `optimizer_rates.js` unless noted otherwise):
+
+| Function | Purpose |
+|---|---|
+| `RATE_VERSION`, `PERM_VERSION`, `TERM_LIFE_FILE_PATH`, `PERM_LIFE_FILE_PATH`, `TERM_LIFE_DURATIONS`, `TERM_LIFE_COVERAGE_SUFFIX` | the one visible config block (above) |
+| `BAND_TABLES` | the two fixed rate-band lists |
+| `detectAndIngest(bytes, fileName)` | reads the workbook, routes by sheet name, queues the job |
+| `ingestTermLifeWorkbook`, `ingestPermLifeWorkbook` | the two category-specific parsers (above), each chunked via `processRowsChunked` |
+| `lookupTermLifeRate(suffix, axisKey, age, duration)`, `lookupPermLifeRate(axisKey, age)` | the lookups this file exists to provide — implemented and tested, not yet called by the UI (above) |
+| `processRowsChunked(rows, onRow, onProgress, onDone)` | the generic chunked-iteration helper both parsers use |
+| `importQueue`, `runNextImport()`, `afterImport()` | the one-import-at-a-time queue |
+| `showProgress(label, pct)`, `hideProgress()`, `setImportButtonsDisabled(v)` | the loading-bar UI |
+| `handleFilePicked(file)`, `loadFromRatesFolder()` | the two entry points into `detectAndIngest` |
+| `bytesToBase64`/`base64ToBytes`, `persistRates(kind, bytes, fileName)`, `restorePersistedRates()` | persistence (above) |
+| `insuredRatesTable(c, slots)`, `totalsRatesTable(c)`, `coverageRatesCard(c)` | the markup builders for the two table regions and the outer card |
+| `renderRatesTab()`, `ratesTabShell()`, `initRatesTab()` | the render/shell/init trio every split-off tab has |
+| `toast(msg, kind)`, `renderStatus()` | transient per-action feedback vs. the persistent "what's loaded" summary (two lines, one per category) — the same split History's own file uses |
+
+---
+
+## 2g. Backdate tab (live) — `optimizer_backdate.css`/`.js`
+
+The `optBackdate` pane, built the same way as the other split-off tabs
+(§2d–§2f, §1). **Two containers stack top/bottom, not left/right** — the
+one tab on this page that doesn't use `.split` at all; both containers are
+siblings inside `#backdateTabHost`, plain block-level stacking.
+
+### Container 1 — Insureds Backdate
+
+One row per insured (from Insured Input directly, not per coverage), every
+date measured against the Illustration Date (`settings.refDate` — the same
+page-level reference date every other tab uses, never real "today", §9
+invariant #12) since that's the one date this container's own header
+anchors Max. Backdate Date to.
+
+**Header (`.card-head--band`) carries three figures**, left to right, via a
+new Optimizer-only component (`.bd-band-figs`/`.bd-band-fig`, §5 — NOT
+`.chip`: `.card-head--band .chip:not(.chip--edit)` force-inverts a chip's
+colours inside a band, which would swallow the amber "pending" look Final
+Backdate Date needs, so a new class sidesteps that shared-rule collision
+instead of touching it):
+
+| Figure | Value |
+|---|---|
+| Illustration Date | `settings.refDate`, as-is |
+| Max. Backdate Date | Illustration Date − 6 months (`subtractMonths`, below) |
+| Final Backdate Date | `—`, highlighted amber (`.bd-band-fig--warn`) — formula not yet provided |
+
+13 columns, one row per insured:
+
+| # | Column | Source |
+|---|---|---|
+| 1 | Insured Name | `ins.name` |
+| 2 | Insured Birthdate | `ins.birthdate` |
+| 3 | Age Real | `agesAt(ins.birthdate, Illustration Date).real` |
+| 4 | Age Nearest/Last | `.real` or `.nearest` per `ins.ageCalc`, same rule used everywhere else (§2, §2e) |
+| 5 | Past Birthday | most recent birthday on or before Illustration Date (inclusive) |
+| 6 | Midpoint (Possible Backdate) | exact midpoint, in days, between Past and Next Birthday |
+| 7 | Next Birthday | the birthday strictly after Illustration Date |
+| 8 | Backdate Eligible | `AND(Midpoint ≥ Max. Backdate Date; Midpoint ≤ Illustration Date)` → `TRUE`/`FALSE` |
+| 9 | Backdated Age Nearest/Last | `agesAt(ins.birthdate, Midpoint)`, same real/nearest rule as col. 4 |
+| 10 | Rate Current (All Cov.) | `core.pendingCell()` — always, no formula yet |
+| 11 | Rate Backdated (All Cov.) | `core.pendingCell()` — always, no formula yet |
+| 12 | Confirm Backdate | see short-circuit, below |
+| 13 | Backdate Date | see short-circuit, below |
+
+**Date math, all in `optimizer_backdate.js`, none of it guessed at without a
+flag**:
+- `subtractMonths(dt, n)` — plain `Date` normalisation; an out-of-range day
+  rolls into the following month on its own (e.g. 31-AUG − 6 ≈ 3-MAR, not
+  clamped to the shorter month's last day) — not addressed by the request,
+  flagged rather than silently picked.
+- `birthdayInYear(birth, y)` — 29-FEB in a non-leap year falls back to
+  28-FEB (the closest lived date) rather than skipping that year's
+  birthday — not specified, least-surprising choice for the one date this
+  can affect.
+- `surroundingBirthdays` — a birthday landing exactly on the Illustration
+  Date counts as already past, not upcoming (inclusive reading of "most
+  recent… that passed").
+- `midpointDate` — Past/Next Birthday are 365 or 366 days apart, so an
+  exact half-day split is impossible for the (far more common) 365 case;
+  **round-half-up** was picked, flagged as a choice, not a given.
+- **Day 29/30/31 in a midpoint result falls back to 28** — the exact same
+  rule, and reason (any month, not just the ones that day doesn't exist
+  in), as Reference Date's own clamp (next paragraph) — stated explicitly
+  by the request for both.
+
+**Reference Date (Settings, §2a) clamps the same way**: a day of 29/30/31,
+in ANY month, becomes 28 — `validateSettings`'s `'date'` branch,
+`optimizer.js`, scoped to `f.k === 'refDate'` specifically (the only date
+field this applies to). Verified live: `31-DEC-2025` commits and displays
+as `28-DEC-2025`; a midpoint that would land on `30-JUL` displays `28-JUL`,
+and that CLAMPED date is what feeds Eligible/Backdated Age downstream, not
+the pre-clamp one.
+
+**Confirm Backdate / Backdate Date short-circuit rather than staying
+uniformly pending.** The real formulas are `Confirm Backdate = AND(Eligible;
+Rate Backdated < Rate Current)` and `Backdate Date = AND(Eligible; Confirm
+Backdate) ? Midpoint : BLANK()` — both reference columns 10/11, which have
+no formula yet (Rates tab, §2f, hasn't been wired up to feed them — a
+deliberate decision to keep the two tabs separate for now, not an
+oversight). But `AND(FALSE; anything)` is `FALSE` regardless of what's
+missing:
+
+- **Not eligible** → Confirm Backdate is a real, resolved `FALSE` (plain
+  text, not amber) and Backdate Date is a real, resolved blank (`dashCell()`
+  — muted `—`, the page's "blocked on missing input" convention, §2f, §9).
+- **Eligible** → Confirm Backdate genuinely can't be determined yet
+  (`core.pendingCell()`), and Backdate Date inherits the same block.
+
+Verified live for both branches: an ineligible insured showed plain
+`FALSE`/`—` (no amber); an eligible one showed both cells amber-pending.
+
+### Container 2 — Backdate Projection
+
+**Show Projection** — an on/off switch in the container's own
+`card-head--band` (reuses `.switch`, the exact Multi-Coverage Discount
+component, §2a; local `data-act="toggle-bdproj"`, this file's own delegated
+click handler, not `settingsCommit`). **OFF by default** — not specified
+either way; mirrors MCD's own "off until the operator opts in" precedent
+(§2a). **OFF collapses `#bdProjBody` (the table) while the band itself
+stays visible** — per the request, verified live both directions.
+
+Two more header figures, same `.bd-band-fig--warn` amber pill as Final
+Backdate Date: **Monthly Savings Date**, **Annual Savings Date** — both
+`—`, formula not yet provided.
+
+Six columns — **Date, Premium Current, Cumul. Prem. Current, Premium
+Backdated, Cumul. Prem. Backdated, Difference** — every HEADER cell
+(not body cell) rendered amber-pending (`.cell-pending` reused on a `<th>`,
+out-specified over `.ins thead th`'s own band styling the same way
+`.results-cov-wrap .ins thead th` already does, §2c) — the request's own
+"highlight all in yellow" applied to the column set itself. **No rows are
+generated** — the request gave the column set but not a row-generation rule
+(period, date range), so nothing was invented; a single spanning
+placeholder ("Formulas not yet provided — nothing to project yet.") stands
+in, the same empty-state idiom used elsewhere (§2c, §2e).
+
+Key functions (all in `optimizer_backdate.js`):
+
+| Function | Purpose |
+|---|---|
+| `subtractMonths`, `birthdayInYear`, `surroundingBirthdays`, `midpointDate` | the date-math primitives (above) |
+| `dashCell()` | the local "blocked on missing input" `<td>` — the muted-`—` counterpart to `core.pendingCell()` |
+| `backdateRow(ins, illustration, maxBackdate)` | one Insureds Backdate row, including the Confirm Backdate/Backdate Date short-circuit |
+| `insuredsBackdateShell()`, `renderBackdateTab()` | container 1's shell/render |
+| `backdateProjectionShell()` | container 2's shell, including the Show Projection switch and the pending-header table |
+| `showProjection` | this container's own local UI state — not part of `settings`, never saved (it's a display preference, not an input that produces outputs) |
+| `initBackdateTab()` | one-time: render both shells, wire the Show Projection toggle, register with `OptimizerCore.onChange` (container 1 only — container 2 never depends on shared state) |
+
+---
+
+## 2h. History tab (live) — `optimizer_history.css`/`.js`
+
+The `optHistory` pane — last in the tab bar — built the same way as the
+other split-off tabs, **except this is the one file allowed to call the
+bridge's one deliberate WRITE path**, `OptimizerCore.restoreState` (§2d),
+when the operator picks a saved test case to reload. Also the one feature
+whose UI spans two physical locations — the History tab itself, and three
+controls in `optimizer.html`'s static top bar — but it's still one file/CSS
+pair, per the request treating Save/Load as a single feature.
+
+### Top bar controls
+
+In order, immediately before the theme button: **Test Case Name** (text
+input, `#tcName`), **Username** (`#tcUser`, fixed dropdown — `Catheryne L.`
+/ `Rafi K.` / `Catherine C.`, in that order, no blank option, defaults to
+the first), **Save Test** (`#btnSaveTest`). Static markup in
+`optimizer.html` (the top bar isn't tab-generated), sized taller than the
+base `.fi`'s dense 19px to match the 27px theme button beside them
+(`optimizer_history.css`) — wired up by `optimizer_history.js` regardless,
+per the "one feature, one file" framing above.
+
+**Save Test** requires a non-blank Test Case Name (toasts and aborts
+otherwise, `.fi--bad` on the box); Username always holds a value by
+construction. On success: builds one catalog entry, pushes it to the
+in-memory/`localStorage` catalog, triggers a `.json` file download,
+re-renders the History table, clears the Name box, toasts confirmation.
+
+### Persistence — browser storage AND a portable file, on purpose
+
+This tool has no backend and must keep opening from `file://` (§0 rule 1),
+so there is no folder it can silently write to. Every save does BOTH:
+
+- Writes into `localStorage` (`coverage-optimizer-testcases`) — so the
+  History tab can list and one-click **Load** it instantly, the same way
+  the theme choice already persists there.
+- Downloads a `.json` file of the same entry — a real, portable file that
+  can be archived or emailed to a colleague ("demonstrate the test case…
+  without having to rebuild the inputs").
+
+**A page can never dictate WHERE that download lands** — that's a browser
+security boundary, not something this file can route around; it lands
+wherever the browser's own configured download directory says. **Import
+Test Case** (a button in the History tab's own band, hidden `<input
+type="file">` behind it) is the other half: it reads a `.json` file back
+via the ordinary file picker and adds it to THIS browser's own catalog —
+the only way a colleague's file can ever reach someone else's History,
+since nothing here can reach across machines on its own.
+
+### The catalog entry — everything needed to reproduce a test case
+
+`core.snapshotState()` (Settings/Insureds/Coverages, deep-cloned plain
+JSON) plus Unit Value (`core.getSnapshot('unitValues')` — Coverages tab's
+own field, outside that model entirely, §2d) folded into one `snapshot`
+object, wrapped with `id`/`name`/`user`/`savedAt`/`insuredCount`/
+`coverageCount`. `savedAt` is built from LOCAL wall-clock time
+(`nowStamp()`, its own tiny formatter — deliberately NOT `core.fmtDate`,
+which reads a Date's UTC fields for the page's business dates; a save
+timestamp has no such requirement, local time is what "just now" means to
+whoever clicked the button).
+
+### The table — 8 columns
+
+| Column | Source |
+|---|---|
+| Test Case Name | `entry.name` |
+| Username | `entry.user` |
+| Date Saved | `entry.savedAt` |
+| Number of Insureds | `entry.insuredCount` |
+| Number of Coverages | `entry.coverageCount` |
+| Total Modal Premium | `—`, plain muted (NOT amber) — the intended formula (sum of every coverage's own Modal Prem., once that exists) is already known, blocked on an upstream figure that doesn't exist yet, same treatment as Results' own "Modal Premium" and Rates' own Total columns (§2c, §2f) |
+| Load | button, `data-act="load-tc"` |
+| Delete | button, `data-act="del-tc"` — added on request, not in the original column list, once test cases could accumulate |
+
+**Load — order matters.** `core.restoreState(entry.snapshot)` runs FIRST
+(replacing `coverages`/`insureds`/`settings`), THEN
+`core.setSnapshot('unitValues', entry.snapshot.unitValues)` — Unit Value's
+own `set` callback re-syncs against whatever `coverages` currently holds
+(`optimizer_coverages.js`'s `syncUnitValues`), so it has to run AFTER the
+coverages it's syncing against already reflect the loaded snapshot, or it
+discards the just-restored values as "stale". Verified live: changed a
+coverage's Unit Value, saved, changed it again, Loaded — the SAVED value
+came back, not the pre-load one. Then switches to `optInput`
+(`document.querySelector('.tab[data-pane="optInput"]').click()` — reuses
+the existing tab-click mechanism rather than a new bridge export) so the
+operator immediately sees what loaded, and toasts confirmation.
+
+**Delete is immediate, no confirmation dialog** — the same convention
+Coverage/Insured Remove already uses everywhere else on this page (§2b,
+§9); toasts afterward.
+
+Key functions (all in `optimizer_history.js`):
+
+| Function | Purpose |
+|---|---|
+| `loadCatalog()`, `persistCatalog()` | `localStorage` read/write, both wrapped `try/catch` |
+| `buildSnapshot()`, `buildEntry(name, user)` | assembles one catalog entry (above) |
+| `doSaveTest()`, `doImportFile(file)`, `doLoad(id)`, `doDelete(id)` | the four actions |
+| `nowStamp()`, `safeFileName(name)`, `downloadJSON(filename, obj)` | the save timestamp, filename sanitiser, and Blob-download helper |
+| `historyRow(entry)`, `renderHistoryTab()`, `historyTabShell()` | the table markup/render/shell trio |
+| `toast(msg, kind)` | its own local copy, same reasoning as Rates' (§2f): cheaper than a bridge accessor for one DOM effect |
+| `initHistoryTab()` | one-time: render the shell, wire the History-tab delegated clicks (Load/Delete/Import trigger) AND the top-bar Save Test controls in the same call |
 
 ---
 
@@ -1157,6 +1670,24 @@ grid-template-rows: 46px  auto  1fr  24px;
 - Any tab can get this layout by adding `split: ['Left', 'Right']` to its
   `TABS` entry.
 
+### Two other layouts this page uses, neither one a `TABS` primitive
+
+Both are hand-built inside their own tab's shell function, not a reusable
+`split`-style option on `TABS` — worth a name here so a future tab doesn't
+reinvent either one:
+
+- **Top/bottom stacking** (Backdate, §2g) — no grid at all, just two
+  sibling `<div>`s (each a `.card`) inside one host; block-level elements
+  stack vertically on their own. The one tab on this page that isn't
+  left/right at any width.
+- **Scrollable-beside-static** (Rates, §2f) — a `display: flex` row
+  (`.rate-body`) with one child in a `.table-scroll-wrap` (`overflow-x:
+  auto`, can grow past its own width) and one child that never scrolls
+  (`.rate-fixed`, `flex: 0 0 auto`) — NOT `.split`, which sizes both sides
+  by grid columns; this instead lets the LEFT side be exactly as wide as its
+  content needs (triggering its own scrollbar independently) while the
+  RIGHT side stays a fixed, always-visible width.
+
 ### The Results strip primitive
 
 `resultsBar(tag, fields)` builds one thin figures row: a left-edge tag, then
@@ -1248,11 +1779,17 @@ All of these are in `optimizer.css` and ready to use.
 | `.cov-ins-slot` / `.cov-ins-slot-head` / `.cov-ins-row` | **Optimizer-only** (§2b). One insured slot: its `--accent-line`-bordered box, the strip holding its Remove button, and the column weights for its single Insured/Sex/Age/Rate/Extra-Premium row. Not in `inforce.css`. |
 | `.cov-extra-mini` / `.cov-extra-f` / `.cov-extra-f-k` | **Optimizer-only** (§2b). Extra Premium's 4 sub-fields, nested inside their own one `.fc` cell on the insured slot's row rather than a separate row of their own: the mini flex row holding them, one sub-field (label over input, both centred), and its shortened label (Perm %/Perm $/Term $/Term $ Dur.; the full name is each sub-field's `title`). A locked sub-field (the Permanent $ / Temporary $ mutual exclusion) reuses `.fi--ro`, not a class of its own. Not in `inforce.css`. |
 | `.results-cov-wrap` | **Optimizer-only** (§2c). The wrapper around Results' per-coverage table — `overflow-x: auto` as a safety net (not `.ins-wrap`'s own `overflow: hidden`, which clips for its own rounded corners), though the real "fits without scrolling" mechanism is the fixed layout + wrapping header/cell text scoped underneath it (`.results-cov-wrap .ins …`, out-specifying `.ins thead th`/`.ins tbody td` on purpose — that pair is shared with `inforce.css` and must stay untouched). The table itself still reuses `.ins`'s header-band/row-divider styling directly. Not in `inforce.css`. |
-| `.table-scroll-wrap` | **Optimizer-only** (§2d/§2e). The scrolling wrapper any split-off tab's own wide table uses — `overflow-x: auto`, and — unlike `.results-cov-wrap` — no fixed-layout override, since these tables are explicitly allowed to scroll. Shared between Coverages and Insureds; lives in `optimizer.css` itself, not either tab's own stylesheet, since both need the identical rule. Not in `inforce.css`. |
-| `.cell-pending` | **Optimizer-only** (§2d/§2e). The "no formula yet" cell highlight (`--warn-soft`/`--warn`, reused tokens, not new ones) — built by `core.pendingCell()`, shared the same way `.table-scroll-wrap` is. Not in `inforce.css`. |
-| `.col-hard-sep` | **Optimizer-only** (§2e). A vertical divider between column GROUPS in one of these wide tables — `.ins` itself only ever separates rows. Introduced for Insureds' two "hard separator" boundaries; reusable by any future tab that needs the same. Not in `inforce.css`. |
-| `.cov-tab-table` | **Optimizer-only** (§2d) — defined in `optimizer_coverages.css`, not `optimizer.css` (the one entry in this table that isn't): just `.fi { width: 84px; }`, narrower than the base 92px so Unit Value's input sits comfortably in this table's dense cells. |
-| `.proj-slot` | dashed empty placeholder with `.t` title and `.s` subtitle — what every tab shows today |
+| `.table-scroll-wrap` | **Optimizer-only** (§2d/§2e). The scrolling wrapper any split-off tab's own wide table uses — `overflow-x: auto`, and — unlike `.results-cov-wrap` — no fixed-layout override, since these tables are explicitly allowed to scroll. Shared between Coverages, Insureds, History (§2h) and Rates' own scrollable insured region (§2f); lives in `optimizer.css` itself, not any one tab's own stylesheet, since all of them need the identical rule. Not in `inforce.css`. |
+| `.cell-pending` | **Optimizer-only** (§2d/§2e). The "no formula yet" cell highlight (`--warn-soft`/`--warn`, reused tokens, not new ones) — built by `core.pendingCell()`, shared the same way `.table-scroll-wrap` is; also reused directly on a `<th>` by Backdate Projection's own table (§2g), since `core.pendingCell()` itself only ever builds a `<td>`. Not in `inforce.css`. |
+| `.col-hard-sep` | **Optimizer-only** (§2e). A vertical divider between column GROUPS in one of these wide tables — `.ins` itself only ever separates rows. Introduced for Insureds' two "hard separator" boundaries; reused as-is by Rates' own Total/BD_Total/BD_Final boundaries (§2f). Not in `inforce.css`. |
+| `.col-soft-sep` | **Optimizer-only** (§2f) — `optimizer_rates.css`, not `optimizer.css` (like `.cov-tab-table` below, this table's one exception). A LIGHTER version of `.col-hard-sep` (`--line-strong`, 1px, vs. `--ins-border` at 2px) — marks where one INSURED's 4-column group ends and the next begins in Rates' own scrollable region, a weaker boundary than a group-of-groups separator deserves. Not in `inforce.css`. |
+| `.cov-tab-table` | **Optimizer-only** (§2d) — defined in `optimizer_coverages.css`, not `optimizer.css` (one of two entries in this table that isn't, alongside `.col-soft-sep` above): just `.fi { width: 84px; }`, narrower than the base 92px so Unit Value's input sits comfortably in this table's dense cells. |
+| `.hist-tab-table` | **Optimizer-only** (§2h) — reserved hook in `optimizer_history.css`, same convention as `.ins-tab-table`/`.cov-tab-table`, no rule yet. Not in `inforce.css`. |
+| `.rate-import-bar` / `.rate-status` (`--warn`/`--err`) | **Optimizer-only** (§2f). Rates' own import controls row, and the persistent two-line "what's loaded" summary beneath it (colour modifiers reuse `--warn`/`--neg`, no new tokens). Not in `inforce.css`. |
+| `.rate-progress` / `.rate-progress-label` / `.rate-progress-bar` | **Optimizer-only** (§2f). The chunked-import loading bar — a label plus a native `<progress>` themed via `accent-color: var(--accent)`, no custom track/fill markup needed. Hidden outside an active import. Not in `inforce.css`. |
+| `.rate-body` / `.rate-scroll` / `.rate-fixed` / `.rate-tab-table` | **Optimizer-only** (§2f). One coverage's rate card split into two independent table regions sharing one row axis: the flex row itself, the scrollable per-insured side (`.table-scroll-wrap`, above), the side that never scrolls, and the table-width override (`width: auto; min-width: 100%`) that lets `.rate-scroll`'s overflow actually trigger — `.ins`'s own shared `width: 100%` rule would otherwise cap the table at its container and silently prevent scrolling. Not in `inforce.css`. |
+| `.bd-band-figs` / `.bd-band-fig` (`--warn`) | **Optimizer-only** (§2g). A "micro label over a value" pair embedded IN a `card-head--band`, for Backdate's Illustration Date/Max. Backdate Date/Final Backdate Date (and Backdate Projection's Monthly/Annual Savings Date). Deliberately NOT `.chip` — `.card-head--band .chip:not(.chip--edit)` (optimizer.css) force-inverts a chip's colours inside a band, which would swallow the `--warn` amber the `--warn` modifier needs; a new class sidesteps that collision instead of touching the shared rule. Not in `inforce.css`. |
+| `.proj-slot` | dashed empty placeholder with `.t` title and `.s` subtitle — what the one remaining scaffold tab (Eq. Age / Substd Prem.) shows today, and what every live tab's own empty-state falls back to |
 | `.btn` | `--primary`, `--danger`, `--icon`, `--sm` modifiers |
 | `.chip` | pill; `--warn`, `--edit` modifiers |
 | `.toast` | bottom-right transient message; add `.show`, optional `.toast--err` |
@@ -1272,15 +1809,18 @@ All of these are in `optimizer.css` and ready to use.
 | Region | IDs |
 |---|---|
 | Tool switcher | `brandBlock`, `toolSelect`, `toolMenu` |
-| Top bar | `btnTheme` |
+| Top bar | `btnTheme`; `tcName`, `tcUser`, `btnSaveTest` (Save Test, §2h — static markup, wired by `optimizer_history.js`) |
 | Tabs | `tabList`, `hdrStamp` (empty; reserved for an "as of" stamp) |
-| Panes | `panes` (host), then one per tab: `optInput`, `optCoverages`, `optInsureds`, `optRates`, `optBackdate`, `optEqAge` |
+| Panes | `panes` (host), then one per tab: `optInput`, `optCoverages`, `optInsureds`, `optRates`, `optBackdate`, `optEqAge`, `optHistory` |
 | Settings panel | `settingsPanelHost` (`optInput`, standalone, full width — no longer a split-side) |
 | Insured Input | `insuredInputHost` (`optInput`'s one `.split-main`, 1st of its two stacked children), `insuredList`, `insCount`, `btnAddInsured` |
 | Coverage Input | `coverageInputHost` (`optInput`'s one `.split-main`, 2nd of its two stacked children), `coverageList`, `covCount`, `btnAddCoverage`. (Inforce's own `coverageList`/`policyCol` ids, referenced below, belong to `inforce.js` on the sibling page — same name, unrelated element, no collision since they're different documents.) |
 | Results | `resultsHost` (`optInput`'s one `.split-side`), `resultsCoverageWrap` (subcontainer 1), `resultsSummaryWrap` (subcontainer 2) |
 | Coverages tab | `coveragesTabHost` (`optCoverages`'s whole pane, §2d), `covTabBody`, `covTabCount` — all in `optimizer_coverages.js`, not `optimizer.js` |
 | Insureds tab | `insuredsTabHost` (`optInsureds`'s whole pane, §2e), `insTabBody`, `insTabCount` — all in `optimizer_insureds.js` |
+| Rates tab | `ratesTabHost` (`optRates`'s whole pane, §2f), `ratesFileInput`, `btnImportRates`, `btnLoadDefaultRates`, `rateProgress`/`rateProgressLabel`/`rateProgressBar`, `ratesStatus`, `ratesCoverageList` — all in `optimizer_rates.js` |
+| Backdate tab | `backdateTabHost` (`optBackdate`'s whole pane, §2g) — container 1: `bdInsBody`, `bdInsCount`, `bdIllustrationDate`, `bdMaxBackdateDate` — container 2: `bdProjBody` — all in `optimizer_backdate.js` |
+| History tab | `historyTabHost` (`optHistory`'s whole pane, §2h), `historyTabBody`, `historyTabCount`, `btnImportTestCase`, `historyImportFile` — all in `optimizer_history.js` |
 | Status bar | `stDot`, `stText`, `stTab` |
 | Toast | `toast` |
 
@@ -1306,7 +1846,15 @@ one `freq`, never a repeating list, so there is nothing to disambiguate.
 The Multi-Coverage Discount switch carries **`data-act="toggle-mcd"`, not
 `data-fk`** — it is a click-toggled boolean, not a validated text/enum field,
 so it does not go through `resolveIns`/`settingsCommit` at all; its handler
-lives inline in `initSettingsPanel()`.
+lives inline in `initSettingsPanel()`. **`data-act` is the general pattern
+for any click-triggered action that isn't a committed field** — Backdate
+Projection's own Show Projection switch (§2g) carries `data-act=
+"toggle-bdproj"`, and History's per-row Load/Delete buttons (§2h) carry
+`data-act="load-tc"`/`"del-tc"` plus `data-id="<catalog entry id>"`, each
+resolved by that tab's own delegated click handler, never `resolveIns`/
+`resolveCov`. Rates (§2f) has no `data-fk` OR `data-act` at all yet —
+nothing on it is editable or click-triggered until the Axis Key/lookup
+wiring lands.
 
 ### Event wiring
 
@@ -1330,8 +1878,16 @@ lives inline in `initSettingsPanel()`.
 | `#coverageList` | `input` | `covLive` — toggle `.fi--bad` only, no write; skips enum fields and the bespoke `insuredId`/`rate` controls, which are always valid by construction |
 | `#coverageList` | `click` | Remove coverage (`data-act="rmcov"`), Add/Remove insured slot (`data-act="addcovins"`/`"rmcovins"`) delegation |
 | `#btnAddCoverage` | `click` | append a new coverage record and re-render |
+| `#ratesTabHost` | `click` | Import Rates File trigger, Load from `rates/` trigger (§2f) — no `data-fk`/`data-act` yet, matched by element `id` directly |
+| `#ratesFileInput` | `change` | reads the picked file, routes it through `detectAndIngest` |
+| `#backdateTabHost` | `click` | Show Projection toggle (`data-act="toggle-bdproj"`) delegation (§2g) |
+| `#historyTabHost` | `click` | Load/Delete (`data-act="load-tc"`/`"del-tc"`) delegation, Import Test Case trigger (§2h) |
+| `#historyImportFile` | `change` | reads the picked `.json` file, adds it to the catalog |
+| `#btnSaveTest` | `click` | `doSaveTest()` (§2h) — lives in `optimizer_history.js` though the button itself is in the static top bar, not a tab pane |
+| `#tcName` | `keydown` | Enter triggers `doSaveTest()`, same as blurring a `data-fk` field commits elsewhere |
 
-`#insuredList`, `#settingsPanelHost` and `#coverageList` are all the pattern to copy for any
+`#insuredList`, `#settingsPanelHost`, `#coverageList`, `#ratesTabHost`,
+`#backdateTabHost` and `#historyTabHost` are all the pattern to copy for any
 further editable region: event delegation on a stable ancestor, as
 `inforce.js` does on `#coverageList` / `#policyCol` — the panes are
 regenerated by `innerHTML`, so per-element listeners would be lost.
@@ -1388,6 +1944,18 @@ version doesn't hit: a `change` handler that also has to fix up sibling state
 (`enforceInsuredCap`, `syncCoverageInsuredRefs`) beyond the one field that
 fired it, still inside the same deferred re-render.
 
+**Rates (§2f) adds a sixth property these five didn't anticipate: a render
+that legitimately spans MULTIPLE ticks, not just one deferred one.**
+Importing a rate workbook chunks its own row-processing loop
+(`processRowsChunked`, `setTimeout(…, 0)` between batches) so the page can
+repaint a real progress bar and stay responsive while a large import runs —
+still full `innerHTML` replacement each time a chunk updates the status
+line, still delegated events, just spread across more than the usual one
+extra tick. This is additive, not a violation of "defer by one tick" above:
+ordinary field commits (everything else on the page) still defer by
+exactly one tick; only an explicitly chunked, progress-bar-driving import
+loop should ever take more than that.
+
 ---
 
 ## 8. What to port from `inforce.js`, and when
@@ -1402,17 +1970,25 @@ rewrite them. Each is documented in the named section of
 | Dates in `DD-MMM-YYYY` with flexible entry | `MONTHS`, `DATE_FORMATS`, `buildDate`, `parseDate`, `fmtDate` | §8 "Dates" |
 | Real and nearest ages | **Do not port Inforce's `agesAt`.** It uses a different (midpoint) heuristic; this page's own `agesAt` (§2) implements the exact stepwise algorithm this tool is required to match, and is already present in `optimizer.js` — reuse it directly. | § "Insured Input" above |
 | Grouped number display / parsing | `group`, `toNum`, `decimals` — already ported into `optimizer.js` and in live use by Coverage Input's money/percentage fields (§2b) | §8 |
-| Reading a policy extract | `parseWorkbook`, `ingest`, `FIXTURE`, the import buttons and drop zone from `inforce.html` | §11.A |
 | Baseline vs working copy with a change log | `state`, `same`, `diff`, `changeLog` | §9 |
 | Focus-safe re-rendering | `deferRender`, `render` | §9 |
 | The coverage / insured data model | `COVERAGE_FIELDS`, `POLICY_FIELDS`, `INSURED_FIELDS` and the `_id` / `_removed` / `_new` conventions | §6, §7 |
 
-**Whether the Optimizer should import the same extract is an open product
-decision.** The tab names — *Coverages*, *Insureds*, *Rates*, *Backdate*,
-*Eq. Age / Substd Prem.* — suggest it works from the same policy data, and so
-do the *Coverage Input* / *Insured Input* container titles on the first tab.
-Whether that input is a re-import of the Inforce extract or built from scratch
-here is still open. Ask before choosing; do not assume.
+**Resolved: the Optimizer works purely from manual input — it does NOT
+import a policy extract.** The tab names (*Coverages*, *Insureds*, *Rates*,
+*Backdate*, *Eq. Age / Substd Prem.*) and the *Coverage Input*/*Insured
+Input* container titles were genuinely ambiguous on this point when the page
+was still mostly scaffold; asked rather than assumed, and confirmed:
+**insurance rates are the only thing this page ever imports** (§2f). Every
+other input — Settings, every insured, every coverage — is typed in by the
+operator; there is no `state`/`same`/`diff`/`changeLog` baseline-vs-working
+model on this page at all (that's an Inforce concept, for reconciling
+against an imported extract, and doesn't apply here), and never port
+`parseWorkbook`/`ingest`/`FIXTURE` for the Rates import — they turned out to
+be mocked/stubbed in `inforce.js` itself (no real `.xlsx` reader ever
+existed to port), which is exactly why Rates vendors `xlsx.full.min.js`
+(SheetJS, §0 rule 1, §2f) instead: a real workbook reader, not
+`inforce.js`'s stand-in for one.
 
 ---
 
@@ -1548,6 +2124,70 @@ here is still open. Ask before choosing; do not assume.
     (§0 rule 6) — and for Rate specifically it would invent an underwriting
     rate class, in a tool built to reconcile premiums against another
     platform.
+30. **`OptimizerCore.restoreState` is the ONLY write path through the
+    bridge, and History (§2h) is the ONLY file that may call it.** Every
+    other split-off tab stays strictly read-only (§0 rule 4, §2d) — a future
+    tab needing to mutate `coverages`/`settings`/`insureds` is a sign it
+    belongs inside `optimizer.js` itself (like Coverage Input/Insured
+    Input/Settings/Results already do), not a reason to add a second write
+    path to the bridge.
+31. **Reference Date (Settings) and Midpoint (Backdate, §2g) clamp a day of
+    29/30/31 to 28 by the same rule, in two separate places** —
+    `validateSettings`'s `'date'` branch (`optimizer.js`) and
+    `midpointDate()` (`optimizer_backdate.js`). They must stay in sync; a
+    fix to one without the other reintroduces the inconsistency both were
+    added to prevent.
+32. **Term Life rate parsing keeps every Duration 1–100, not just 1**
+    (§2f) — don't "simplify" this back to a Duration-1-only filter for
+    performance or tidiness; the request explicitly asked for the whole
+    workbook up front specifically so a later duration-aware feature never
+    needs a re-import. `lookupTermLifeRate`'s `duration` parameter
+    defaulting to 1 is what keeps today's only real caller-shape simple, not
+    a sign the other 99 durations are disposable.
+33. **`axisKeyPrefix` (§2d, §2e) never guesses at a value the format didn't
+    specify** — `WL to 100`/`Term to 100` (`VEG100`/`T100`, 6 and 4
+    characters) don't fit Permanent Life's stated 5-character Coverage
+    slot, and stay `null` (→ the standard pending cell) rather than being
+    truncated or padded to fit. Don't "fix" this by force-truncating; get
+    the real 5-character code for those two products and add it to
+    `COVERAGE_ABBR` instead, the same way every other product's code is
+    already there.
+34. **History's Load order is restoreState() THEN setSnapshot('unitValues',
+    …), never the other way round** (§2h) — Unit Value's own `set` callback
+    re-syncs against whatever `coverages` currently holds, so it has to run
+    after `coverages` already reflects the loaded snapshot, or it discards
+    the just-restored values as stale.
+35. **Rates' own imported-file cache (`coverage-optimizer-rates`,
+    `localStorage`) is deliberately separate from a saved History test case
+    (`coverage-optimizer-testcases`)** (§2f, §2h) — a rate workbook is
+    shared reference data the tool operates against, not a scenario input
+    one specific test case owns. Don't fold rate-file state into
+    `snapshotState()`/`restoreState()`; a loaded test case should always
+    re-resolve against whatever rates happen to be loaded at the time.
+36. **Only one rate-file import runs at a time; concurrent requests queue,
+    they never run simultaneously** (`importQueue`, §2f) — "Load from
+    `rates/`" fires off Term Life and Permanent Life together on purpose,
+    and `restorePersistedRates()` does the same on every page load. The
+    progress bar and the import buttons' disabled state both assume exactly
+    one job in flight; running two at once would have them fight over both.
+37. **Backdate Projection's `showProjection` is local, in-memory UI state,
+    never persisted and never part of a saved test case** (§2g) — it's a
+    display preference (is the table expanded right now), not an input that
+    produces outputs, unlike everything `snapshotState()` captures.
+38. **Confirm Backdate / Backdate Date's short-circuit is load-bearing, not
+    an approximation** (§2g): `AND(FALSE; anything)` is `FALSE` regardless
+    of what's missing, so a non-eligible insured shows a real, resolved
+    `FALSE`/blank (plain text/muted `—`) — only an ELIGIBLE insured is
+    genuinely blocked on Rate Current/Rate Backdated (amber pending). Don't
+    collapse this back to "both columns are just pending until Rates
+    exists" — that would throw away a distinction the two columns' own
+    formulas already make for free.
+39. **Backdate and Rates stay deliberately unwired to each other for now**
+    (§2f, §2g) — Rates' totals do not feed Backdate's Rate Current/Rate
+    Backdated columns, and Backdate's Confirm Backdate does not feed
+    anything in Rates' own BD_Final. This was an explicit decision, not an
+    oversight; don't "helpfully" connect them without being asked again —
+    the exact formulas for both sides of that connection are still to come.
 
 ---
 
@@ -1559,10 +2199,30 @@ here is still open. Ask before choosing; do not assume.
 **Fill a tab** — replace the `slot(title)` call for that tab in `buildPanes()`
 with real markup built from the classes in §5. Keep the
 `<section class="pane" id="…" hidden>` wrapper; `showTab` depends on it.
-Insured Input (§2) is the worked example: a special case in `buildPanes()`
-swaps `slot()` for an empty host `id`, and a dedicated `init…()` function
-renders the live content into it once panes exist and wires its own
-delegated listeners.
+Insured Input (§2) is the worked example for a host living inside
+`optimizer.js` itself; **for a whole TAB, Rates/Backdate/History (§2f–§2h)
+are the current worked examples** — buildPanes() swaps `slot()` for one
+empty host `id`, and that tab's own file/IIFE renders the live content into
+it once panes exist and wires its own delegated listener(s), reading shared
+state through `window.OptimizerCore` only (§2d) — **`optEqAge` is the one
+tab still waiting for this treatment.**
+
+**Add a split-off tab that needs to WRITE shared state, not just read it**
+— don't. Extend the read-only bridge with another write path only with the
+same justification `restoreState` had (§2d, §9 invariant #30): a bulk
+overwrite of `coverages`/`settings`/`insureds` that only `optimizer.js` can
+safely perform. Everything else — a tab's own local state (Unit Value,
+`showProjection`, the imported-rates cache) — goes through
+`registerSnapshot`/`getSnapshot`/`setSnapshot` (§2d) or just stays private
+to that file, never a second general write path.
+
+**Add a rate category to Rates (§2f)** — Permanent Life is the template for
+adding a THIRD, after Term Life: one entry in `BAND_TABLES` (the fixed band
+list), a new `ingest<Category>Workbook`/`lookup<Category>Rate` pair
+following the same chunked-parsing shape (`processRowsChunked`), and a
+branch in `detectAndIngest`'s sheet-name sniffing. `coverageRatesCard`
+already generalises over `BAND_TABLES[c.category]` — no UI change needed
+once the category has a band table and a real parser behind it.
 
 **Add a settings field** — one entry in `SETTINGS_FIELDS` (date/enum/money/
 int/pct — all five generalise already) plus one `settingsCell(f)` call in
@@ -1841,6 +2501,115 @@ file was written. After any change, confirm:
       coverage shows the same Coverage/Coverage Type code on both tabs at
       once; there is no second, independently-defined copy of any of the
       three in `optimizer_insureds.js`.
+- [ ] **Axis Key** (last column, Insureds tab, §2e): a Term Life row with a
+      Coverage Rate chosen shows a real 26-character `mono` string starting
+      `DT`; toggling Multi-Coverage Discount switches its MCD segment
+      between `RMC_2509_`/`____2509_` live; switching Coverage Type to Joint
+      First-to-Die changes its 3rd character to `C`. A Permanent Life row
+      (Individual) shows a real key with the insured's own Sex/Insured Rate;
+      switching to any Joint Coverage Type forces that segment to `MN`
+      regardless of the insured's real Sex. `WL to 100`/`Term to 100` and
+      any Critical Illness row fall back to the standard pending cell, not a
+      wrong or truncated string. Reproduce the request's own hand-traceable
+      cases before trusting any change here: Term Life/Individual/MCD off,
+      Sex F, Preferred, Rate P1 → exactly `DT_T10__________2509_FNP1_`
+      (26 characters); Permanent Life/Individual, WL 10 Pay, Sex F,
+      Preferred → exactly `DT_VEG10________2007_FN___`.
+
+- [ ] **Rates tab** loads with no console error even before any file is
+      imported — `xlsx.full.min.js` (loaded before `optimizer_rates.js` in
+      `optimizer.html`) must resolve first. One container per coverage; a
+      Term Life/Permanent Life coverage shows its band-row table (8 or 6
+      rows); a Critical Illness coverage shows the plain "not built yet"
+      card instead.
+- [ ] Per coverage, the LEFT region shows one 4-column group
+      (`PR_N`/`EPR_N`/`PR_BD_N`/`EPR_BD_N`) per insured slot that actually
+      has an insured chosen — an empty `"— Select —"` slot contributes no
+      group — with a light `.col-soft-sep` divider between groups, and
+      scrolls independently within itself when there's more than one. The
+      RIGHT region (Total/BD_Total/BD_Final, 9 columns, `.col-hard-sep`
+      between each 3-column group) never scrolls and stays fully visible
+      regardless of how far the left region is scrolled.
+- [ ] Total/EPR_Total/PEP_Total and the BD_Total trio show the page's plain
+      muted `—` (not amber); BD_Final's three columns show `core.pendingCell()`
+      (amber) instead — confirm the visual difference is real, not
+      eyeballed, since they mean different things (§9 invariant #38's
+      Backdate analogue applies to why "pending" and "blocked" aren't
+      interchangeable here either).
+- [ ] **Import Rates File** on a `.xlsx` whose sheet names start with
+      `temp_rates_` populates the Term Life status line only; one whose
+      sheet names start with `perm_rates_` populates the Permanent Life line
+      only; importing both (in either order, including back-to-back before
+      the first finishes) leaves both lines populated correctly — neither
+      import's result is lost or overwritten by the other. A file matching
+      neither prefix toasts an error and changes nothing.
+- [ ] A real (or realistically-sized synthetic) Term Life import shows the
+      progress bar with a real "sheet N of 6 … row X/Y" label and a moving
+      `<progress>` value, not an instant flash — both import buttons are
+      disabled while it runs and re-enabled after. Confirm every Duration
+      1–100 present in the file was kept, not just Duration 1 (§9 invariant
+      #32) — row counts in the status line should be roughly 100× what a
+      Duration-1-only import would have shown.
+- [ ] **Load from `rates/`** on a page opened directly via `file://` fails
+      with a calm status message for both files (never a crash, never a
+      silent no-op) since `fetch()` is blocked there; the same button
+      succeeds when the page is served via `start-server.bat`/`python -m
+      http.server` and a real file sits in `rates/`.
+- [ ] Reload the page after a successful import (either category): the
+      status line still shows the same file/row-count summary with no
+      re-import needed — confirms `localStorage` persistence
+      (`coverage-optimizer-rates`) round-trips through `restorePersistedRates()`.
+
+- [ ] **Backdate tab, Insureds Backdate**: header shows Illustration Date
+      (= Settings' Reference Date, exactly), Max. Backdate Date (exactly 6
+      months earlier), and Final Backdate Date as an amber `—` pill. One row
+      per insured (not per coverage) — an insured with no birthdate shows
+      dashes throughout, including columns 10–13, never a computed-looking
+      figure.
+- [ ] Enter a birthdate that puts Backdate Eligible at `TRUE`: Confirm
+      Backdate and Backdate Date both render `core.pendingCell()` (amber).
+      Enter one that puts it at `FALSE`: Confirm Backdate renders a plain
+      `FALSE` and Backdate Date a plain muted `—` — NEITHER is amber in this
+      case; this is the one place on the page where "not computed" and
+      "definitely blank" have to look different on purpose (§9 invariant #38).
+- [ ] Enter a Reference Date (Settings) with day 29, 30 or 31, in any month
+      — including 29-FEB — and confirm it commits and displays as day 28.
+      Find (or construct) an insured/Reference-Date pair whose Midpoint
+      would naturally fall on day 29/30/31 and confirm the displayed
+      Midpoint is clamped to 28 too, and that Backdate Eligible/Backdated
+      Age Nearest/Last are computed from the CLAMPED date, not the pre-clamp
+      one.
+- [ ] **Backdate Projection**: Show Projection starts OFF — the table is
+      hidden but the band (title, switch, two amber pending pills) stays
+      visible. Clicking the switch reveals a 6-column table whose HEADER
+      cells (not just body cells) are amber-pending, with a single spanning
+      "nothing to project yet" placeholder row, no invented data rows.
+      Clicking again re-collapses it.
+
+- [ ] **Top bar**: Test Case Name, Username (`Catheryne L.` first, no blank
+      option), Save Test, then the theme button, in that exact order.
+      Clicking Save Test with an empty name toasts an error and does not
+      save; a non-empty name saves, clears the box, and toasts confirmation.
+- [ ] Saving downloads a `.json` file (wherever the browser's own download
+      location is configured — confirm the tool never claims to control
+      this, §2h) AND immediately adds a row to the History tab with the
+      right name/username/timestamp/insured-and-coverage counts; Total Modal
+      Premium shows a plain muted `—`.
+- [ ] Change several inputs after saving (an insured's name, a coverage's
+      Unit Value on the Coverages tab), then click **Load** on the earlier
+      save: every changed value reverts to what was saved, INCLUDING Unit
+      Value (confirms the `restoreState`-then-`setSnapshot('unitValues', …)`
+      order, §9 invariant #34) — and the view switches to Input & Results
+      automatically.
+- [ ] **Delete** removes a History row immediately, no confirmation dialog
+      (same convention as Coverage/Insured Remove, §9 invariant on that);
+      reload the page and confirm the deletion persisted (the row does not
+      reappear).
+- [ ] **Import Test Case**: pick a `.json` file previously downloaded by
+      Save Test (from this browser or, ideally, a different one) and confirm
+      it's added as a new History row with a freshly-generated id — not the
+      original file's own id, and not colliding with any existing row.
+
 - [ ] The switcher menu shows both tools, each badge in its own colour, with
       a tick on Coverage Optimizer.
 - [ ] Picking Inforce Tool navigates to `inforce.html`; Escape and outside

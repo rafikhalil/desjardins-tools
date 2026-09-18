@@ -738,6 +738,10 @@
     return c.category === 'permLife' && (c.covType === 'Joint First-to-Die' ||
       c.covType === 'Joint Last-to-Die' || c.covType === 'Joint Last-to-Die, Paid-up 1st Death');
   }
+  /* On such a coverage each insured's own Rate and Extra Premium boxes are
+     disabled — the Joint container carries the equivalent instead. They render
+     blank (not whatever stale value the slot still holds) with this title. */
+  var JOINT_OFF = 'Not used on a joint coverage — see the Joint container below';
 
   /* Term Life has 3 preferred / 2 regular rate codes; every other category
      collapses to a single P or R code (its own rate structure isn't
@@ -806,7 +810,9 @@
      covRaw/covLive apply unchanged. All five start blank and are highlighted
      (`need`) until filled; `opt` lets a cleared box commit back to blank —
      unlike an insured slot's Extra Premium, whose defaults are a real 0.
-     Nothing reads them yet (no calculation, no other tab). */
+     Flat Perm and Flat Term/Duration lock each other once one side has a
+     value (covJointSlot), like a slot's Extra Premium; a locked box isn't
+     highlighted, since there's nothing to fill in. */
   var JOINT_FIELDS = [
     { k: 'age', l: 'Joint Age', t: 'int', min: 0, max: 999, opt: 1, need: true },
     { k: 'extraPct', l: 'Equiv. Substd. %', t: 'pct', min: 0, max: 10000, u: '%', opt: 1, need: true },
@@ -903,8 +909,10 @@
     var v = slot[f.k];
     var control;
     if (locked) {
-      control = '<input class="fi fi--ro" value="' + esc(covRaw(f, v)) + '" readonly tabindex="-1"' +
-                ' title="Clear the other Extra Premium amount to edit this">';
+      var off = locked === JOINT_OFF;    // not applicable at all — blank, not the slot's stored value
+      control = '<input class="fi fi--ro" value="' + (off ? '' : esc(covRaw(f, v))) + '" readonly tabindex="-1"' +
+                (off ? ' placeholder="—"' : '') +
+                ' title="' + (off ? JOINT_OFF : 'Clear the other Extra Premium amount to edit this') + '">';
     } else {
       var fk = 'covins|' + rec._id + '~' + slot._id + '|' + f.k;
       control = covControl(f, v, fk, rec);
@@ -936,11 +944,12 @@
   function covExtraCell(rec, slot) {
     var permFilled = isFilledCov(slot.extraFlat);
     var termFilled = isFilledCov(slot.extraTempAmt) || isFilledCov(slot.extraTempYears);
+    var off = isJointPerm(rec) ? JOINT_OFF : false;    // all four disabled on a joint coverage
     var mini =
-      covInsExtraMiniField(COVINS_FIELD_MAP.extraPct, rec, slot, 'Perm %', false) +
-      covInsExtraMiniField(COVINS_FIELD_MAP.extraFlat, rec, slot, 'Perm $', termFilled) +
-      covInsExtraMiniField(COVINS_FIELD_MAP.extraTempAmt, rec, slot, 'Term $', permFilled) +
-      covInsExtraMiniField(COVINS_FIELD_MAP.extraTempYears, rec, slot, 'Term $ Dur.', permFilled);
+      covInsExtraMiniField(COVINS_FIELD_MAP.extraPct, rec, slot, 'Perm %', off) +
+      covInsExtraMiniField(COVINS_FIELD_MAP.extraFlat, rec, slot, 'Perm $', off || termFilled) +
+      covInsExtraMiniField(COVINS_FIELD_MAP.extraTempAmt, rec, slot, 'Term $', off || permFilled) +
+      covInsExtraMiniField(COVINS_FIELD_MAP.extraTempYears, rec, slot, 'Term $ Dur.', off || permFilled);
     return '<div class="fc cov-extra-cell"><span class="rs-k">Extra Premium</span>' +
            '<div class="cov-extra-mini">' + mini + '</div></div>';
   }
@@ -994,6 +1003,9 @@
      exactly what §0 rule 6 forbids. */
   function covRateControl(rec, slot) {
     var fk = 'covins|' + rec._id + '~' + slot._id + '|rate';
+    if (isJointPerm(rec)) {                                  // disabled — see JOINT_OFF
+      return '<input class="fi fi--ro" value="" readonly tabindex="-1" placeholder="—" title="' + JOINT_OFF + '">';
+    }
     var opts = covRateOptions(rec, slot);
     if (!opts.length) {
       return '<input class="fi fi--ro" value="" readonly tabindex="-1" placeholder="—"' +
@@ -1194,12 +1206,21 @@
     return '<div class="fc"><span class="rs-k">' + esc(label) + '</span>' +
            '<input class="fi fi--ro" value="' + esc(v) + '" readonly tabindex="-1" title="Fixed — can\'t be changed"></div>';
   }
-  function covJointMiniField(f, rec) {
+  function covJointMiniField(f, rec, locked) {
+    var control = locked
+      ? '<input class="fi fi--ro" value="' + esc(covRaw(f, rec.joint[f.k])) + '" readonly tabindex="-1"' +
+        ' title="Clear the other Flat Extra Prem. amount to edit this">'
+      : covJointField(f, rec);
     return '<div class="cov-extra-f" title="' + esc(f.l + (f.u ? ' (' + f.u + ')' : '')) + '">' +
-        '<span class="cov-extra-f-k">' + esc(f.l) + '</span>' + covJointField(f, rec) +
+        '<span class="cov-extra-f-k">' + esc(f.l) + '</span>' + control +
       '</div>';
   }
   function covJointSlot(rec) {
+    // Flat Perm vs Flat Term/Duration lock each other — the same rule (and
+    // isFilledCov, so a typed 0 doesn't lock) as a slot's Extra Premium.
+    var permFilled = isFilledCov(rec.joint.extraFlat);
+    var termFilled = isFilledCov(rec.joint.extraTempAmt) || isFilledCov(rec.joint.extraTempYears);
+    var locked = { extraFlat: termFilled, extraTempAmt: permFilled, extraTempYears: permFilled };
     var names = rec.insureds.map(function (s) { var i = findInsured(s.insuredId); return i ? (i.name || 'Insured') : ''; });
     var label = (names.length === 2 && names[0] && names[1]) ? 'Joint ' + names[0] + ' / ' + names[1] : null;
     var row = '<div class="fc-row cov-ins-row">' +
@@ -1211,7 +1232,7 @@
         covJointFixed('Joint Rate', JOINT_RATE) +
         '<div class="fc cov-extra-cell"><span class="rs-k">Extra Premium</span><div class="cov-extra-mini">' +
           ['extraPct', 'extraFlat', 'extraTempAmt', 'extraTempYears'].map(function (k) {
-            return covJointMiniField(JOINT_FIELD_MAP[k], rec);
+            return covJointMiniField(JOINT_FIELD_MAP[k], rec, locked[k]);
           }).join('') +
         '</div></div>' +
       '</div>';
@@ -1796,6 +1817,10 @@
     COVTYPE_ABBR: COVTYPE_ABBR,
     /** Preferred/Non-smoker -> N, Regular/Smoker -> S (§ axis key, above). */
     insuredRateCode: insuredRateCode,
+    /** Permanent Life + a joint Coverage Type, and the fixed Joint Sex/Rate
+        its Joint container (Coverage Input) uses — the Insureds tab's Joint
+        columns key off these (§ isJointPerm, above). */
+    isJointPerm: isJointPerm, JOINT_SEX: JOINT_SEX, JOINT_RATE: JOINT_RATE,
     /** The 26-character Axis Key prefix for one (coverage, insured slot)
         pair — null if the category/product/covType combination can't
         produce one yet (§ axis key, above). The Rates tab appends its own

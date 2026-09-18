@@ -10,9 +10,15 @@
  * that coverage that actually has an insured chosen. An insured on 3
  * coverages produces 3 rows, one per coverage; a coverage with 2 insureds
  * produces 2 rows, one per insured. The first 13 columns mirror Coverage
- * Input/Insured Input/Coverages (read-only here); a hard separator, then 8
- * "Joint" columns with no formula yet; another hard separator, then Axis
- * Key. Nothing in this tab is editable — every column is either mirrored,
+ * Input/Insured Input/Coverages (read-only here); a hard separator, then 10
+ * "Joint" columns; another hard separator, then Axis Key. The first 7 Joint
+ * columns (Joint Sex … Flat Extra Prem. $ Duration) are filled from the
+ * coverage's own Joint container in Coverage Input — Permanent Life with a
+ * joint Coverage Type only (core.isJointPerm); every other coverage has no
+ * joint side, so they read "—". The last 3 (the Backdated ones) still have no
+ * formula yet. On a joint coverage the insured's own Coverage Rate and Extra
+ * Premium columns read "—" too — those Coverage Input boxes are disabled
+ * there. Nothing in this tab is editable — every column is either mirrored,
  * pending, or (Axis Key, for Term/Permanent Life rows) computed from the
  * others — so there's no commit/live handler pair here (same as Results,
  * §2c).
@@ -38,13 +44,14 @@
     'Coverage Rate', 'Perm Extra Prem. %', 'Perm Extra Prem. $',
     'Term Extra Prem. $', 'Term Extra Prem. $ Dur.',
     'Coverage Category', 'Coverage', 'Coverage Type', 'Has MCD',
-    'Joint Sex', 'Joint Rate', 'Joint Age', 'Joint Extra Prem. %', 'Joint Extra Prem. $',
+    'Joint Sex', 'Joint Rate', 'Joint Age', 'Equiv. Substd. %', 'Flat Extra Prem. $ Perm',
+    'Flat Extra Prem. $ Term', 'Flat Extra Prem. $ Duration',
     'Joint Age Backdated', 'Joint Extra Prem. % Backdated', 'Joint Extra Prem. $ Backdated',
     'Axis Key'
   ];
   // 0-based column indices that open a new group — a "hard" divider (§ file
   // header) precedes Joint Sex and, again, Axis Key.
-  var HARD_SEP_AT = { 13: 1, 21: 1 };
+  var HARD_SEP_AT = { 13: 1, 23: 1 };
 
   /** One row per (coverage, filled insured slot) pair, in coverage order
       then slot order — exactly the nested loop the request itself
@@ -81,27 +88,47 @@
     return '<td class="r">' + value + '</td>';
   }
 
+  /** Joint Sex … Flat Extra Prem. $ Duration (7 cells) — the coverage's Joint
+      container (Coverage Input, `c.joint`) on a Permanent Life joint
+      coverage: the fixed Sex/Rate, then whatever the operator has entered,
+      "—" for a box still blank. "—" across the board for every other coverage
+      (no joint side to show). */
+  function jointCells(c) {
+    var on = core.isJointPerm(c), j = c.joint || {};
+    function num(v, dec) {                      // no `dec` → as many decimals as it was typed with (the % field)
+      if (v === null || v === undefined) return '—';
+      return core.group(v, dec === undefined ? core.decimals(v) : dec);
+    }
+    var vals = !on ? ['—', '—', '—', '—', '—', '—', '—'] : [
+      core.JOINT_SEX, core.JOINT_RATE, num(j.age, 0), num(j.extraPct),
+      num(j.extraFlat, 2), num(j.extraTempAmt, 2), num(j.extraTempYears, 0)
+    ];
+    return vals.map(function (v, i) {
+      return '<td class="r' + (i === 0 ? ' col-hard-sep' : '') + '">' + core.esc(v) + '</td>';
+    }).join('');
+  }
+
   function rowHtml(r) {
     var age = calcAge(r.ins);
+    // Rate and the four Extra Premium boxes are disabled on a joint coverage
+    // (Coverage Input), so there's nothing of the insured's own to mirror.
+    var joint = core.isJointPerm(r.c);
+    var perSlot = function (v) { return td(joint ? '—' : v); };
     return '<tr>' +
         td((r.cIdx + 1) + '_' + (r.insIdx + 1)) +
         td(core.esc(r.ins.sex || '—')) +
         td(core.insuredRateCode(r.ins) || '—') +
         td(age === null ? '—' : String(age)) +
-        td(r.slot.rate ? core.esc(r.slot.rate) : '—') +
-        td(core.group(r.slot.extraPct, core.decimals(r.slot.extraPct))) +
-        td(core.group(r.slot.extraFlat, 2)) +
-        td(core.group(r.slot.extraTempAmt, 2)) +
-        td(core.group(r.slot.extraTempYears, 0)) +
+        perSlot(r.slot.rate ? core.esc(r.slot.rate) : '—') +
+        perSlot(core.group(r.slot.extraPct, core.decimals(r.slot.extraPct))) +
+        perSlot(core.group(r.slot.extraFlat, 2)) +
+        perSlot(core.group(r.slot.extraTempAmt, 2)) +
+        perSlot(core.group(r.slot.extraTempYears, 0)) +
         td(core.esc(core.COVERAGE_CATEGORY_MAP[r.c.category] || '—')) +
         td(core.esc(core.COVERAGE_ABBR[r.c.coverage] || r.c.coverage || '—')) +
         td(core.esc(core.COVTYPE_ABBR[r.c.covType] || '—')) +
         td(core.settings.mcd ? 'TRUE' : 'FALSE') +
-        core.pendingCell('col-hard-sep') +   // Joint Sex
-        core.pendingCell() +                  // Joint Rate
-        core.pendingCell() +                  // Joint Age
-        core.pendingCell() +                  // Joint Extra Prem. %
-        core.pendingCell() +                  // Joint Extra Prem. $
+        jointCells(r.c) +
         core.pendingCell() +                  // Joint Age Backdated
         core.pendingCell() +                  // Joint Extra Prem. % Backdated
         core.pendingCell() +                  // Joint Extra Prem. $ Backdated

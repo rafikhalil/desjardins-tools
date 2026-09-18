@@ -9,9 +9,11 @@
  *
  * One flat table, one row per coverage from Coverage Input, columns per the
  * request. Every column is either mirrored from Coverage Input/Settings
- * (read-only here — this tab doesn't duplicate their editing) or a genuinely
- * new per-coverage field this tab alone owns (Unit Value). Three columns
- * (Temp Extra Premium, Modal Prem., Modal Prem. Backdated) have no formula
+ * (read-only here — this tab doesn't duplicate their editing), computed from
+ * them (Extra Prem. Term $ — extraTermCell below), or a genuinely new
+ * per-coverage field this tab alone owns (Unit Value). Two columns (Modal
+ * Prem., Modal Prem. Backdated — plus Extra Prem. Term $ for Critical
+ * Illness, whose rule isn't specified) have no formula
  * yet — highlighted amber/"warn" (the closest existing semantic token to
  * "pending", not a new colour) rather than the page's usual muted "—" for a
  * merely-not-yet-calculated figure, since these are explicitly flagged as
@@ -31,7 +33,7 @@
   var COLUMNS = [
     'Coverage ID', 'Frequency of Payment', 'Coverage Category', 'Coverage',
     'Prem. Adj. %', 'Prem. Adj. % Dur.', 'Prem. Adj. $', 'Prem. Adj. $ Dur.',
-    'Has MCD', 'Coverage Type', 'Unit Value', 'Temp Extra Premium',
+    'Has MCD', 'Coverage Type', 'Unit Value', 'Extra Prem. Term $',
     'Modal Factor', 'Coverage Fee', 'Modal Prem.', 'Modal Prem. Backdated'
   ];
 
@@ -82,6 +84,33 @@
     return (v === null || v === undefined) ? '—' : core.group(v, 2);
   }
 
+  /** Extra Prem. Term $ — the coverage's flat extra dollars, both kinds
+      (Term $ and Perm $ added together):
+        - Term Life (Individual, JFTD) and Permanent Life (Individual): the
+          sum over every insured on the coverage (a slot with an insured
+          chosen) of that insured's Perm $ + Term $ from Coverage Input.
+        - Permanent Life (JFTD, JLTD, JLTDPU): the Joint container's Flat
+          Extra Prem. $ Perm + Flat Extra Prem. $ Term (they lock each other,
+          so it's whichever was entered). Both still blank → "—", not 0.
+      "—" also while there's nothing to sum yet (no Category/Coverage Type, or
+      no insured chosen); Critical Illness has no rule yet, so it stays the
+      amber pending cell. */
+  function extraTermCell(c) {
+    if (c.category !== 'termLife' && c.category !== 'permLife') {
+      return c.category ? core.pendingCell() : '<td class="r">—</td>';
+    }
+    var total = null;
+    if (core.isJointPerm(c)) {
+      var j = c.joint || {}, has = function (v) { return v !== null && v !== undefined; };
+      if (has(j.extraFlat) || has(j.extraTempAmt)) total = (j.extraFlat || 0) + (j.extraTempAmt || 0);
+    } else if (c.covType) {
+      c.insureds.forEach(function (s) {
+        if (s.insuredId) total = (total || 0) + (s.extraFlat || 0) + (s.extraTempAmt || 0);
+      });
+    }
+    return '<td class="r">' + moneyOrDash(total) + '</td>';
+  }
+
   /* Column order matches COLUMNS above exactly — 16 cells, 1 per header.
      "Coverage ID" is the plain index (Coverage Input's own numbering, its
      `.coverage-no` badge), NOT the full "N. Category — Coverage" title
@@ -101,7 +130,7 @@
         '<td class="r">' + (core.COVTYPE_ABBR[c.covType] || '—') + '</td>' +
         '<td class="r"><input class="fi" data-fk="covtab|' + c._id + '|unitValue"' +
           ' value="' + core.esc(core.group(unitValueFor(c._id), 0)) + '" spellcheck="false" autocomplete="off"></td>' +
-        core.pendingCell() +
+        extraTermCell(c) +
         '<td class="r">' + modalFactorFor() + '</td>' +
         '<td class="r">' + moneyOrDash(c.fee) + '</td>' +
         core.pendingCell() +

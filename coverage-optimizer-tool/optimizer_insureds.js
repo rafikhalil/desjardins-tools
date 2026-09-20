@@ -11,12 +11,16 @@
  * coverages produces 3 rows, one per coverage; a coverage with 2 insureds
  * produces 2 rows, one per insured. The first 13 columns mirror Coverage
  * Input/Insured Input/Coverages (read-only here); a hard separator, then 10
- * "Joint" columns; another hard separator, then Axis Key. The first 7 Joint
- * columns (Joint Sex … Flat Extra Prem. $ Duration) are filled from the
+ * "Joint" columns; another hard separator, then Axis Key. The first 8 Joint
+ * columns (Joint Sex … Perm Joint Age Backdated) are filled from the
  * coverage's own Joint container in Coverage Input — Permanent Life with a
  * joint Coverage Type only (core.isJointPerm); every other coverage has no
- * joint side, so they read "—". The last 3 (the Backdated ones) still have no
- * formula yet. On a joint coverage the insured's own Coverage Rate and Extra
+ * joint side, so they read "—". Perm Joint Age Backdated is Joint Age - 1 (the
+ * same stand-in the Rates tab's _BD columns use; the Backdate tab is unwired)
+ * and is the age the Rates tab's joint _BD lookups match on; the other two
+ * Backdated columns still have no formula. The Coverages tab lists the same
+ * columns from Perm Joint Age on (core.jointFigures feeds both). On a joint
+ * coverage the insured's own Coverage Rate and Extra
  * Premium columns read "—" too — those Coverage Input boxes are disabled
  * there. Nothing in this tab is editable — every column is either mirrored,
  * pending, or (Axis Key, for Term/Permanent Life rows) computed from the
@@ -44,9 +48,9 @@
     'Coverage Rate', 'Perm Extra Prem. %', 'Perm Extra Prem. $',
     'Term Extra Prem. $', 'Term Extra Prem. $ Dur.',
     'Coverage Category', 'Coverage', 'Coverage Type', 'Has MCD',
-    'Joint Sex', 'Joint Rate', 'Joint Age', 'Equiv. Substd. %', 'Flat Extra Prem. $ Perm',
-    'Flat Extra Prem. $ Term', 'Flat Extra Prem. $ Duration',
-    'Joint Age Backdated', 'Joint Extra Prem. % Backdated', 'Joint Extra Prem. $ Backdated',
+    'Joint Sex', 'Joint Rate', 'Perm Joint Age', 'Perm Equiv. Substd. %', 'Perm Flat Extra Prem. $ Perm',
+    'Perm Flat Extra Prem. $ Term', 'Perm Flat Extra Prem. $ Duration',
+    'Perm Joint Age Backdated', 'Perm Joint Extra Prem. % Backdated', 'Perm Joint Extra Prem. $ Backdated',
     'Axis Key'
   ];
   // 0-based column indices that open a new group — a "hard" divider (§ file
@@ -88,21 +92,14 @@
     return '<td class="r">' + value + '</td>';
   }
 
-  /** Joint Sex … Flat Extra Prem. $ Duration (7 cells) — the coverage's Joint
+  /** Joint Sex … Perm Joint Age Backdated (8 cells) — the coverage's Joint
       container (Coverage Input, `c.joint`) on a Permanent Life joint
-      coverage: the fixed Sex/Rate, then whatever the operator has entered,
-      "—" for a box still blank. "—" across the board for every other coverage
-      (no joint side to show). */
+      coverage: the fixed Sex/Rate, then the figures (core.jointFigures — what
+      the operator has entered, "—" for a box still blank). "—" across the
+      board for every other coverage (no joint side to show). */
   function jointCells(c) {
-    var on = core.isJointPerm(c), j = c.joint || {};
-    function num(v, dec) {                      // no `dec` → as many decimals as it was typed with (the % field)
-      if (v === null || v === undefined) return '—';
-      return core.group(v, dec === undefined ? core.decimals(v) : dec);
-    }
-    var vals = !on ? ['—', '—', '—', '—', '—', '—', '—'] : [
-      core.JOINT_SEX, core.JOINT_RATE, num(j.age, 0), num(j.extraPct),
-      num(j.extraFlat, 2), num(j.extraTempAmt, 2), num(j.extraTempYears, 0)
-    ];
+    var on = core.isJointPerm(c);
+    var vals = [on ? core.JOINT_SEX : '—', on ? core.JOINT_RATE : '—'].concat(core.jointFigures(c));
     return vals.map(function (v, i) {
       return '<td class="r' + (i === 0 ? ' col-hard-sep' : '') + '">' + core.esc(v) + '</td>';
     }).join('');
@@ -128,10 +125,9 @@
         td(core.esc(core.COVERAGE_ABBR[r.c.coverage] || r.c.coverage || '—')) +
         td(core.esc(core.COVTYPE_ABBR[r.c.covType] || '—')) +
         td(core.settings.mcd ? 'TRUE' : 'FALSE') +
-        jointCells(r.c) +
-        core.pendingCell() +                  // Joint Age Backdated
-        core.pendingCell() +                  // Joint Extra Prem. % Backdated
-        core.pendingCell() +                  // Joint Extra Prem. $ Backdated
+        jointCells(r.c) +                     // Joint Sex … Perm Joint Age Backdated
+        core.pendingCell() +                  // Perm Joint Extra Prem. % Backdated
+        core.pendingCell() +                  // Perm Joint Extra Prem. $ Backdated
         axisKeyCell(r) +
       '</tr>';
   }

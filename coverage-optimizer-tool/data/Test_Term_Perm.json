@@ -1,0 +1,146 @@
+{
+  "id": "tc1789921001675989",
+  "name": "Test Term & Perm",
+  "user": "Rafi K.",
+  "savedAt": "20-SEP-2026 12:16",
+  "insuredCount": 2,
+  "coverageCount": 3,
+  "snapshot": {
+    "settings": {
+      "refDate": "17-SEP-2026",
+      "mcd": true,
+      "freq": "monthly",
+      "premAdjPct": 100,
+      "premAdjPctDur": 10,
+      "premAdjAmt": 5,
+      "premAdjAmtDur": 10
+    },
+    "insureds": [
+      {
+        "_id": "ins1",
+        "name": "Insured-1",
+        "sex": "M",
+        "rate": "pref",
+        "birthdate": "15-MAR-1990",
+        "ageCalc": "nearest"
+      },
+      {
+        "_id": "ins2",
+        "name": "Insured-2",
+        "sex": "F",
+        "rate": "reg",
+        "birthdate": "01-JAN-1990",
+        "ageCalc": "nearest"
+      }
+    ],
+    "coverages": [
+      {
+        "_id": "cov1",
+        "category": "termLife",
+        "coverage": "Term 10",
+        "covType": "Individual",
+        "fee": 20,
+        "feeManual": false,
+        "calcType": "premium",
+        "amount": 500000,
+        "insureds": [
+          {
+            "_id": "ci1",
+            "insuredId": "ins1",
+            "rate": "P2",
+            "extraPct": 0,
+            "extraFlat": 0,
+            "extraTempAmt": 0,
+            "extraTempYears": 0
+          }
+        ],
+        "joint": {
+          "age": null,
+          "extraPct": null,
+          "extraFlat": null,
+          "extraTempAmt": null,
+          "extraTempYears": null
+        }
+      },
+      {
+        "_id": "cov2",
+        "category": "termLife",
+        "coverage": "Term 20",
+        "covType": "Joint First-to-Die",
+        "fee": 40,
+        "feeManual": false,
+        "calcType": "premium",
+        "amount": 1000000,
+        "insureds": [
+          {
+            "_id": "ci2",
+            "insuredId": "ins2",
+            "rate": "R1",
+            "extraPct": 100,
+            "extraFlat": 0,
+            "extraTempAmt": 0,
+            "extraTempYears": 0
+          },
+          {
+            "_id": "ci3",
+            "insuredId": "ins1",
+            "rate": "P2",
+            "extraPct": 0,
+            "extraFlat": 0,
+            "extraTempAmt": 0,
+            "extraTempYears": 0
+          }
+        ],
+        "joint": {
+          "age": null,
+          "extraPct": null,
+          "extraFlat": null,
+          "extraTempAmt": null,
+          "extraTempYears": null
+        }
+      },
+      {
+        "_id": "cov3",
+        "category": "permLife",
+        "coverage": "WL 20 Pay",
+        "covType": "Joint First-to-Die",
+        "fee": 40,
+        "feeManual": false,
+        "calcType": "amount",
+        "amount": null,
+        "insureds": [
+          {
+            "_id": "ci4",
+            "insuredId": "ins1",
+            "rate": "",
+            "extraPct": 0,
+            "extraFlat": 0,
+            "extraTempAmt": 0,
+            "extraTempYears": 0
+          },
+          {
+            "_id": "ci5",
+            "insuredId": "ins2",
+            "rate": "",
+            "extraPct": 0,
+            "extraFlat": 0,
+            "extraTempAmt": 0,
+            "extraTempYears": 0
+          }
+        ],
+        "joint": {
+          "age": null,
+          "extraPct": null,
+          "extraFlat": null,
+          "extraTempAmt": null,
+          "extraTempYears": null
+        }
+      }
+    ],
+    "unitValues": {
+      "cov1": 1000,
+      "cov2": 1000,
+      "cov3": 1000
+    }
+  }
+}

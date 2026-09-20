@@ -13,12 +13,14 @@
  * top bar (not inside this tab's own pane) — one feature, one file, even
  * though its UI is split across two physical locations on the page.
  *
- * Persistence: this tool has no backend and must keep opening from `file://`
- * (§0), so there is no folder it can silently read/write. A saved test case
- * is kept in this browser's own localStorage (so the History tab can list
- * and one-click Load it, the same way the theme choice already persists
- * there) AND downloaded as a portable .json file on every save, so it can be
- * archived or emailed to a colleague. "Import Test Case" (this tab's own
+ * Persistence: a saved test case is kept in this browser's own localStorage
+ * (so the History tab can list and one-click Load it, the same way the theme
+ * choice already persists there) AND written as a portable .json file into
+ * the tool's `data` folder by server.py (saveToDataFolder — the tool is
+ * always started from start-server.bat; a plain download is only the
+ * fallback if the server can't be reached), named with the saver's initials
+ * (cl_/rk_/cc_, chosen on the pre-load page), so it can be archived or
+ * emailed to a colleague. "Import Test Case" (this tab's own
  * band) reads a .json file back via a plain file picker and adds it to this
  * browser's own list — the only way a colleague's file can ever reach
  * someone else's History, since nothing here can reach across machines on
@@ -73,20 +75,12 @@
   // ------------------------------------------------------------ file I/O
   function safeFileName(name) {
     var base = String(name || 'test-case').trim().replace(/[^A-Za-z0-9\-_ ]+/g, '').replace(/\s+/g, '_');
-    return (base || 'test-case').slice(0, 60) + '.json';
+    // The saver's initials first (cl_ / rk_ / cc_, set on the pre-load page) so two people's files can't collide.
+    return $('tcUser').dataset.ini + '_' + (base || 'test-case').slice(0, 60) + '.json';
   }
 
-  /** There is no backend here (§0 — must keep opening from `file://`), so a
-      plain download can never choose an absolute folder on disk — only the
-      browser's OWN configured download directory decides where this lands,
-      and a page cannot query or override that. Tried prefixing a "data/"
-      path onto the filename (Chromium is documented to treat a relative path
-      in `download` as a subfolder of its download directory); observed
-      instead that this harness's browser sanitises the "/" into the
-      filename itself ("data_<name>.json") rather than creating a folder — so
-      it was reverted. See optimizer_history.js's own header / the chat
-      response for the actual fix (a one-time Chrome download-location
-      setting, or File System Access for a real in-app folder handle). */
+  /** Fallback only (see saveToDataFolder): a plain download can't choose a
+      folder — the browser's own download directory decides. */
   function downloadJSON(filename, obj) {
     var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
     var url = URL.createObjectURL(blob);
@@ -96,6 +90,20 @@
     a.click();
     document.body.removeChild(a);
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  /** POSTs the test case to server.py (start-server.bat), which writes it into
+      the tool's data/ folder and never overwrites — a taken name comes back
+      with a timestamp suffix. Resolves the file name actually written, or null
+      (page opened from disk, server down, refused) → the caller downloads. */
+  function saveToDataFolder(filename, obj) {
+    return fetch('data/' + filename, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 2)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) { return j.name; })
+      .catch(function () { return null; });
   }
 
   /** Every operator input needed to reproduce a test case: Settings/
@@ -124,7 +132,7 @@
 
   // -------------------------------------------------------------- actions
   function doSaveTest() {
-    var nameEl = $('tcName'), userEl = $('tcUser');
+    var nameEl = $('tcName');
     var name = nameEl.value.trim();
     if (!name) {
       nameEl.classList.add('fi--bad');
@@ -136,14 +144,18 @@
     nameEl.classList.remove('fi--bad');
     nameEl.title = 'Test Case Name';
 
-    var entry = buildEntry(name, userEl.value);
+    var entry = buildEntry(name, $('tcUser').textContent);
     catalog.push(entry);
     persistCatalog();
-    downloadJSON(safeFileName(name), entry);
     renderHistoryTab();
-
     nameEl.value = '';
-    toast('Saved "' + name + '" to History.');
+
+    var fname = safeFileName(name);
+    saveToDataFolder(fname, entry).then(function (written) {
+      if (written) { toast('Saved "' + name + '" to History and data/' + written + '.'); return; }
+      downloadJSON(fname, entry);
+      toast('Saved "' + name + '" to History; downloaded instead — data/ not reachable (start the tool with start-server.bat).', 'err');
+    });
   }
 
   function doImportFile(file) {

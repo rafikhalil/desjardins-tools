@@ -743,6 +743,32 @@
      blank (not whatever stale value the slot still holds) with this title. */
   var JOINT_OFF = 'Not used on a joint coverage — see the Joint container below';
 
+  /* A joint Perm coverage's Joint Age (offset 0) or Joint Age Backdated
+     (offset -1: the same "age - 1" stand-in the Rates tab's _BD columns use
+     for an insured, since the Backdate tab is still unwired). null when it
+     isn't a joint Perm coverage, the Joint Age box is blank, or the result
+     would be negative. The Rates lookups and the Insureds tab both read it. */
+  function jointAge(c, offset) {
+    if (!isJointPerm(c) || !c.joint || c.joint.age === null || c.joint.age === undefined) return null;
+    var a = c.joint.age + offset;
+    return a < 0 ? null : a;
+  }
+
+  /* A joint Perm coverage's Joint-container figures as display strings, in the
+     order the Insureds and Coverages tabs both list them: Joint Age, Equiv.
+     Substd. %, Flat Extra Prem. $ Perm, Flat Extra Prem. $ Term, Flat Extra
+     Prem. $ Duration, Joint Age Backdated. "—" for a blank box, and for every
+     figure when the coverage has no joint side. One formatter, two tabs. */
+  function jointFigures(c) {
+    var j = c.joint || {}, on = isJointPerm(c), bd = jointAge(c, -1);
+    function num(v, dec) {                      // no `dec` -> as many decimals as it was typed with (the % field)
+      if (!on || v === null || v === undefined) return '—';
+      return group(v, dec === undefined ? decimals(v) : dec);
+    }
+    return [num(j.age, 0), num(j.extraPct), num(j.extraFlat, 2), num(j.extraTempAmt, 2),
+            num(j.extraTempYears, 0), bd === null ? '—' : String(bd)];
+  }
+
   /* Term Life has 3 preferred / 2 regular rate codes; every other category
      collapses to a single P or R code (its own rate structure isn't
      specified yet). Keyed off the REFERENCED INSURED's own Rate field from
@@ -779,10 +805,21 @@
     // Shortened from "Input Premium/Insurance Amount" — the field holds
     // whichever of the two Calculation Type means, and the row is now too
     // tight for the full name. No unit suffix either, for the same reason.
-    { k: 'amount', l: 'Input', t: 'money', min: 0, max: 999999999.99, dec: 2, opt: 1, need: true }
+    // As listed: a Coverage Amount, a whole number (AMOUNT_PREMIUM below is
+    // the Input Premium kind).
+    { k: 'amount', l: 'Input', t: 'int', min: 0, max: 999999999, opt: 1, need: true }
   ];
   var COV_FIELD_MAP = {};
   COV_FIELDS.forEach(function (f) { COV_FIELD_MAP[f.k] = f; });
+
+  /* Input's kind follows Calculation Type: a whole-number Coverage Amount, or
+     — Input Premium — a premium with 2 decimals. validateCov/covControl swap
+     the descriptor through effField(); covCommit clears Input when
+     Calculation Type changes (the number would mean something else). */
+  var AMOUNT_PREMIUM = { k: 'amount', l: 'Input', t: 'money', min: 0, max: 999999999.99, dec: 2, opt: 1, need: true };
+  function effField(f, rec) {
+    return f.k === 'amount' && rec && rec.calcType === 'premium' ? AMOUNT_PREMIUM : f;
+  }
 
   /* Per-insured-slot fields. `insuredId` and `rate` are handled by their own
      bespoke controls/commit branches below (their option lists depend on
@@ -830,6 +867,7 @@
      insured-slot fields (an enum field's options may depend on the record —
      `f.optsFn(rec)` — where Insured Input's enums never needed that). */
   function validateCov(f, raw, rec) {
+    f = effField(f, rec);
     var s = typeof raw === 'string' ? raw.trim() : raw;
     if (s === '' || s === null || s === undefined) {
       return (f.opt || f.blank) ? { ok: true, v: '' } : { ok: false, msg: f.l + ' is required' };
@@ -869,6 +907,7 @@
       treatment Inforce gives a locked field — rather than a dropdown with
       nothing in it. */
   function covControl(f, v, fk, rec) {
+    f = effField(f, rec);
     var need = f.need ? needCls(v) : '';
     if (f.t === 'enum') {
       var opts = f.optsFn ? f.optsFn(rec) : f.opts;
@@ -1354,6 +1393,13 @@
         enforceInsuredCap(rec);
       } else if (key === 'covType') {
         enforceInsuredCap(rec);
+        // Permanent Life joint: both lives are always there — no manual "+ Add Insured".
+        if (isJointPerm(rec) && rec.insureds.length < 2) rec.insureds.push(newCovInsuredSlot());
+      } else if (key === 'calcType') {
+        if (rec.amount !== null && rec.amount !== undefined) {
+          rec.amount = null;                       // a premium and a coverage amount aren't the same number
+          toast('Input cleared — it now means ' + (rec.calcType === 'premium' ? 'a premium (2 decimals)' : 'a coverage amount (whole number)') + '.');
+        }
       } else if (key === 'fee') {
         // Clearing the box back to blank hands control back to recalcFees()
         // (feeManual = false); typing any other value opts this record out
@@ -1487,13 +1533,48 @@
       every other cross-reference on this page rather than a duplicated
       name. Plain "—" placeholders, not `.rs-v` (built for a `.fc`/`.rs`
       cell's flex layout, not a table cell). */
+  /** Prem. Basis Ins. Amt and Highest Amt (Max./Min.) are computed in
+      optimizer_coverages.js — it owns the Modal Prem. formula they are the
+      inverse of — and lent back
+      through the bridge. Null until that file has loaded (it comes after this
+      one, optimizer.html), which the first render can hit; the re-render on
+      the next change, or when the rate files report in, fills them. */
+  function highestAmtFor(c) {
+    var api = window.OptimizerCore;
+    return api && api.highestAmt ? api.highestAmt(c) : null;
+  }
+
+  function premBasisFor(c) {
+    var api = window.OptimizerCore;
+    return api && api.premBasis ? api.premBasis(c) : null;
+  }
+
+  /** One solved Results figure. Blank — not "—" — when the column does not
+      apply to this coverage's Calculation Type (Prem. Basis Ins. Amt is for
+      Input Premium, the two Highest Amt for Coverage Amount): per the request,
+      each shows a value for one and nothing for the other. Amber where there
+      is no formula, red where the rate lookup failed, muted "—" with the
+      reason in its tooltip while an input is missing; the figure's own tooltip
+      names the premium it was solved against. */
+  function solvedCell(r, value) {
+    if (!r) return '<td class="r"><span class="muted" title="Not calculated yet">—</span></td>';
+    if (r.blank) return '<td class="r"></td>';
+    if (r.pending) return window.OptimizerCore.pendingCell();
+    if (r.error) return '<td class="r cell-error" title="' + esc(r.error) + '">Error</td>';
+    if (r.blocked) return '<td class="r"><span class="muted" title="' + esc(r.blocked) + '">—</span></td>';
+    return '<td class="r" title="' + esc(r.tip) + '">' + esc(group(value, 0)) + '</td>';
+  }
+
   function resultsCoverageTable() {
     if (!coverages.length) {
       return '<div class="proj-slot" style="margin:8px;"><div class="s">Add a coverage to see its figures here.</div></div>';
     }
     var headCells = RESULTS_COVERAGE_FIELDS.map(function (l) { return '<th class="r">' + esc(l) + '</th>'; }).join('');
     var bodyRows = coverages.map(function (c, idx) {
-      var cells = RESULTS_COVERAGE_FIELDS.map(function () {
+      var h = highestAmtFor(c), pb = premBasisFor(c);
+      var cells = RESULTS_COVERAGE_FIELDS.map(function (label) {
+        if (label === 'Prem. Basis Ins. Amt') return solvedCell(pb, pb && pb.amount);
+        if (label.indexOf('Highest Amt') === 0) return solvedCell(h, h && (label.indexOf('Max') > 0 ? h.max : h.min));
         return '<td class="r"><span class="muted" title="Not calculated yet">—</span></td>';
       }).join('');
       return '<tr><td>' + (idx + 1) + '. ' + esc(coverageTitle(c)) + '</td>' + cells + '</tr>';
@@ -1513,6 +1594,9 @@
   function initResultsPanel() {
     $('resultsHost').innerHTML = resultsPanelShell();
     renderResultsPanel();
+    // Highest Amt needs the rate files; optimizer_rates.js fires this as each
+    // one reports in (the same hook the Coverages/Backdate tabs listen on).
+    document.addEventListener('ratesstatus', renderResultsPanel);
   }
 
   // ------------------------------------------------------------------ tabs
@@ -1820,7 +1904,7 @@
     /** Permanent Life + a joint Coverage Type, and the fixed Joint Sex/Rate
         its Joint container (Coverage Input) uses — the Insureds tab's Joint
         columns key off these (§ isJointPerm, above). */
-    isJointPerm: isJointPerm, JOINT_SEX: JOINT_SEX, JOINT_RATE: JOINT_RATE,
+    isJointPerm: isJointPerm, jointAge: jointAge, jointFigures: jointFigures, JOINT_SEX: JOINT_SEX, JOINT_RATE: JOINT_RATE,
     /** The 26-character Axis Key prefix for one (coverage, insured slot)
         pair — null if the category/product/covType combination can't
         produce one yet (§ axis key, above). The Rates tab appends its own

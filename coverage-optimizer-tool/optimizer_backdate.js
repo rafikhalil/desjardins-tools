@@ -55,8 +55,22 @@
       that genuinely has no figure (blank input, or a fully-resolved blank
       formula result), as opposed to core.pendingCell()'s amber "a formula for
       this column doesn't exist yet" (§ below). */
-  function dashCell() {
-    return '<td class="r"><span class="muted">—</span></td>';
+  function dashCell(why) {
+    return '<td class="r"><span class="muted"' + (why ? ' title="' + core.esc(why) + '"' : '') + '>—</span></td>';
+  }
+
+  /** A rate the Rates tab looked up but couldn't resolve (see allCovRate) —
+      the same red .cell-error the Rates tab uses, reason in the tooltip. */
+  function errorCell(why) {
+    return '<td class="r cell-error" title="' + core.esc(why) + '">Error</td>';
+  }
+
+  /** One allCovRate() result -> its cell: the figure (parts in the tooltip),
+      a red Error, or a muted "—" while it's blocked on missing input. */
+  function rateCell(r) {
+    if (r.error) return errorCell(r.error);
+    if (r.blocked) return dashCell(r.blocked);
+    return '<td class="r" title="' + core.esc(r.detail) + '">' + core.group(r.value, 2) + '</td>';
   }
 
   /** dt - n months, via plain Date normalisation (JS rolls an out-of-range
@@ -106,6 +120,19 @@
     return mid;
   }
 
+  /** The surrounding birthdays, the Midpoint (Possible Backdate), and Backdate
+      Eligible — the Midpoint falls between Max. Backdate Date and the
+      Illustration Date — for one birthdate. One place, so the row below and
+      core.backdateEligible (the Rates tab's BD_Final) can't disagree. */
+  function eligibility(birth, illustration, maxBackdate) {
+    var bdays = surroundingBirthdays(birth, illustration);
+    var mid = midpointDate(bdays.past, bdays.next);
+    return {
+      bdays: bdays, mid: mid,
+      eligible: mid.getTime() >= maxBackdate.getTime() && mid.getTime() <= illustration.getTime()
+    };
+  }
+
   /** One insured's row. `illustration`/`maxBackdate` are Date objects (or
       null if settings.refDate somehow failed to parse — defensive; Settings
       never actually lets refDate go blank or invalid). A blank Birthdate
@@ -119,34 +146,41 @@
           '<td class="r">' + core.esc(ins.name) + '</td>' +
           '<td class="r">' + (ins.birthdate ? core.esc(ins.birthdate) : '—') + '</td>' +
           dashCell() + dashCell() + dashCell() + dashCell() + dashCell() + dashCell() + dashCell() +
-          core.pendingCell() + core.pendingCell() +   // Rate Current / Rate Backdated — always pending
-          dashCell() + dashCell() +
+          dashCell() + dashCell() + dashCell() + dashCell() +   // rates, Confirm, Date: nothing to compute without a birthdate
         '</tr>';
     }
 
     var ages = core.agesAt(ins.birthdate, core.fmtDate(illustration));
     var ageCalc = ins.ageCalc === 'last' ? ages.real : ages.nearest;
 
-    var bdays = surroundingBirthdays(birth, illustration);
-    var mid = midpointDate(bdays.past, bdays.next);
-    var eligible = mid.getTime() >= maxBackdate.getTime() && mid.getTime() <= illustration.getTime();
+    var e = eligibility(birth, illustration, maxBackdate);
+    var bdays = e.bdays, mid = e.mid, eligible = e.eligible;
 
     var backdatedAges = core.agesAt(ins.birthdate, core.fmtDate(mid));
     var backdatedAgeCalc = ins.ageCalc === 'last' ? backdatedAges.real : backdatedAges.nearest;
 
-    /* Confirm Backdate = AND(Eligible; Rate Backdated < Rate Current). Rate
-       Current/Rate Backdated have no formula yet (Col10/11, always pending),
-       so the comparison itself can never be evaluated — EXCEPT that
-       AND(FALSE; anything) is FALSE regardless: when this row isn't eligible,
-       Confirm Backdate is already a real, fully-resolved FALSE, not an
-       unknown. Backdate Date mirrors the same short-circuit one level up. */
+    /* Rate Current / Rate Backdated (All Cov.): the sum of the insured's PR_N /
+       PR_BD_N over every coverage they're on (core.allCovRate — the Rates tab
+       owns the lookups), shown whether or not the row is eligible.
+       Confirm Backdate = AND(Eligible; Rate Backdated < Rate Current). Not
+       eligible: FALSE whatever the rates are (AND(FALSE; anything)). Eligible
+       but a rate is unavailable: the comparison is unknown, so it wears that
+       rate's own state (Error beats "—"). Backdate Date = the Midpoint when
+       Confirm Backdate is TRUE, otherwise BLANK() (a muted "—"). */
+    var cur = core.allCovRate(ins._id, false), bd = core.allCovRate(ins._id, true);
     var confirmCell, backdateDateCell;
     if (!eligible) {
       confirmCell = '<td class="r">FALSE</td>';
-      backdateDateCell = dashCell();          // AND(FALSE; …) → BLANK()
+      backdateDateCell = dashCell();
+    } else if (cur.value === undefined || bd.value === undefined) {
+      var bad = (cur.error && cur) || (bd.error && bd) || (cur.value === undefined ? cur : bd);
+      confirmCell = backdateDateCell = rateCell(bad);
+    } else if (bd.value < cur.value - 1e-9) {   // strict "<", not fooled by float noise (0.1 + 0.2 vs 0.3)
+      confirmCell = '<td class="r">TRUE</td>';
+      backdateDateCell = '<td class="r">' + core.esc(core.fmtDate(mid)) + '</td>';
     } else {
-      confirmCell = core.pendingCell();       // blocked on Col10/11
-      backdateDateCell = core.pendingCell();  // blocked on Confirm Backdate
+      confirmCell = '<td class="r">FALSE</td>';
+      backdateDateCell = dashCell();
     }
 
     return '<tr>' +
@@ -159,8 +193,8 @@
         '<td class="r">' + core.esc(core.fmtDate(bdays.next)) + '</td>' +
         '<td class="r">' + (eligible ? 'TRUE' : 'FALSE') + '</td>' +
         '<td class="r">' + (backdatedAgeCalc === null ? '—' : backdatedAgeCalc) + '</td>' +
-        core.pendingCell() +   // Rate Current (All Cov.)
-        core.pendingCell() +   // Rate Backdated (All Cov.)
+        rateCell(cur) +        // Rate Current (All Cov.)
+        rateCell(bd) +         // Rate Backdated (All Cov.)
         confirmCell +
         backdateDateCell +
       '</tr>';
@@ -265,6 +299,13 @@
   }
 
   function initBackdateTab() {
+    // Lent to the Rates tab (BD_Final): this insured's Backdate Eligible —
+    // true / false, or null while the birthdate is blank/invalid.
+    core.backdateEligible = function (ins) {
+      var birth = ins.birthdate ? core.parseDate(ins.birthdate) : null, ill = core.parseDate(core.settings.refDate);
+      return birth && ill ? eligibility(birth, ill, subtractMonths(ill, 6)).eligible : null;
+    };
+
     $('backdateTabHost').innerHTML = insuredsBackdateShell() + backdateProjectionShell();
     renderBackdateTab();
 
@@ -276,6 +317,7 @@
     // is either local UI state or pending), so it's built once here and left
     // alone — only the Show Projection toggle below ever touches it again.
     core.onChange(renderBackdateTab);
+    document.addEventListener('ratesstatus', renderBackdateTab);   // the rate files finished (re)loading
 
     $('backdateTabHost').addEventListener('click', function (e) {
       var b = e.target.closest ? e.target.closest('[data-act="toggle-bdproj"]') : null;

@@ -10,6 +10,7 @@
 <link rel="stylesheet" href="optimizer_backdate.css">
 <link rel="stylesheet" href="optimizer_rates.css">
 <link rel="stylesheet" href="optimizer_history.css">
+<link rel="stylesheet" href="optimizer_preload.css">
 </head>
 <body>
 
@@ -39,11 +40,9 @@
          generated — see that file's header comment). -->
     <input class="fi fi--txt" id="tcName" placeholder="Test Case Name" maxlength="60"
            spellcheck="false" autocomplete="off" title="Test Case Name">
-    <select class="fi" id="tcUser" title="Username">
-      <option value="Catheryne L.">Catheryne L.</option>
-      <option value="Rafi K.">Rafi K.</option>
-      <option value="Catherine C.">Catherine C.</option>
-    </select>
+    <!-- Filled in by the pre-load page (optimizer_preload.js): name as text,
+         initials in data-ini (the prefix on every saved file name). -->
+    <span class="chip" id="tcUser" title="Signed in as"></span>
     <button class="btn btn--primary" id="btnSaveTest" title="Save this test case to History">Save Test</button>
 
     <button class="btn btn--icon" id="btnTheme" title="Toggle light / dark theme">◐</button>
@@ -74,14 +73,58 @@
 
 </div>
 
+<!-- ══════════════════════════ PRE-LOAD PAGE ═══════════════════════════════
+     Covers the tool until a user is picked AND both rate files say Loaded
+     (optimizer_preload.js). The status rows/bar are driven by
+     optimizer_rates.js (setRateState / showProgress). -->
+<div class="preload" id="preload" role="dialog" aria-modal="true" aria-labelledby="plTitle">
+  <div class="pl-card">
+    <div class="pl-brand"><span class="mark">CO</span><span class="pl-brand-name">Coverage Optimizer</span></div>
+    <h2 id="plTitle">Before you start</h2>
+
+    <div class="pl-sec">
+      <div class="micro">1 · Who is using the tool?</div>
+      <div class="pl-users" role="radiogroup" aria-label="User">
+        <button class="switch pl-user" type="button" role="radio" aria-checked="false" data-user="Catheryne L." data-ini="cl">Catheryne L.</button>
+        <button class="switch pl-user" type="button" role="radio" aria-checked="false" data-user="Rafi K." data-ini="rk">Rafi K.</button>
+        <button class="switch pl-user" type="button" role="radio" aria-checked="false" data-user="Catherine C." data-ini="cc">Catherine C.</button>
+      </div>
+    </div>
+
+    <div class="pl-sec">
+      <div class="micro">2 · Rates</div>
+      <div class="pl-rate" id="plRate_termLife" data-state="notloaded">
+        <span class="dot"></span><span class="pl-name">Term Life</span><span class="pl-state">Not loaded</span>
+      </div>
+      <div class="pl-rate" id="plRate_permLife" data-state="notloaded">
+        <span class="dot"></span><span class="pl-name">Permanent Life</span><span class="pl-state">Not loaded</span>
+      </div>
+      <div class="rate-progress-label" id="plLabel"></div>
+      <progress class="rate-progress-bar" id="plBar" max="100" value="0"></progress>
+      <button class="btn btn--sm pl-retry" id="plRetry" type="button" hidden>Retry</button>
+    </div>
+
+    <div class="pl-foot">
+      <button class="btn btn--primary" id="plStart" type="button" disabled>Start</button>
+      <span class="pl-hint" id="plHint"></span>
+      <!-- DEV BYPASS — delete this button and its handler in optimizer_preload.js when done coding. -->
+      <button class="btn btn--sm pl-skip" id="plSkip" type="button"
+              title="Development only — enter the tool without waiting for a name or the rates">Skip (dev)</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script src="xlsx.full.min.js"></script>
 <script src="optimizer.js"></script>
+<!-- rates first: the Coverages tab (Modal Prem.) and the Backdate tab (rate sums) call
+     core.bandTotals / core.allCovRate, published by optimizer_rates.js -->
+<script src="optimizer_rates.js"></script>
 <script src="optimizer_coverages.js"></script>
 <script src="optimizer_insureds.js"></script>
 <script src="optimizer_backdate.js"></script>
-<script src="optimizer_rates.js"></script>
 <script src="optimizer_history.js"></script>
+<script src="optimizer_preload.js"></script>
 </body>
 </html>

@@ -1,0 +1,45 @@
+/* ===========================================================================
+   Coverage Optimizer — pre-load page
+   ---------------------------------------------------------------------------
+   Own stylesheet, loaded alongside optimizer.css (optimizer.html). A centred
+   card in the Inforce tool's empty-state style (.drop), over everything until
+   a user is picked and both rate files are Loaded (optimizer_preload.js).
+   Reuses .switch (the Multi-Coverage Discount pill) for the user picker and
+   .dot for the status markers; the bar is optimizer_rates.css's own
+   .rate-progress-bar. Colours are the existing status tokens only.
+   =========================================================================== */
+
+/* z-index 30: over the tool, under .toast (40) so load errors still show. */
+.preload {
+  position: fixed; inset: 0; z-index: 30; overflow: auto;
+  display: grid; place-items: center; padding: 24px 16px;
+  background: var(--canvas);
+}
+.pl-card {
+  width: 100%; max-width: 520px; padding: 28px 30px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r);
+}
+.pl-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.pl-brand-name { font-size: 15px; font-weight: 650; }
+.pl-card h2 { font-size: 12px; font-weight: 500; color: var(--ink-3); }
+.pl-sec { margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line-hair); }
+.pl-sec .micro { margin-bottom: 8px; }
+
+/* The Multi-Coverage Discount pill, one per name; the chosen one takes the
+   .switch[aria-checked="true"] accent fill. Larger than the in-table switch. */
+.pl-users { display: flex; flex-wrap: wrap; gap: 8px; }
+.pl-user { height: 30px; padding: 0 16px; border-radius: 15px; font-size: 12px; letter-spacing: 0; }
+
+/* Marker: red = Not loaded, yellow (--warn) = Loading, green = Loaded. */
+.pl-rate { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.pl-rate .dot { width: 10px; height: 10px; margin: 0; background: var(--neg); }
+.pl-rate[data-state="loading"] .dot { background: var(--warn); }
+.pl-rate[data-state="loaded"] .dot { background: var(--pos); }
+.pl-name { flex: 1; }
+.pl-state { font-size: 11px; font-weight: 650; color: var(--ink-3); }
+.pl-sec .rate-progress-label { margin-top: 8px; min-height: 13px; }
+.pl-retry { margin-top: 10px; }
+
+.pl-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-hair); }
+.pl-hint { font-size: 11px; color: var(--ink-4); }
+.pl-skip { margin-left: auto; }   /* DEV BYPASS button — goes with optimizer_preload.js's handler */

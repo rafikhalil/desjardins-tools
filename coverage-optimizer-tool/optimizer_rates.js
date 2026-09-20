@@ -20,6 +20,11 @@
  * runs at a time; concurrent requests (e.g. "Load from rates/" firing off
  * both files at once) queue rather than collide (§ importQueue).
  *
+ * The rates load from rates/ on EVERY launch (initRatesTab → loadFromRatesFolder),
+ * driving the pre-load page's status rows and bar (setRateState/showProgress;
+ * optimizer_preload.js holds the tool back until both say Loaded). Nothing is
+ * cached across launches on purpose: the files in rates/ are the source of truth.
+ *
  * One container per coverage. Per the request: each coverage's card splits
  * into TWO table regions sharing one row axis (the Coverage Category's fixed
  * rate bands) —
@@ -45,46 +50,38 @@
  *     but a later feature needing another duration won't need a re-import.
  *   - PR_i / PR_BD_i are wired (baseRateResult(), § below) — the ported old
  *     workbook formula: Term Life always uses the individual insured's own
- *     Age Nearest/Last (Calculated) at Duration 1; Permanent Life uses that
- *     same age unless Coverage Type is Joint First-to-Die/Joint Last-to-Die,
- *     which needs a joint age ("perm_joint_age" in the old formula) that
- *     isn't computed anywhere yet — those two stay core.pendingCell(). PR_BD_i
- *     is the identical lookup at (Age Nearest/Last Calculated - 1); this is
- *     NOT a real backdated age from the Backdate tab (§9 invariant #39 still
- *     applies — the two tabs stay unwired). A lookup that runs but can't
- *     resolve a number (no Axis Key yet, no rate file loaded, no matching
- *     row, no birthdate) renders core's the new .cell-error "Error" cell,
- *     not a silent blank — the old formula's IFERROR(...;"") reinterpreted
- *     as a visible failure rather than a blank one.
- *   - TODO: Joint Last-to-Die, Paid-up 1st Death (JLTDPU) was added to the
- *     original workbook after this formula was written and was likely never
- *     folded into the joint-age branch — revisit once Joint Age exists.
- *     Today JLTDPU behaves like Individual (own age, not joint), same as the
- *     old formula.
+ *     Age Nearest/Last (Calculated) at Duration 1; Permanent Life Individual
+ *     the same age. Permanent Life Joint First-to-Die / Joint Last-to-Die /
+ *     JLTDPU: the same lookup on the joint Axis Key (Joint Sex/Joint Rate)
+ *     with the Joint Age from the coverage's Joint container (lookupAge).
+ *     PR_BD_i is the identical lookup at (age - 1) — Joint Age Backdated on a
+ *     joint coverage, which is Joint Age - 1; this is NOT a real backdated age
+ *     from the Backdate tab (§9 invariant #39 still applies — the two tabs
+ *     stay unwired). A lookup that runs but can't resolve a number (no Axis
+ *     Key yet, no rate file loaded, no matching row, no birthdate/Joint Age)
+ *     renders core's the new .cell-error "Error" cell, not a silent blank —
+ *     the old formula's IFERROR(...;"") reinterpreted as a visible failure
+ *     rather than a blank one.
  *   - EPR_i / EPR_BD_i are wired too (extraRateResult(), § below). Term Life:
  *     EPR_N is simply PR_N, for every Term Life coverage (T10-T65),
- *     Individual or Joint First-to-Die. Permanent Life, Individual: the
- *     SUBSTANDARD rate — the insured's own Axis Key with its first 3
- *     characters ("DT_") replaced by "DTS" (S = Substandard), looked up in
- *     the same perm_rates workbook by that key and the insured's Age
- *     Nearest/Last (Calculated), exactly like PR_N; EPR_BD_i is the same
- *     lookup at age - 1. Same Error/pending conventions as PR_i above.
- *   - TODO: Permanent Life EPR_i/EPR_BD_i for Joint First-to-Die / Joint
- *     Last-to-Die / Joint Last-to-Die, Paid-up 1st Death — the substandard
- *     lookup for joint coverages isn't specified yet ("come back to it
- *     later"), so those three stay core.pendingCell(). Unlike PR_i, JLTDPU
- *     does NOT fall through to the individual lookup here.
- *   - PEP_i / PEP_BD_i (pepResult(), § below): the insured's "Perm Extra
- *     Prem. %" (the Insureds tab's column, slot.extraPct — a percentage, so
- *     100 means x1.00) times EPR_i / EPR_BD_i. Permanent Life joint coverages
- *     name the Insureds tab's "Joint Extra Prem. %" instead, but the request
- *     says it's the same value, so there is one % to read for every case.
- *     Pending/Error exactly when the EPR it's built on is — so the three
- *     Permanent Life joint types stay pending until their EPR exists.
- *   - PR_BD_Final/EPR_BD_Final/PEP_BD_Final's own formulas are still coming
- *     (you said "refer to the Backdate tab" for what counts as backdatable,
- *     but the exact formula itself isn't final) — pending regardless of
- *     whether the rest of a row is ever filled in.
+ *     Individual or Joint First-to-Die. Permanent Life: the SUBSTANDARD rate
+ *     — the Axis Key (the insured's own; the joint one on JFTD/JLTD/JLTDPU)
+ *     with its first 3 characters ("DT_") replaced by "DTS" (S = Substandard),
+ *     looked up in the same perm_rates workbook by that key and the same age
+ *     PR_N uses (the insured's own, or the Joint Age); EPR_BD_i is the same
+ *     lookup at age - 1 / Joint Age Backdated.
+ *   - PEP_i / PEP_BD_i (pepResult(), § below): a percentage (100 means x1.00)
+ *     times EPR_i / EPR_BD_i — the insured's "Perm Extra Prem. %" (slot.
+ *     extraPct), or on a joint Permanent Life coverage the Joint container's
+ *     "Equiv. Substd. %". Error exactly when the EPR it's built on is, or
+ *     when that % is still blank.
+ *   - PR_BD_Final/EPR_BD_Final/PEP_BD_Final (finalResult(), § below): per
+ *     insured, the current value (PR_N / EPR_N / PEP_N) unless the insured is
+ *     Backdate Eligible (the Backdate tab's column, core.backdateEligible)
+ *     AND the backdated value (…_BD_N) is strictly lower — then that one. Then
+ *     summed exactly like Total (every insured, or Insured 1 alone on the
+ *     joint Permanent Life types). An insured whose eligibility isn't known
+ *     yet (blank birthdate) can't be decided — Error, never a guess.
  *   - PR_Total/EPR_Total/PEP_Total and the BD_Total trio (totalResult(), §
  *     below) are the SUM of the matching per-insured column: every insured
  *     for Term Life (Individual, Joint First-to-Die) and Permanent Life
@@ -156,8 +153,8 @@
      anywhere today, but re-importing the whole workbook once a later
      feature needs another duration is wasteful when it's no harder to keep
      all of it the first time. Populated by ingestTermLifeWorkbook(); empty
-     until a file is loaded (fresh session) or restored from IndexedDB
-     (§ persistence, below). */
+     until a file is loaded (the pre-load page does that on every launch —
+     loadFromRatesFolder(), below). */
   var termLifeTables = {};
   var termLifeMeta = null;   // { fileName, counts: {suffix: rowCount}, missingSheets: [] }
 
@@ -195,26 +192,29 @@
   }
 
   /* One import at a time, queued rather than rejected — "Load from rates/"
-     (below) fires off Term Life and Permanent Life together, and
-     restorePersistedRates() does the same on startup; both legitimately
-     need to run, just not at once (they'd fight over the one progress bar).
-     Each job runs to completion, including its own persistRates()/
+     (below) fires off Term Life and Permanent Life together; both
+     legitimately need to run, just not at once (they'd fight over the one
+     progress bar). Each job runs to completion, including its own
      renderRatesTab()/renderStatus() calls, before the next one starts. */
   var importQueue = [];
   var importing = false;
+  var current = null;   // the job running now — afterImport() needs its `kind`
 
   /** Reads the bytes as a workbook and routes to the right ingester by
       looking at its OWN sheet names — "temp_rates_" -> Term Life,
       "perm_rates_" -> Permanent Life — rather than a second button/picker
-      per category. One file, one drop point; the workbook says what it is. */
-  function detectAndIngest(bytes, fileName) {
-    importQueue.push({ bytes: bytes, fileName: fileName });
+      per category. One file, one drop point; the workbook says what it is.
+      `kind` ('termLife'/'permLife') is only the pre-load page's expectation
+      of which file this is (loadFromRatesFolder) — routing never trusts it. */
+  function detectAndIngest(bytes, fileName, kind) {
+    importQueue.push({ bytes: bytes, fileName: fileName, kind: kind });
     if (!importing) runNextImport();
   }
 
   function runNextImport() {
     if (!importQueue.length) return;
     var job = importQueue.shift();
+    current = job;
     importing = true;
     setImportButtonsDisabled(true);
     showProgress('Reading "' + job.fileName + '"…', 0);
@@ -246,6 +246,9 @@
 
   function afterImport() {
     importing = false;
+    // Whatever went wrong (unreadable, wrong workbook, missing sheet), a file
+    // the pre-load page was waiting on that never reached "Loaded" is "Not loaded".
+    if (current && current.kind && $('plRate_' + current.kind).dataset.state === 'loading') setRateState(current.kind, 'notloaded');
     hideProgress();
     runNextImport();
     if (!importing) setImportButtonsDisabled(false);
@@ -309,7 +312,7 @@
     function finish() {
       termLifeTables = tables;
       termLifeMeta = { fileName: fileName, counts: counts, missingSheets: missing };
-      persistRates('termLife', bytes, fileName);
+      setRateState('termLife', missing.length ? 'notloaded' : 'loaded');
       renderRatesTab();
       renderStatus();
 
@@ -337,6 +340,7 @@
     var ws = wb.Sheets[PERM_LIFE_SHEET];
     if (!ws) {
       permLifeMeta = { fileName: fileName, count: 0, missingSheet: true };
+      setRateState('permLife', 'notloaded');
       renderStatus();
       toast('Loaded "' + fileName + '", but couldn\'t find sheet "' + PERM_LIFE_SHEET + '".', 'err');
       done();
@@ -362,7 +366,7 @@
     }, function () {
       permLifeTable = table;
       permLifeMeta = { fileName: fileName, count: n, missingSheet: false };
-      persistRates('permLife', bytes, fileName);
+      setRateState('permLife', 'loaded');
       renderRatesTab();
       renderStatus();
       toast('Loaded "' + fileName + '" — ' + n + ' rate row(s).');
@@ -411,85 +415,21 @@
       running in. Tries both known files independently — one succeeding
       doesn't depend on the other existing. */
   function loadFromRatesFolder() {
-    [[TERM_LIFE_FILE_PATH, TERM_LIFE_FILENAME], [PERM_LIFE_FILE_PATH, PERM_LIFE_FILENAME]].forEach(function (pair) {
-      var path = pair[0], name = pair[1];
+    [['termLife', TERM_LIFE_FILE_PATH, TERM_LIFE_FILENAME], ['permLife', PERM_LIFE_FILE_PATH, PERM_LIFE_FILENAME]].forEach(function (f) {
+      var kind = f[0], path = f[1], name = f[2];
+      setRateState(kind, 'loading');
       fetch(path).then(function (res) {
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.arrayBuffer();
       }).then(function (buf) {
-        detectAndIngest(new Uint8Array(buf), name);
+        detectAndIngest(new Uint8Array(buf), name, kind);
       }).catch(function (err) {
-        toast('Could not auto-load "' + path + '" (' + err.message + '). This only works when the tool is ' +
-          'served over http(s), not opened directly from disk — use Import Rates File to pick it manually.', 'err');
+        setRateState(kind, 'notloaded');
+        toast('Could not load "' + path + '" (' + err.message + ') — check the file is in ' + RATES_FOLDER +
+          '/ and the tool was started with start-server.bat.', 'err');
       });
     });
   }
-
-  // ------------------------------------------------------------ persistence
-  /* Raw file bytes, not the parsed lookup table, are what's cached — a
-     future fix to the parsing logic above applies automatically on next
-     load instead of needing the cache invalidated by hand. IndexedDB, not
-     localStorage: the Term Life workbook alone is ~22MB raw (~29MB once
-     base64-encoded, which localStorage requires) — comfortably past most
-     browsers' ~5-10MB per-origin localStorage quota, so every real import
-     of it was silently failing to persist (a caught QuotaExceededError,
-     falling back to the session-only toast below) even though the much
-     smaller Permanent Life file (~800KB) persisted fine — exactly the
-     "Perm Life survives a reload, Term Life doesn't" bug this was rewritten
-     to fix. IndexedDB's quota is disk-space-based (typically hundreds of MB
-     or more) and stores binary data natively, so no base64 step is needed
-     at all. Still falls back to a session-only toast, not a silent
-     failure, if IndexedDB itself is unavailable or a write still fails. */
-  var DB_NAME = 'coverage-optimizer-db', DB_STORE = 'rates';
-  var dbPromise = null;
-
-  function openRatesDb() {
-    if (dbPromise) return dbPromise;
-    dbPromise = new Promise(function (resolve, reject) {
-      if (!window.indexedDB) { reject(new Error('IndexedDB is not available in this browser.')); return; }
-      var req = indexedDB.open(DB_NAME, 1);
-      req.onupgradeneeded = function () {
-        if (!req.result.objectStoreNames.contains(DB_STORE)) req.result.createObjectStore(DB_STORE);
-      };
-      req.onsuccess = function () { resolve(req.result); };
-      req.onerror = function () { reject(req.error || new Error('Could not open the local rates database.')); };
-    });
-    return dbPromise;
-  }
-
-  /** `kind` is 'termLife' or 'permLife' — each keeps its own key so
-      importing a fresh Term Life file doesn't wipe an already-loaded
-      Permanent Life one (or vice versa). Fire-and-forget: a failure here
-      only affects whether this file survives a reload, never the current
-      session's own ingestion (already done by the time this is called). */
-  function persistRates(kind, bytes, fileName) {
-    openRatesDb().then(function (db) {
-      var tx = db.transaction(DB_STORE, 'readwrite');
-      tx.objectStore(DB_STORE).put({ fileName: fileName, bytes: bytes }, kind);
-      tx.onerror = function () {
-        toast('"' + fileName + '" is loaded for this session, but could not be remembered across a reload ' +
-          '(' + (tx.error && tx.error.message) + ').', 'err');
-      };
-    }).catch(function (err) {
-      toast('"' + fileName + '" is loaded for this session, but too large to remember across a reload ' +
-        '(' + err.message + ') — you\'ll need to re-import it next time you open the tool.', 'err');
-    });
-  }
-
-  function restorePersistedRates() {
-    openRatesDb().then(function (db) {
-      ['termLife', 'permLife'].forEach(function (kind) {
-        var req = db.transaction(DB_STORE, 'readonly').objectStore(DB_STORE).get(kind);
-        req.onsuccess = function () {
-          var entry = req.result;
-          if (!entry || !entry.bytes) return;
-          try { detectAndIngest(entry.bytes, entry.fileName); }
-          catch (e) { /* corrupt cache — ignore; operator re-imports */ }
-        };
-      });
-    }).catch(function () { /* no IndexedDB available — operator re-imports manually */ });
-  }
-
 
   // ---------------------------------------------------------------- status
   var toastTimer = null;
@@ -544,11 +484,34 @@
       file, which sheet, how many rows) rather than leaving the operator
       staring at an unexplained bar. */
   function showProgress(label, pct) {
+    var v = Math.max(0, Math.min(100, pct));
+    $('plLabel').textContent = label;                 // the pre-load page's own bar (optimizer.html)
+    $('plBar').value = v;
     var wrap = $('rateProgress');
     if (!wrap) return;
     wrap.hidden = false;
     $('rateProgressLabel').textContent = label;
-    $('rateProgressBar').value = Math.max(0, Math.min(100, pct));
+    $('rateProgressBar').value = v;
+  }
+
+  /* The pre-load page's per-file status rows (#plRate_<kind>, optimizer.html):
+     `data-state` drives the red / yellow / green marker (optimizer_preload.css).
+     'ratesstatus' tells optimizer_preload.js to re-check its Start gate. */
+  var RATE_STATE_TEXT = { notloaded: 'Not loaded', loading: 'Loading', loaded: 'Loaded' };
+  function setRateState(kind, state) {
+    var row = $('plRate_' + kind);
+    row.dataset.state = state;
+    row.querySelector('.pl-state').textContent = RATE_STATE_TEXT[state];
+    $('plRetry').disabled = !!document.querySelector('.pl-rate[data-state="loading"]');
+    $('plRetry').hidden = !document.querySelector('.pl-rate[data-state="notloaded"]');   // only offered when something failed
+    if (!document.querySelector('.pl-rate:not([data-state="loaded"])')) {
+      $('plLabel').textContent = 'All rates loaded';
+      $('plBar').value = 100;
+    } else if (!document.querySelector('.pl-rate[data-state="loading"]')) {   // settled, but not all loaded
+      $('plLabel').textContent = 'Not every rate file loaded — check rates/, then Retry.';
+      $('plBar').value = 0;
+    }
+    document.dispatchEvent(new Event('ratesstatus'));
   }
   function hideProgress() {
     var wrap = $('rateProgress');
@@ -581,6 +544,18 @@
     return ins.ageCalc === 'last' ? ages.real : ages.nearest;
   }
 
+  /** The age a lookup matches on. Joint Permanent Life (JFTD, JLTD, JLTDPU):
+      the Joint container's Joint Age — Joint Age Backdated when `ageOffset`
+      is -1 — the same values the Insureds tab shows (core.jointAge). Every
+      other coverage: the insured's own Age Nearest/Last, plus `ageOffset`.
+      null → the caller reports Error (blank birthdate/Joint Age, no insured). */
+  function lookupAge(c, ins, ageOffset) {
+    if (core.isJointPerm(c)) return core.jointAge(c, ageOffset);
+    if (!ins) return null;
+    var age = insuredAge(ins);
+    return age === null ? null : age + ageOffset;
+  }
+
   /** The ported old-workbook PR_N formula (see chat / Lambda_Formulas.md for
       the original LET/CUBEVALUE version). `ageOffset` is 0 for PR_i, -1 for
       PR_BD_i — PR_BD_i is the exact same lookup at (Age Nearest/Last
@@ -588,23 +563,16 @@
       deliberately unwired, §9 invariant #39).
         - Term Life: always the individual insured's own age, Duration 1 —
           Coverage Type never matters for Term Life in the old formula.
-        - Permanent Life, Joint First-to-Die / Joint Last-to-Die: the old
-          formula needs a joint age ("perm_joint_age") that isn't computed
-          anywhere yet (the Insureds tab's own "Joint Age" column is itself
-          still pending) — left pending here too until that exists.
-        - Permanent Life, everything else (Individual, JLTDPU, unset — see
-          the JLTDPU TODO at the top of this file): the individual insured's
-          own age, no duration axis.
+        - Permanent Life: no duration axis. Individual: the insured's own age
+          and Sex/Rate. Joint First-to-Die / Joint Last-to-Die / JLTDPU: the
+          same lookup but on the joint Axis Key (Joint Sex/Joint Rate, see
+          core.axisKeyPrefix) and the Joint Age (lookupAge) — so every insured
+          on the coverage shows the same figure.
       Returns { pending: true }, { error: true }, or { value: <rate> } —
       never a guessed number. */
   function baseRateResult(c, ins, slot, band, ageOffset) {
-    if (c.category === 'permLife' && (c.covType === 'Joint First-to-Die' || c.covType === 'Joint Last-to-Die')) {
-      return { pending: true };
-    }
-    if (!ins) return { error: true };
-    var age = insuredAge(ins);
+    var age = lookupAge(c, ins, ageOffset);
     if (age === null) return { error: true };
-    age += ageOffset;
     var prefix = core.axisKeyPrefix(c, slot);
     if (!prefix) return { error: true };
     var axisKey = prefix + band.code;
@@ -626,26 +594,20 @@
           (T10-T65), Individual or Joint First-to-Die alike — so this just
           returns baseRateResult()'s own result unchanged (a PR error is an
           EPR error too, never a separately guessed figure).
-        - Permanent Life, Individual: the SUBSTANDARD rate — the insured's
-          own Axis Key with its first 3 characters ("DT_") replaced by "DTS"
-          (S = Substandard), looked up in the same perm_rates workbook by
-          that key and the insured's Age Nearest/Last (Calculated), the same
-          way PR_N is. (Substandard rows sit in the same sheet under their
-          own "DTS…" Axis Keys, so ingestPermLifeWorkbook() already has them.)
-        - Permanent Life, anything else (Joint First-to-Die, Joint
-          Last-to-Die, Joint Last-to-Die Paid-up 1st Death): TODO — not
-          specified yet ("come back to it later"), so pending. Unlike PR_N
-          above, JLTDPU waits here too rather than using the individual
-          lookup.
+        - Permanent Life: the SUBSTANDARD rate — the Axis Key (the insured's
+          own, or the joint one on JFTD/JLTD/JLTDPU) with its first 3
+          characters ("DT_") replaced by "DTS" (S = Substandard), looked up in
+          the same perm_rates workbook by that key and lookupAge() — the
+          insured's Age Nearest/Last, or the Joint Age on a joint coverage —
+          the same way PR_N is. (Substandard rows sit in the same sheet under
+          their own "DTS…" Axis Keys, so ingestPermLifeWorkbook() already has
+          them.)
       Same { pending } / { error } / { value } return shape as
       baseRateResult() — never a guessed number. */
   function extraRateResult(c, ins, slot, band, ageOffset) {
     if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset);
-    if (c.covType && c.covType !== 'Individual') return { pending: true };   // blank type falls through to the lookup → no Axis Key → Error
-    if (!ins) return { error: true };
-    var age = insuredAge(ins);
+    var age = lookupAge(c, ins, ageOffset);
     if (age === null) return { error: true };
-    age += ageOffset;
     var prefix = core.axisKeyPrefix(c, slot);
     if (!prefix) return { error: true };
     var rate = lookupPermLifeRate('DTS' + (prefix + band.code).slice(3), age);
@@ -653,15 +615,17 @@
     return { value: rate };
   }
 
-  /** PEP_N / PEP_BD_N — the insured's Perm Extra Prem. % (the Insureds tab's
-      column, slot.extraPct; a percentage, hence / 100) times EPR_N /
-      EPR_BD_N. Permanent Life joint coverages name "Joint Extra Prem. %"
-      instead, but the request says it's the same value — one % to read.
-      Pending or error exactly when the EPR it's built on is. */
+  /** PEP_N / PEP_BD_N — a percentage (hence / 100) times EPR_N / EPR_BD_N: the
+      insured's Perm Extra Prem. % (slot.extraPct) — or, on a joint Permanent
+      Life coverage, the Joint container's Equiv. Substd. % (c.joint.extraPct;
+      still blank → Error, like any other missing input). Pending or error
+      exactly when the EPR it's built on is. */
   function pepResult(c, ins, slot, band, ageOffset) {
     var epr = extraRateResult(c, ins, slot, band, ageOffset);
     if (epr.pending || epr.error) return epr;
-    return { value: epr.value * slot.extraPct / 100 };
+    var pct = core.isJointPerm(c) ? c.joint.extraPct : slot.extraPct;
+    if (pct === null || pct === undefined) return { error: true };
+    return { value: epr.value * pct / 100 };
   }
 
   /** One per-insured cell's result. `j` is the column's 0-5 position inside
@@ -675,27 +639,142 @@
       : pepResult(c, ins, slot, band, ageOffset);                          // PEP_i / PEP_BD_i
   }
 
-  /** Total / BD_Total cell: the SUM of per-insured column `j` (cellResult()'s
-      own index — 0-2 for Total, 3-5 for BD_Total) over the insureds that
+  /** BD_Final's per-insured pick for column `j` (0 PR, 1 EPR, 2 PEP): the
+      current value (…_N) — unless the insured is Backdate Eligible AND the
+      backdated value (…_BD_N, column j + 3) is strictly lower, then that one.
+      Same { value } / { error } / { pending } shape as cellResult(). The
+      backdated value is only looked up for an eligible insured, so a missing
+      …_BD_N row can't spoil an insured who keeps …_N. */
+  function finalResult(c, ins, slot, band, j) {
+    var n = cellResult(c, ins, slot, band, j);
+    if (n.error || n.pending) return n;
+    var eligible = ins && core.backdateEligible ? core.backdateEligible(ins) : null;   // true / false / null (unknown)
+    if (eligible === null) return { error: true };
+    if (!eligible) return n;
+    var bd = cellResult(c, ins, slot, band, j + 3);
+    if (bd.error || bd.pending) return bd;
+    return bd.value < n.value ? bd : n;
+  }
+
+  /** Total / BD_Total / BD_Final cell: the SUM of per-insured column `j`
+      (cellResult()'s own index — 0-2 for Total, 3-5 for BD_Total; with `final`,
+      0-2 through finalResult() for BD_Final) over the insureds that
       count. Term Life and Permanent Life Individual: all of them. Permanent
       Life Joint First-to-Die / Joint Last-to-Die / JLTDPU: Insured 1 alone
       (PR_Total = PR_1, and likewise EPR/PEP). Returns null when there's no
       insured to sum yet; an Error anywhere in the sum is an Error, else a
       pending anywhere is pending — never a partial sum. The raw rates are
       summed, only the display rounds. */
-  function totalResult(c, slots, band, j) {
+  function totalResult(c, slots, band, j, final) {
     var counted = c.category === 'permLife' && c.covType !== 'Individual' ? slots.slice(0, 1) : slots;
     if (!counted.length) return null;
     var sum = 0, pending = false;
     // ponytail: re-runs the lookups the left table already did — a handful of
     // property reads per cell; cache per render if a lookup ever gets costly.
     for (var i = 0; i < counted.length; i++) {
-      var res = cellResult(c, core.findInsured(counted[i].insuredId), counted[i], band, j);
+      var res = (final ? finalResult : cellResult)(c, core.findInsured(counted[i].insuredId), counted[i], band, j);
       if (res.error) return res;
       if (res.pending) pending = true;
       else sum += res.value;
     }
     return pending ? { pending: true } : { value: sum };
+  }
+
+  /** The rate band a coverage falls in: the closest LOWER band — the highest
+      band whose face amount is <= the amount (BAND_TABLES ascend; at or above
+      the top band it's the top one). Term Life: 30,000 -> B00025, 99,999 ->
+      B00050, 8,974,632 -> B02000; Permanent Life: 17,500 -> B00010, 249,999 ->
+      B00100, 250,001 -> B00250. The amount is the Coverage Amount — or, on
+      Calculation Type "Input Premium", the Results' own Prem. Basis Ins. Amt
+      (core.premBasis, optimizer_coverages.js), which is the most that premium
+      buys. { band }, or { why } while there's no answer: no bands for the
+      Category, no amount, or an amount below the lowest band. */
+  function bandAt(category, amount) {
+    var bands = BAND_TABLES[category], hit = null;
+    if (!bands || amount === null || amount === undefined) return null;
+    bands.forEach(function (b) { if (b.amount <= amount) hit = b; });
+    return hit;
+  }
+
+  function bandFor(c) {
+    if (!BAND_TABLES[c.category]) return { why: 'no rate bands for this Coverage Category' };
+    var amount = c.amount;
+    if (c.calcType === 'premium') {                 // the band follows Prem. Basis Ins. Amt
+      var pb = core.premBasis ? core.premBasis(c) : null;
+      if (!pb) return { why: 'needs Prem. Basis Ins. Amt' };
+      if (pb.error || pb.blocked || pb.pending) return { why: pb.error || pb.blocked || 'Prem. Basis Ins. Amt has no formula for this Coverage Category' };
+      amount = pb.amount;
+    }
+    if (amount === null || amount === undefined) {
+      return { why: c.calcType === 'premium' ? 'needs the Input premium' : 'needs a Coverage Amount' };
+    }
+    var hit = bandAt(c.category, amount);
+    return hit ? { band: hit } : { why: 'amount is below the lowest rate band' };
+  }
+
+  /** Backdate tab (published on the bridge, initRatesTab): an insured's "all
+      coverages" rate — the SUM, over every coverage that insured is on, of
+      that coverage's PR_N (PR_BD_N when `backdated`) at the coverage's own
+      band (bandFor). Returns { value, detail } (`detail` lists each part, for
+      a tooltip), { error } or { blocked } (both carry the reason) — never a
+      partial sum: a lookup that fails is an error, a coverage with no band
+      yet (or the insured on no coverage) is blocked, error wins. */
+  function allCovRate(insuredId, backdated) {
+    var sum = 0, parts = [], error = null, blocked = null;
+    core.coverages().forEach(function (c, ci) {
+      c.insureds.forEach(function (s) {
+        if (s.insuredId !== insuredId) return;
+        var label = (ci + 1) + '. ' + core.coverageTitle(c), b = bandFor(c);
+        if (!b.band) { blocked = blocked || label + ' — ' + b.why; return; }
+        var res = cellResult(c, core.findInsured(insuredId), s, b.band, backdated ? 3 : 0);
+        if (res.error) error = error || label + ' — no rate found at ' + b.band.code;
+        else if (res.pending) blocked = blocked || label + ' — rate pending';
+        else { sum += res.value; parts.push(label + ' · ' + b.band.code + ' · ' + core.group(res.value, 2)); }
+      });
+    });
+    if (error) return { error: error };
+    if (blocked) return { blocked: blocked };
+    return parts.length ? { value: sum, detail: parts.join(' + ') } : { blocked: 'not on any coverage yet' };
+  }
+
+  /** PR_Total / PEP_Total on ONE band — the same two figures the Total block
+      shows on that band's row. { band, pr, pep }, or { blocked } / { error }
+      with the reason — never a partial answer. bandTotals() is the coverage's
+      own band (Modal Prem.); bandTotalsAll() below is every band. */
+  function bandTotalsFor(c, slots, band) {
+    var out = { band: band }, names = ['pr', 'pep'], cols = [0, 2];
+    for (var i = 0; i < 2; i++) {
+      var t = totalResult(c, slots, band, cols[i]);
+      if (!t) return { blocked: 'no insured chosen on this coverage' };
+      if (t.error) return { error: 'no rate found at ' + band.code + ' (' + names[i].toUpperCase() + '_Total)' };
+      if (t.pending) return { blocked: names[i].toUpperCase() + '_Total is pending' };
+      out[names[i]] = t.value;
+    }
+    return out;
+  }
+
+  function bandTotals(c) {
+    var b = bandFor(c);
+    if (!b.band) return { blocked: b.why };
+    return bandTotalsFor(c, c.insureds.filter(function (s) { return s.insuredId; }), b.band);
+  }
+
+  /** Results' Highest Amt (§ optimizer_coverages.js): the same two figures for
+      EVERY band of the coverage's Category, in BAND_TABLES order — the whole
+      Total column as the Rates tab shows it, which is what the "could a bigger
+      amount cost the same?" search inverts. { list: [{band, pr, pep}, …] }, or
+      the first { blocked } / { error } that stops any one of them. */
+  function bandTotalsAll(c) {
+    var bands = BAND_TABLES[c.category];
+    if (!bands) return { blocked: 'no rate bands for this Coverage Category' };
+    var slots = c.insureds.filter(function (s) { return s.insuredId; }), list = [], stop = null;
+    bands.forEach(function (b) {
+      if (stop) return;
+      var t = bandTotalsFor(c, slots, b);
+      if (t.error || t.blocked) { stop = t; return; }
+      list.push(t);
+    });
+    return stop || { list: list };
   }
 
   /** LEFT table: Rate Band Code + one 6-column group per insured actually
@@ -742,17 +821,17 @@
       '</table>';
   }
 
-  /** RIGHT table: Total / BD_Total (the sums of totalResult() — a figure, a
-      red Error, or the muted "—" while an input is missing; `first` is the
-      group's opening column index for cellResult()) / BD_Final (amber
-      pending — its own formula isn't final yet, § file header). Always the
-      same 9 columns regardless of how many insureds are on the coverage;
-      `slots` is the same assigned-insured list insuredRatesTable() gets. */
+  /** RIGHT table: Total / BD_Total / BD_Final — all sums of totalResult(): a
+      figure, a red Error, or the muted "—" while an input is missing.
+      `first` is the group's opening column index for cellResult(); `final`
+      routes BD_Final through finalResult() (§ file header). Always the same
+      9 columns regardless of how many insureds are on the coverage; `slots`
+      is the same assigned-insured list insuredRatesTable() gets. */
   function totalsRatesTable(c, slots) {
     var GROUPS = [
-      { label: 'Total', cols: ['PR_Total', 'EPR_Total', 'PEP_Total'], first: 0, pending: false },
-      { label: 'BD_Total', cols: ['PR_BD_Total', 'EPR_BD_Total', 'PEP_BD_Total'], first: 3, pending: false, bd: true },
-      { label: 'BD_Final', cols: ['PR_BD_Final', 'EPR_BD_Final', 'PEP_BD_Final'], pending: true }
+      { label: 'Total', cols: ['PR_Total', 'EPR_Total', 'PEP_Total'], first: 0 },
+      { label: 'BD_Total', cols: ['PR_BD_Total', 'EPR_BD_Total', 'PEP_BD_Total'], first: 3, bd: true },
+      { label: 'BD_Final', cols: ['PR_BD_Final', 'EPR_BD_Final', 'PEP_BD_Final'], first: 0, final: true }
     ];
     var headGroup = GROUPS.map(function (g, gi) {
       return '<th colspan="3" class="rate-grp' + (gi > 0 ? ' col-hard-sep' : '') + '">' + g.label + '</th>';
@@ -767,8 +846,7 @@
       return '<tr>' + GROUPS.map(function (g, gi) {
         return g.cols.map(function (l, j) {
           var extra = [(j === 0 && gi > 0) ? 'col-hard-sep' : '', g.bd ? 'rate-bd' : ''].join(' ').trim();
-          if (g.pending) return core.pendingCell(extra);
-          var res = totalResult(c, slots, b, g.first + j);
+          var res = totalResult(c, slots, b, g.first + j, g.final);
           if (!res || res.pending) return dashCell(extra);
           if (res.error) return errorCell(extra);
           return '<td class="r' + (extra ? ' ' + extra : '') + '">' + core.esc(core.group(res.value, 2)) + '</td>';
@@ -839,7 +917,12 @@
   function initRatesTab() {
     $('ratesTabHost').innerHTML = ratesTabShell();
     renderRatesTab();
-    restorePersistedRates();   // may call detectAndIngest -> renderRatesTab + renderStatus again
+    core.allCovRate = allCovRate;   // lent out from here: the Backdate tab's rate sums …
+    core.bandTotals = bandTotals;   // … the Coverages tab's PR_Total / PEP_Total at the coverage's band …
+    core.bandAt = bandAt;           // … and, for Results' Highest Amt, the band an amount falls in
+    core.bandTotalsAll = bandTotalsAll;
+    loadFromRatesFolder();     // every launch — the pre-load page (optimizer_preload.js) waits on both files
+    $('plRetry').addEventListener('click', loadFromRatesFolder);
 
     $('ratesTabHost').addEventListener('click', function (e) {
       if (e.target.id === 'btnImportRates') $('ratesFileInput').click();

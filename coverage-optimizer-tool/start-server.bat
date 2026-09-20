@@ -1,12 +1,12 @@
 @echo off
 setlocal
 
-rem Coverage Optimizer — local dev server.
-rem Serves this folder over http(s) instead of opening optimizer.html
-rem directly from disk — needed for fetch() (e.g. the Rates tab's
-rem "Load from rates/" button) and to dodge stale-cache issues where the
-rem browser holds on to an old .js file after an edit (OPTIMIZER_REFERENCE.md
-rem "Running it").
+rem Coverage Optimizer — local server (server.py).
+rem Serves this folder over http instead of opening optimizer.html directly
+rem from disk — needed for fetch() (the pre-load page loads rates/ this way),
+rem to dodge stale-cache issues where the browser holds on to an old .js file
+rem after an edit (OPTIMIZER_REFERENCE.md "Running it"), and so Save Test can
+rem write its .json straight into data/ (server.py, this PC only).
 
 cd /d "%~dp0"
 set PORT=8000
@@ -21,13 +21,13 @@ if %errorlevel%==0 (
     ) else (
         echo Python was not found on PATH.
         echo Install Python 3, or run this manually from this folder:
-        echo     python -m http.server %PORT%
+        echo     python server.py %PORT%
         pause
         exit /b 1
     )
 )
 
-start "Coverage Optimizer server (port %PORT%) - close this window to stop it" cmd /k %PYCMD% -m http.server %PORT%
+start "Coverage Optimizer server (port %PORT%) - close this window to stop it" cmd /k %PYCMD% server.py %PORT%
 timeout /t 2 /nobreak >nul
 start "" http://localhost:%PORT%/optimizer.html
 

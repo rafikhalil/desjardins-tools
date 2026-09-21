@@ -1,9 +1,11 @@
-"""Coverage Optimizer server (started by start-server.bat).
+"""Coverage Optimizer server (started by _start-coverage-optimizer.bat).
 
-Serves this folder like `python -m http.server`, plus one extra route:
-POST /data/<name>.json writes the body into data/ and never overwrites — a
-taken name gets a timestamp suffix, and the JSON reply {"name": ...} carries
-the name actually used. Listens on this PC only (127.0.0.1).
+Serves the TOOL folder (the one holding backend_files/, rates/ and history_data/) like
+`python -m http.server`, so the page at /backend_files/optimizer.html reaches ../rates/
+and ../history_data/. One extra route: POST /history_data/<name>.json writes the body
+into history_data/ and never overwrites — a taken name gets a timestamp suffix, and
+the JSON reply {"name": ...} carries the name actually used. Listens on this PC only
+(127.0.0.1).
 """
 import http.server
 import json
@@ -13,10 +15,10 @@ import sys
 import tempfile
 import time
 
-ROOT = os.path.dirname(os.path.abspath(__file__))
-DATA = os.path.join(ROOT, 'data')
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # this file lives in backend_files/
+DATA = os.path.join(ROOT, 'history_data')
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
-NAME = re.compile(r'[A-Za-z0-9_-]{1,100}\.json')   # a bare file name — nothing can land outside data/
+NAME = re.compile(r'[A-Za-z0-9_-]{1,100}\.json')   # a bare file name — nothing can land outside history_data/
 MAX_BYTES = 5 * 1024 * 1024
 
 
@@ -39,7 +41,7 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
     def do_POST(self):
-        name = self.path.split('?')[0][len('/data/'):] if self.path.startswith('/data/') else ''
+        name = self.path.split('?')[0][len('/history_data/'):] if self.path.startswith('/history_data/') else ''
         if not NAME.fullmatch(name):
             return self.reply(400, {'error': 'bad file name'})
         # Only our own page sends application/json: another site's request would need a CORS preflight, which we never answer.
@@ -74,5 +76,5 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
-    print('Coverage Optimizer server: http://localhost:%d/optimizer.html  (Ctrl+C to stop)' % PORT)
+    print('Coverage Optimizer server: http://localhost:%d/backend_files/optimizer.html  (Ctrl+C to stop)' % PORT)
     http.server.ThreadingHTTPServer(('127.0.0.1', PORT), Handler).serve_forever()

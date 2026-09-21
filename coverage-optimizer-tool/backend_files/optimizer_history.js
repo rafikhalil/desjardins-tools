@@ -16,8 +16,8 @@
  * Persistence: a saved test case is kept in this browser's own localStorage
  * (so the History tab can list and one-click Load it, the same way the theme
  * choice already persists there) AND written as a portable .json file into
- * the tool's `data` folder by server.py (saveToDataFolder — the tool is
- * always started from start-server.bat; a plain download is only the
+ * the tool's `history_data` folder by server.py (saveToDataFolder — the tool is
+ * always started from _start-coverage-optimizer.bat; a plain download is only the
  * fallback if the server can't be reached), named with the saver's initials
  * (cl_/rk_/cc_, chosen on the pre-load page), so it can be archived or
  * emailed to a colleague. "Import Test Case" (this tab's own
@@ -46,14 +46,14 @@
       var parsed = raw ? JSON.parse(raw) : [];
       if (Array.isArray(parsed)) return parsed;
     } catch (e) { /* fall through to the message */ }   // storage unavailable/corrupt — start empty, tool still runs
-    core.raise('h:store', 'History — the test cases saved in this browser couldn\'t be read, so the list starts empty. The .json files in the data/ folder are unaffected (Import Test Case brings one back).');
+    core.raise('h:store', 'History — the test cases saved in this browser couldn\'t be read, so the list starts empty. The .json files in the history_data/ folder are unaffected (Import Test Case brings one back).');
     return [];
   }
 
   function persistCatalog() {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog)); core.resolve('h:store'); }
-    catch (e) {   // storage unavailable (quota, private mode, …) — the data/ file is then the only copy
-      core.raise('h:store', 'History — this browser wouldn\'t keep the saved test cases (storage full or blocked), so the list will be empty next time you open the tool. The .json file in data/ is your copy.');
+    catch (e) {   // storage unavailable (quota, private mode, …) — the history_data/ file is then the only copy
+      core.raise('h:store', 'History — this browser wouldn\'t keep the saved test cases (storage full or blocked), so the list will be empty next time you open the tool. The .json file in history_data/ is your copy.');
     }
   }
 
@@ -96,12 +96,12 @@
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
   }
 
-  /** POSTs the test case to server.py (start-server.bat), which writes it into
-      the tool's data/ folder and never overwrites — a taken name comes back
+  /** POSTs the test case to server.py (_start-coverage-optimizer.bat), which writes it into
+      the tool's history_data/ folder and never overwrites — a taken name comes back
       with a timestamp suffix. Resolves { name } — the file name actually written — or
       { why } (page opened from disk, server down, refused) → the caller downloads. */
   function saveToDataFolder(filename, obj) {
-    return fetch('data/' + filename, {
+    return fetch('../history_data/' + filename, {   // the page lives in backend_files/; history_data/ is its sibling
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 2)
     }).then(function (r) {
       if (!r.ok) throw new Error('the server answered HTTP ' + r.status);
@@ -158,11 +158,11 @@
 
     var fname = safeFileName(name);
     saveToDataFolder(fname, entry).then(function (r) {
-      if (r.name) { toast('Saved "' + name + '" to History and data/' + r.name + '.'); core.resolve('h:save'); return; }
+      if (r.name) { toast('Saved "' + name + '" to History and history_data/' + r.name + '.'); core.resolve('h:save'); return; }
       downloadJSON(fname, entry);
-      toast('Saved "' + name + '" to History; downloaded instead — data/ not reachable (start the tool with start-server.bat).', 'err');
-      core.raise('h:save', 'Save Test — "' + name + '" is in History but the file couldn\'t be written to data/ (' + r.why +
-        '); it was downloaded to your Downloads folder instead. Start the tool with start-server.bat to save into data/.');
+      toast('Saved "' + name + '" to History; downloaded instead — history_data/ not reachable (start the tool with _start-coverage-optimizer.bat).', 'err');
+      core.raise('h:save', 'Save Test — "' + name + '" is in History but the file couldn\'t be written to history_data/ (' + r.why +
+        '); it was downloaded to your Downloads folder instead. Start the tool with _start-coverage-optimizer.bat to save into history_data/.');
     });
   }
 

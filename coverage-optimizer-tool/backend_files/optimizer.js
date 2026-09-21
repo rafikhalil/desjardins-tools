@@ -1702,26 +1702,33 @@
   var RESULTS_COVERAGE_FIELDS = [
     'Prem. Basis Ins. Amt', 'Highest Amt (Min.)', 'Highest Amt (Max.)', 'Modal Prem', 'Modal Prem Backdated'
   ];
-  /** The Summary strip. Modal Premium is the sum of every coverage's own Modal
-      Prem. (the Coverages tab's column, core.modalPrem). The other three mirror
-      figures whose formulas are still to come — each coverage's Modal Prem.
-      Backdated. Possible Backdate Date is the Backdate tab's own Final
-      Backdate Date; only Backdate Savings Date is still amber, waiting on that
-      tab's Monthly or Annual Savings Date (whichever Payment Frequency picks,
-      TO_DO C-3). */
+  /** The Summary strip. Modal Premium/Modal Premium Backdated are the sum of
+      every coverage's own Modal Prem./Modal Prem. Backdated (core.modalPrem/
+      modalPremBackdated). Possible Backdate Date is the Backdate tab's own
+      Final Backdate Date; Backdate Savings Date mirrors whichever of that
+      tab's Monthly/Annual Savings Date matches the current Payment Frequency
+      (settings.freq) — both are independent calculations, not follow-on from
+      the visible projection table (§ optimizer_backdate.js). */
   function summaryFields() {
-    var freq = settings.freq === 'annually' ? 'Annual' : 'Monthly';
     function money(r) { return group(r.value, 2); }
-    function soon(what) {
-      return '<span class="rs-v cell-pending" title="' + esc(what + ' \u2014 no formula yet') + '">—</span>';
-    }
+    function date(r) { return fmtDate(r.date); }
     return [
       { l: 'Modal Premium', v: summaryValue(premiumTotal('modalPrem'), money) },
       { l: 'Modal Premium Backdated', v: summaryValue(premiumTotal('modalPremBackdated'), money) },
-      { l: 'Possible Backdate Date', v: summaryValue(finalBackdateFor(), function (r) { return fmtDate(r.date); }) },
-      { l: 'Backdate Savings Date', v: soon('the Backdate tab\'s ' + freq + ' Savings Date') }
+      { l: 'Possible Backdate Date', v: summaryValue(finalBackdateFor(), date) },
+      { l: 'Backdate Savings Date', v: summaryValue(savingsDateFor(), date) }
     ];
   }
+
+  /** Whichever of the Backdate tab's own Monthly/Annual Savings Date matches
+      the current Payment Frequency — null until that file has loaded (it
+      comes after this one), same guard as finalBackdateFor(). */
+  function savingsDateFor() {
+    var api = window.OptimizerCore;
+    if (!api || !api.monthlySavingsDate || !api.annualSavingsDate) return null;
+    return settings.freq === 'annually' ? api.annualSavingsDate() : api.monthlySavingsDate();
+  }
+
 
   function summaryValue(r, fmt) {
     if (!r) return '<span class="rs-v is-empty" title="Not calculated yet">—</span>';
@@ -2218,6 +2225,10 @@
     /** { v } or { why, err } — the Joint Age calculation itself (§ equivAge), so
         the Rates tab can say why a joint lookup has no age. */
     equivAge: equivAge,
+    /** Modal Premium / Modal Premium Backdated summed over every coverage —
+        built for the Results Summary; lent here once the Backdate tab's own
+        Projection container (optimizer_backdate.js) needed the identical sums. */
+    premiumTotal: premiumTotal,
     /** The message bar (§ message bar): keyed event messages, per-tab
         diagnostics providers, and the rejected-input helpers History and the
         Coverages tab's Unit Value share with the main commit handlers. */

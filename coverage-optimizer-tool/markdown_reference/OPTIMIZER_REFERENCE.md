@@ -61,7 +61,7 @@ likely way to produce an unusable result.
    everything else on this page. It's a plain vendored `<script>`, no build
    step, still works via `file://`; the rate files are loaded from `rates/` with `fetch()`, which
    needs an http(s) server (it is blocked on `file://`) — start the tool with
-   `start-server.bat` (§14.2). From disk the tool still runs; the load fails and the
+   `_start-coverage-optimizer.bat` (§14.2). From disk the tool still runs; the load fails and the
    message bar says why (§13 E-1), and the manual **Import Rates File** picker still
    works — that is what keeps rule 1's file://-first guarantee intact.
 2. **Do not add files** beyond what is strictly required. A large calculation
@@ -74,7 +74,7 @@ likely way to produce an unusable result.
    second one. **History (§2h) is the one exception inside that pattern**: it
    also calls the bridge's one deliberate WRITE path (`OptimizerCore.
    restoreState`, §2d) — every other split-off tab stays strictly read-only.
-   `server.py` / `start-server.bat` (the local server and its launcher, §14.2)
+   `server.py` / `_start-coverage-optimizer.bat` (the local server and its launcher, §14.2)
    and `TO_DO.md` are not part of the running page and aren't held to this rule. Anything beyond all of
    this needs justification.
 3. **ES5 syntax only in `optimizer.js`** (and any file that splits off from
@@ -106,29 +106,30 @@ likely way to produce an unusable result.
 
 ```
 coverage-optimizer-tool/
-├── optimizer.html               static shell: top bar (brand, MESSAGE BAR, Test Case Name, user chip, Save Test, theme),
-│                                tab bar, pane host, status bar, toast, the PRE-LOAD overlay
-├── optimizer.css                slate palette + every component class (+ the message bar, §13)
-├── optimizer.js                 one IIFE: switcher, theme, tabs, panes, Settings / Insured Input / Coverage Input / Results,
-│                                Axis Key, Joint Age (equivAge), save/load state, message bar, the public bridge
-├── optimizer_coverages.css/.js  Coverages tab (§2d) — own file, own IIFE, own <link>/<script>; Modal Prem., Highest Amt, Prem. Basis
-├── optimizer_insureds.css/.js   Insureds tab (§2e)
-├── optimizer_rates.css/.js      Rates tab (§2f) — rate files, every lookup
-├── optimizer_backdate.css/.js   Backdate tab (§2g)
-├── optimizer_history.css/.js    History tab + the top-bar Save Test controls (§2h)
-├── optimizer_preload.css/.js    the pre-load page (§14.3)
-├── xlsx.full.min.js             vendored SheetJS build (§0 rule 1) — the one dependency this page has
-├── server.py                    the local server: serves this folder + POST /data/<name>.json (§14.2)
-├── start-server.bat             double-click launcher for server.py (starts it on port 8000 and opens the tool)
-├── data/                        saved test cases (<initials>_<name>.json), written by server.py (§14.4)
-├── rates/                       the two rate workbooks — confidential, never committed (§12.3, §14.6)
-├── TO_DO.md                     the live backlog (§14.7)
-├── OPTIMIZER_REFERENCE.md       this file
-├── OPTIMIZER_INSTRUCTIONS.md    custom instructions for the coding platform
-├── yagni_principle.md           the "smallest correct change" coding instruction
-│
-├── inforce.html / .css / .js    the sibling tool — out of scope here
-└── INFORCE_REFERENCE.md / INFORCE_INSTRUCTIONS.md
+├── _start-coverage-optimizer.bat   double-click launcher: starts backend_files/server.py (port 8000) and opens the tool — ONE console window
+├── backend_files/                  everything the browser loads, plus the server
+│   ├── optimizer.html              static shell: top bar (brand, MESSAGE BAR, Test Case Name, user chip, Save Test, theme),
+│   │                               tab bar, pane host, status bar, toast, the PRE-LOAD overlay
+│   ├── optimizer.css               slate palette + every component class (+ the message bar, §13)
+│   ├── optimizer.js                one IIFE: switcher, theme, tabs, panes, Settings / Insured Input / Coverage Input / Results,
+│   │                               Axis Key, Joint Age (equivAge), save/load state, message bar, the public bridge
+│   ├── optimizer_coverages.css/.js Coverages tab (§2d) — own file, own IIFE, own <link>/<script>; Modal Prem., Highest Amt, Prem. Basis
+│   ├── optimizer_insureds.css/.js  Insureds tab (§2e)
+│   ├── optimizer_rates.css/.js     Rates tab (§2f) — rate files, every lookup
+│   ├── optimizer_backdate.css/.js  Backdate tab (§2g)
+│   ├── optimizer_history.css/.js   History tab + the top-bar Save Test controls (§2h)
+│   ├── optimizer_preload.css/.js   the pre-load page (§14.3)
+│   ├── xlsx.full.min.js            vendored SheetJS build (§0 rule 1) — the one dependency this page has
+│   └── server.py                   the local server: serves the TOOL folder + POST /history_data/<name>.json (§14.2)
+├── rates/                          the two rate workbooks — confidential, never committed (§12.3, §14.6)
+├── history_data/                   saved test cases (<initials>_<name>.json), written by server.py (§14.4)
+└── markdown_reference/             the documentation
+    ├── OPTIMIZER_REFERENCE.md      this file
+    ├── OPTIMIZER_INSTRUCTIONS.md   custom instructions for the coding platform
+    ├── TO_DO.md                    the live backlog (§14.7)
+    └── yagni_principle.md          the "smallest correct change" coding instruction
+
+(the sibling tool, inforce.html / .css / .js and INFORCE_REFERENCE.md, lives elsewhere and is out of scope here)
 ```
 
 **A live tab lives in its own file pair instead of inside `optimizer.js`/`.css`.**
@@ -156,15 +157,16 @@ tokens/classes `optimizer.css` already defines.
 
 ### Running it
 
-**Start it with `start-server.bat`** (double-click; needs Python 3 on PATH). It
-runs `server.py` on port 8000 in its own window (closing the window stops it)
-and opens `http://localhost:8000/optimizer.html`. Why a server rather than
+**Start it with `_start-coverage-optimizer.bat`** (double-click; needs Python 3 on PATH). It
+runs `backend_files/server.py` on port 8000 **in that same console window** (one window
+only; closing it stops the server) and opens
+`http://localhost:8000/backend_files/optimizer.html`. Why a server rather than
 opening the `.html` from disk: the pre-load page `fetch()`es the rate files
 (blocked on `file://`); the browser must not serve a stale `.js` after an edit
 (`server.py` sends `Cache-Control: no-cache`); and Save Test writes straight
-into `data/` (§14.2). Opening `optimizer.html` from disk still *runs* the tool
+into `history_data/` (§14.2). Opening `optimizer.html` from disk still *runs* the tool
 (§0 rule 1) — the rate files then fail to load and the message bar says why
-(§13 E-1). Run by hand: `python server.py 8000`. Full details: §14.
+(§13 E-1). Run by hand: `python backend_files/server.py 8000`. Full details: §14.
 
 ---
 
@@ -1257,7 +1259,7 @@ clears the name box and writes the file (below).
   instant listing and one-click **Load**. Read/write are wrapped in `try/catch`
   and **failures are reported** (§13 F-3), never silent.
 - **The file**: `saveToDataFolder(filename, entry)` POSTs to `server.py`
-  (`start-server.bat`), which writes `data/<initials>_<name>.json` and never
+  (`_start-coverage-optimizer.bat`), which writes `history_data/<initials>_<name>.json` and never
   overwrites (§14.2). It resolves `{ name }` (what was written) or `{ why }`
   (server unreachable / HTTP status). On `{ why }` the case is **downloaded
   instead** (`downloadJSON`) and the bar explains (§13 F-2). A page can never
@@ -1988,7 +1990,7 @@ existed to port), which is exactly why Rates vendors `xlsx.full.min.js`
 48. **`server.py` never overwrites and accepts only a bare `.json` name** (§14.2);
     Save Test falls back to a download rather than losing a case, and says so
     (§13 F-2). Don't loosen the name pattern — it is what keeps a POST inside
-    `data/`.
+    `history_data/`.
 49. **Load is transactional** (§2h): back up the on-screen state, `restoreState`,
     then `setSnapshot('unitValues', …)`; on any throw, restore the backup and
     report (§13 F-5). A damaged file must never leave the tool half-loaded.
@@ -2090,7 +2092,7 @@ rate files — with the real ones on the work machine, or a small synthetic work
 (§13.4) whose numbers you compute by hand.
 
 ### 11.1 Load and shell
-- [ ] Started with `start-server.bat`: the **pre-load page** appears; the tool
+- [ ] Started with `_start-coverage-optimizer.bat`: the **pre-load page** appears; the tool
       behind it is inert (no Tab / click) until **Start**.
 - [ ] Both rate rows go red → yellow → green (*Not loaded → Loading → Loaded*) with
       a moving progress bar and label; **Start** stays disabled until a name is
@@ -2193,7 +2195,7 @@ Use these before trusting any change to §12.
       Backdate / Backdate Date follow §12.7; Show Projection starts OFF and expands
       to amber headers with a single placeholder row.
 - [ ] **History**: Save Test with no name is refused (message in the bar); with a name
-      it saves, clears the box, adds a row (initials-prefixed) **and writes `data/`**;
+      it saves, clears the box, adds a row (initials-prefixed) **and writes `history_data/`**;
       change inputs (including Unit Value), **Load** the earlier save → everything
       reverts including Unit Value, and the view returns to Input & Results; Delete
       is immediate; **Import Test Case** adds a row with a fresh id.
@@ -2809,7 +2811,7 @@ that file next loads cleanly. The pre-load page also shows the fetch failure tex
 | # | Case |
 |---|---|
 | F-1 | *Save Test* with no Test Case Name (`h:name`; clears when you type one or save) |
-| F-2 | the file could not be written to `data/` — the reason is given (server not reachable / HTTP status) and the case was **downloaded instead** (`h:save`) |
+| F-2 | the file could not be written to `history_data/` — the reason is given (server not reachable / HTTP status) and the case was **downloaded instead** (`h:save`) |
 | F-3 | this browser would not keep the History list (`localStorage` full/blocked) — or the stored list is unreadable and History starts empty (`h:store`) |
 | F-4 | *Import Test Case*: not valid JSON · no `name` · `snapshot` has no `insureds`/`coverages` lists · file unreadable (`h:import`) |
 | F-5 | *Load* of a damaged/hand-edited case threw — **the previous state is put back** (`h:load`) |
@@ -2840,7 +2842,7 @@ that file next loads cleanly. The pre-load page also shows the fetch failure tex
 
 ### 13.4 Testing the bar without the real rate files
 
-Serve the folder (`python server.py <port>`), open `optimizer.html`, click
+Serve the folder (`python backend_files/server.py <port>`), open `optimizer.html`, click
 **Skip (dev)**, then in the console: build a workbook with `XLSX.utils` in the
 page (`aoa_to_sheet`, one row per Axis Key/age), feed it through the hidden
 `#ratesFileInput` with `DataTransfer` + a `change` event, and drive state with
@@ -2861,16 +2863,16 @@ error.
 
 | Path | Role |
 |---|---|
-| `optimizer.html` · `optimizer.css` · `optimizer.js` | shell + the "core" (Settings, Insured/Coverage Input, Results, Axis Key, Joint Age, save/load state, **message bar**, the bridge) |
-| `optimizer_coverages.*` `_insureds.*` `_rates.*` `_backdate.*` `_history.*` | one file pair per tab (§2d–§2h) — own IIFE, read through `window.OptimizerCore` |
-| `optimizer_preload.css` / `.js` | the pre-load page (§14.3) |
-| `xlsx.full.min.js` | vendored SheetJS — the only third-party code |
-| `server.py` · `start-server.bat` | the local server and its launcher (§14.2) |
+| `backend_files/optimizer.html` · `.css` · `.js` | shell + the "core" (Settings, Insured/Coverage Input, Results, Axis Key, Joint Age, save/load state, **message bar**, the bridge) |
+| `backend_files/optimizer_coverages.*` `_insureds.*` `_rates.*` `_backdate.*` `_history.*` | one file pair per tab (§2d–§2h) — own IIFE, read through `window.OptimizerCore` |
+| `backend_files/optimizer_preload.css` / `.js` | the pre-load page (§14.3) |
+| `backend_files/xlsx.full.min.js` | vendored SheetJS — the only third-party code |
+| `backend_files/server.py` · `_start-coverage-optimizer.bat` (tool root) | the local server and its launcher (§14.2) |
 | `rates/` | the two rate workbooks (**confidential — never commit them**; see §14.6) |
-| `data/` | saved test cases (`.json`), written by `server.py` |
-| `TO_DO.md` | the live backlog: what is parked, what to review, questions waiting on the requester |
-| `OPTIMIZER_REFERENCE.md` (this file) · `OPTIMIZER_INSTRUCTIONS.md` | the spec and the agent instructions |
-| `yagni_principle.md` | the coding-style instruction used with the coding assistant ("smallest correct change") |
+| `history_data/` | saved test cases (`.json`), written by `server.py` |
+| `markdown_reference/TO_DO.md` | the live backlog: what is parked, what to review, questions waiting on the requester |
+| `markdown_reference/OPTIMIZER_REFERENCE.md` (this file) · `OPTIMIZER_INSTRUCTIONS.md` | the spec and the agent instructions |
+| `markdown_reference/yagni_principle.md` | the coding-style instruction used with the coding assistant ("smallest correct change") |
 
 Script load order in `optimizer.html` matters: `xlsx` → `optimizer.js` →
 **`optimizer_rates.js`** (publishes `core.bandTotals`/`allCovRate`/… that the
@@ -2879,25 +2881,27 @@ next two call) → `_coverages` → `_insureds` → `_backdate` (lends
 
 ### 14.2 Starting the tool
 
-**Always start it with `start-server.bat`** (double-click). It finds `python`
-or `py`, opens `server.py` on **port 8000** in its own window (closing that
-window stops it) and opens `http://localhost:8000/optimizer.html`. `server.py`
-is `http.server` plus:
+**Always start it with `_start-coverage-optimizer.bat`** (double-click). It finds `python`
+or `py`, opens the browser in the background after ~2 s and runs
+`backend_files/server.py` on **port 8000 in its own console window — the only one**
+(closing it stops the server). The page is `http://localhost:8000/backend_files/optimizer.html`:
+`server.py` serves the **tool folder** (the parent of `backend_files/`), so the page
+reaches `../rates/` and `../history_data/`. It is `http.server` plus:
 
 - **`Cache-Control: no-cache`** on every response — without it a browser reuses
   a stale `.js` after an edit and shows the *old* tool.
-- **`POST /data/<name>.json`** — writes a saved test case into `data/`.
+- **`POST /history_data/<name>.json`** — writes a saved test case into `history_data/`.
   Accepts only `application/json`, a bare file name `[A-Za-z0-9_-]{1,100}.json`
-  (nothing can land outside `data/`), 1 byte–5 MB, valid JSON; **never
+  (nothing can land outside `history_data/`), 1 byte–5 MB, valid JSON; **never
   overwrites** (a taken name gets a `_<timestamp>` suffix; the reply
   `{"name": …}` says what was written); written to a temp file then renamed
   (never half a file). Listens on **127.0.0.1 only**.
 
 Opening `optimizer.html` straight from disk (`file://`) still *runs* the tool
-(§0 rule 1) but cannot `fetch()` the rate files or write `data/` — the pre-load
+(§0 rule 1) but cannot `fetch()` the rate files or write `history_data/` — the pre-load
 page then shows the fetch failure (§13 E-1) and Save Test falls back to a
-download (§13 F-2). Manual run: `python server.py 8000`. If port 8000 is busy,
-`python server.py <other port>`.
+download (§13 F-2). Manual run: `python backend_files/server.py 8000`. If port 8000 is busy,
+`python backend_files/server.py <other port>`.
 
 ### 14.3 The pre-load page
 
@@ -2910,7 +2914,10 @@ An overlay (`#preload`, static markup in `optimizer.html`, wiring in
 2. **both rate files say Loaded** — two status rows (`#plRate_termLife`,
    `#plRate_permLife`): red *Not loaded* · yellow *Loading* · green *Loaded*, a
    real progress bar and label, and **Retry** (offered only when something
-   failed). `optimizer_rates.js` drives the rows (`setRateState`) and fires a
+   failed). **Under Term Life, one line per sheet** — *Term 10, 15, 20, 25, 30, 65* — goes
+   red → yellow → green as `ingestTermLifeWorkbook` reads it (`setSheetState`, `#plSheets`;
+   a missing sheet stays red, so you see which one); they are progress detail only, the
+   Start gate watches the two file rows. `optimizer_rates.js` drives the rows (`setRateState`) and fires a
    `ratesstatus` event; the page re-checks its **Start** gate on it.
 
 The tool loads `rates/temp_rates_2509_combined.xlsx` and
@@ -2924,10 +2931,10 @@ development bypass to delete when coding is finished* (button in
 
 *Save Test* (top bar) needs a Test Case Name. It does **both**: adds the case to
 **History** (this browser's `localStorage`, key `coverage-optimizer-testcases`)
-and writes `data/<initials>_<name>.json` through `server.py` — e.g.
+and writes `history_data/<initials>_<name>.json` through `server.py` — e.g.
 `rk_MyCase.json` (the saver's initials prefix every file so two people never
 collide; the name is stripped to `A-Z a-z 0-9 - _ space`, spaces → `_`, ≤ 60
-characters). If `data/` cannot be written the file is **downloaded instead** and
+characters). If `history_data/` cannot be written the file is **downloaded instead** and
 the bar says why. A test case = `{ id, name, user, savedAt, insuredCount,
 coverageCount, snapshot }`, `snapshot` = Settings + Insureds + Coverages + the
 Coverages tab's Unit Values (§2h). **Import Test Case** adds a `.json` someone
@@ -2937,8 +2944,8 @@ re-resolves against whatever rates are loaded.
 
 ### 14.5 Moving the tool to another computer — checklist
 
-1. Copy the **whole folder** (`coverage-optimizer-tool/`) — code, docs,
-   `TO_DO.md`, `data/` if you want the saved cases. **Do not** copy `rates/*.xlsx`
+1. Copy the **whole folder** (`coverage-optimizer-tool/`) — `backend_files/`, `markdown_reference/`, the launcher,
+   `TO_DO.md`, `history_data/` if you want the saved cases. **Do not** copy `rates/*.xlsx`
    through email/cloud if they are confidential: place the real files on the
    destination itself (see 3).
 2. Install **Python 3** if `python`/`py` is not on PATH (only the standard
@@ -2946,7 +2953,7 @@ re-resolves against whatever rates are loaded.
 3. Put the two real workbooks in `rates/` with **exactly** these names:
    `temp_rates_2509_combined.xlsx` and `perm_rates_2007_combined.xlsx`. If a new
    version stamp is issued, follow the two-place rule in §12.2.
-4. Double-click `start-server.bat`; pick your name; wait for both rows to go
+4. Double-click `_start-coverage-optimizer.bat`; pick your name; wait for both rows to go
    green; **Start**.
 5. **First run with the real files — verify** (nothing was ever run against them
    on the development PC; every calculation was tested on small synthetic
@@ -2965,7 +2972,7 @@ re-resolves against whatever rates are loaded.
 The rate workbooks are confidential and stay on the work machine. `rates/` is
 **not** git-ignored — a stray `.xlsx` could be committed (`TO_DO S-2`: add
 `coverage-optimizer-tool/rates/*.xlsx` to a `.gitignore`). Saved test cases in
-`data/` contain only the operator's own inputs.
+`history_data/` contain only the operator's own inputs.
 
 ### 14.7 Backlog and how work is tracked
 
@@ -2982,7 +2989,7 @@ Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-10; the
 ### 14.8 Change log of this document
 
 - **2026-09-20 (this revision).** Brought up to date with everything built after
-  the 2026-09-17 text: pre-load page, users, `server.py` and `data/`; Rates
+  the 2026-09-17 text: pre-load page, users, `server.py` and `history_data/`; Rates
   lookups (PR/EPR/PEP, `_BD`, BD_Final, Totals, bands); Backdate calculations
   and Final Backdate Date; Modal Prem. and Modal Prem. Backdated; Prem. Basis
   Ins. Amt and Highest Amt; the Joint container and the **Equivalent Age**
@@ -2990,4 +2997,9 @@ Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-10; the
   highlight; Results/Summary; the **message bar and error catalogue (§13)**; and
   added the calculation reference (§12) and this section. §11 (checklist) was
   rewritten.
+- **2026-09-21.** Folder layout: the tool root holds only `_start-coverage-optimizer.bat`,
+  `backend_files/` (all `.html` / `.css` / `.js` and `server.py`), `rates/`, `history_data/`
+  (was `data/`) and `markdown_reference/` (all `.md`). `server.py` now serves the tool root
+  and the page is at `/backend_files/optimizer.html`; the JS reaches `../rates/` and
+  `../history_data/`. The launcher runs the server in its own window (one console, not two).
 - 2026-09-17 — the original text (six of seven tabs live).

@@ -2,8 +2,8 @@
 
 Paste the block below into the coding platform's custom-instructions /
 system-prompt field when working on the **Coverage Optimizer**. Keep
-`OPTIMIZER_REFERENCE.md`, `TO_DO.md` (and `INFORCE_REFERENCE.md`, which the
-reference points into) in the project folder so the agent can open them.
+`OPTIMIZER_REFERENCE.md` and `TO_DO.md` (both in `markdown_reference/`, plus `INFORCE_REFERENCE.md`,
+which the reference points into) where the agent can open them.
 *Last revised 2026-09-20.*
 
 ---
@@ -81,7 +81,7 @@ read-only Joint Age in the Joint container.
   Rates vendors SheetJS). Reuse this page's own `agesAt` for any age math.
 - **Confidential data.** The rate workbooks in `rates/` are confidential and stay on
   the work machine: never commit, upload, paste or quote their contents; test with
-  small synthetic workbooks (§13.4). Test cases in `data/` hold only operator inputs.
+  small synthetic workbooks (§13.4). Test cases in `history_data/` hold only operator inputs.
 
 **Always honour**
 
@@ -112,7 +112,8 @@ read-only Joint Age in the Joint container.
   writing anything; fix the root cause once, where every caller routes through; a
   small change in the wrong place is a second bug. Leave one runnable check behind
   for non-trivial logic.
-- **Verify by running it.** Serve the folder (`python server.py <port>`), use
+- **Verify by running it.** Serve the tool folder (`python backend_files/server.py <port>`, page at
+  `http://localhost:<port>/backend_files/optimizer.html`), use
   **Skip (dev)** on the pre-load page, drive state with
   `OptimizerCore.restoreState(snapshot)`, and feed synthetic rate workbooks through
   `#ratesFileInput` (§13.4). Do not report a calculation as working from reading the

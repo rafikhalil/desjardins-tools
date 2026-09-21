@@ -31,7 +31,7 @@
    .ins row/font/padding, and both sit flush under the card's band — which is
    why .rate-scroll is NOT a .table-scroll-wrap (that adds an 8px margin and
    its own border) — so their header rows and band rows line up exactly. */
-.rate-body { display: flex; align-items: flex-start; border-top: 1px solid var(--cov-band-line); }
+.rate-body { display: flex; align-items: flex-start; gap: 10px; border-top: 1px solid var(--cov-band-line); }   /* small gap between the per-insured side and the Totals side */
 .rate-scroll { flex: 1 1 auto; min-width: 0; overflow-x: auto; }
 .rate-fixed { flex: 0 0 auto; border-left: 1px solid var(--cov-border); }
 /* Overrides .ins's own `width: 100%` (optimizer.css, shared with inforce.css)

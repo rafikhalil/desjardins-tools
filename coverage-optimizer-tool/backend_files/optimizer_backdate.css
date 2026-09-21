@@ -53,3 +53,8 @@
    already does for the same reason, scoped to this table only rather than
    touching the shared `.ins thead th` rule itself. */
 .bd-proj-table thead th.cell-pending { background: var(--warn-soft); color: var(--warn); }
+
+/* Backdate Projection reads like a spreadsheet: a clearly visible line under
+   every row (--ink-4, the dense-grid line token, §9 #22) instead of `.ins`'s
+   faint hairline. The two hard column separators come from `.col-hard-sep`. */
+.bd-proj-table tbody td { border-bottom: 1px solid var(--ink-4); }

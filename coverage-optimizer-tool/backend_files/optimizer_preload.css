@@ -31,10 +31,14 @@
 .pl-user { height: 30px; padding: 0 16px; border-radius: 15px; font-size: 12px; letter-spacing: 0; }
 
 /* Marker: red = Not loaded, yellow (--warn) = Loading, green = Loaded. */
-.pl-rate { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
-.pl-rate .dot { width: 10px; height: 10px; margin: 0; background: var(--neg); }
-.pl-rate[data-state="loading"] .dot { background: var(--warn); }
-.pl-rate[data-state="loaded"] .dot { background: var(--pos); }
+.pl-rate, .pl-sheet { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
+.pl-rate .dot, .pl-sheet .dot { width: 10px; height: 10px; margin: 0; background: var(--neg); }
+.pl-rate[data-state="loading"] .dot, .pl-sheet[data-state="loading"] .dot { background: var(--warn); }
+.pl-rate[data-state="loaded"] .dot, .pl-sheet[data-state="loaded"] .dot { background: var(--pos); }
+/* One line per Term Life sheet, indented under Term Life. Not `.pl-rate`: the Start gate only
+   watches the two files, the sheets are progress detail. */
+.pl-sheet { padding: 1px 0 1px 20px; font-size: 11px; }
+.pl-sheet .dot { width: 8px; height: 8px; }
 .pl-name { flex: 1; }
 .pl-state { font-size: 11px; font-weight: 650; color: var(--ink-3); }
 .pl-sec .rate-progress-label { margin-top: 8px; min-height: 13px; }

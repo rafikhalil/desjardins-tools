@@ -41,6 +41,7 @@
   --edit-line:     #E0CFA2;
 
   --pos:           #226B45;
+  --pos-soft:      #E7F3EC;
   --neg:           #9B2C22;
   --neg-soft:      #F8ECEA;
   --warn:          #7A5310;
@@ -88,7 +89,7 @@
   --accent: #7FA0B8; --accent-2: #9EBCD0; --accent-soft: #18202B; --accent-line: #2E3E4C;
   --on-accent: #0D0F12;
   --edit: #D2AE5F; --edit-soft: #241F10; --edit-line: #4A3F1E;
-  --pos: #56BC88; --neg: #E4756A; --neg-soft: #2A1917;
+  --pos: #56BC88; --pos-soft: #142621; --neg: #E4756A; --neg-soft: #2A1917;
   --warn: #D9AC5A; --warn-soft: #26200F; --focus: #7FA0B8;
   --cov-band: #1E2E3A; --cov-band-ink: #DCE5EB;
   --cov-band-sub: rgba(220, 229, 235, .66); --cov-band-line: #2C4152;
@@ -335,6 +336,12 @@ body {
    instead of plain text — give it the same full-cell width .insured-fields
    already establishes for the same reason. */
 .rs .fi { width: 100%; }
+/* The Results Summary sub-container sits in the 1/3-width sidebar (.split-side),
+   far narrower than Settings' own full-width resultbar — shrink the cells,
+   their padding and the value text so a full date ("03-JUL-2028") fits
+   without ellipsis-truncating. */
+#resultsSummaryWrap .rs { min-width: 0; padding: 6px 6px; }
+#resultsSummaryWrap .rs-v { font-size: 10.5px; }
 
 /* ── Settings panel (Optimizer-only) ──────────────────────────────────────
    Reference Date through Prem. Adj. $ Dur. (7 fields — § 2a), full width,
@@ -364,9 +371,9 @@ body {
    across both tools. */
 .insured-card {
   border: 1px solid var(--ins-border); border-radius: var(--r);
-  margin: 8px 8px 0;
+  margin: 14px 8px 0;
 }
-.insured-card:last-of-type { margin-bottom: 8px; }
+.insured-card:last-of-type { margin-bottom: 14px; }
 .insured-head {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 9px;
@@ -431,9 +438,18 @@ body {
    without retrofitting Insured Input's own docs and CSS. */
 .coverage-card {
   border: 1px solid var(--ins-border); border-radius: var(--r);
-  margin: 8px 8px 0;
+  margin: 14px 8px 0;
 }
-.coverage-card:last-of-type { margin-bottom: 8px; }
+.coverage-card:last-of-type { margin-bottom: 14px; }
+/* Telling one record from the next (Insured Input / Coverage Input): a second,
+   outer 1px ring (a box-shadow spread, so it takes no layout width — the tight
+   column fits, §9 #13/#21, are untouched) + a soft drop shadow, 14px between
+   records, and every other card tinted. Two cards side by side then read as two
+   objects, not one long form. */
+.insured-card, .coverage-card { box-shadow: 0 0 0 1px var(--ins-border), 0 2px 5px rgba(0, 0, 0, .14); }
+#insuredList > .insured-card:nth-child(even), #coverageList > .coverage-card:nth-child(even) {
+  background: var(--surface-sunk); background: color-mix(in srgb, var(--accent) 7%, var(--surface));
+}
 .coverage-head {
   display: flex; align-items: center; gap: 8px;
   padding: 5px 9px;
@@ -576,6 +592,8 @@ body {
   overflow-x: auto;
 }
 .cell-pending { background: var(--warn-soft); color: var(--warn); font-weight: 600; }
+/* Backdate Projection's whole row once that row's Difference turns positive. */
+.cell-pos { background: var(--pos-soft); color: var(--pos); font-weight: 600; }
 /* A rate lookup that ran but could not resolve to a real number (no axis
    key yet, no rate file loaded, no matching row, …) — distinct from
    .cell-pending, which means "no formula coded yet" (Rates tab, PR_N/PR_BD_N). */

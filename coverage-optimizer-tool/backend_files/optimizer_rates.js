@@ -106,7 +106,7 @@
   // (per your answer: hardcoded for now, kept in one visible/obvious spot).
   // ==========================================================================
   var RATE_VERSION = '2509';
-  var RATES_FOLDER = 'rates';
+  var RATES_FOLDER = 'rates';   // a sibling of backend_files/ (fetched as ../rates/…)
   var TERM_LIFE_FILENAME = 'temp_rates_' + RATE_VERSION + '_combined.xlsx';
   var TERM_LIFE_FILE_PATH = RATES_FOLDER + '/' + TERM_LIFE_FILENAME;
   // Sheet-name suffixes, in Coverage Input's own COVERAGE_OPTIONS.termLife
@@ -281,6 +281,7 @@
   function ingestTermLifeWorkbook(wb, bytes, fileName, done) {
     var tables = {}, counts = {}, missing = [], skipped = 0;
     var sheetIdx = 0;
+    TERM_LIFE_DURATIONS.forEach(function (s) { setSheetState(s, 'notloaded'); });   // a fresh read: every sheet starts red
 
     function nextSheet() {
       if (sheetIdx >= TERM_LIFE_DURATIONS.length) { finish(); return; }
@@ -289,9 +290,11 @@
       var ws = wb.Sheets[sheetName];
       var label = 'Reading "' + fileName + '" — sheet ' + (sheetIdx + 1) + ' of ' + TERM_LIFE_DURATIONS.length + ' (' + sheetName + ')';
       showProgress(label, Math.round((sheetIdx / TERM_LIFE_DURATIONS.length) * 100));
+      setSheetState(suffix, 'loading');
 
       if (!ws) {
         missing.push(sheetName); tables[suffix] = {}; counts[suffix] = 0;
+        setSheetState(suffix, 'notloaded');
         sheetIdx++;
         setTimeout(nextSheet, 0);
         return;
@@ -321,6 +324,7 @@
       }, function () {
         tables[suffix] = table;
         counts[suffix] = n;
+        setSheetState(suffix, n ? 'loaded' : 'notloaded');
         sheetIdx++;
         setTimeout(nextSheet, 0);
       });
@@ -451,7 +455,7 @@
     [['termLife', TERM_LIFE_FILE_PATH, TERM_LIFE_FILENAME], ['permLife', PERM_LIFE_FILE_PATH, PERM_LIFE_FILENAME]].forEach(function (f) {
       var kind = f[0], path = f[1], name = f[2];
       setRateState(kind, 'loading');
-      fetch(path).then(function (res) {
+      fetch('../' + path).then(function (res) {   // the page lives in backend_files/, rates/ is its sibling
         if (!res.ok) throw new Error('HTTP ' + res.status);
         return res.arrayBuffer();
       }).then(function (buf) {
@@ -460,9 +464,9 @@
         setRateState(kind, 'notloaded');
         $('plLabel').textContent = 'Could not load "' + path + '" (' + err.message + ') — check the file is in ' + RATES_FOLDER + '/, then Retry.';
         toast('Could not load "' + path + '" (' + err.message + ') — check the file is in ' + RATES_FOLDER +
-          '/ and the tool was started with start-server.bat.', 'err');
+          '/ and the tool was started with _start-coverage-optimizer.bat.', 'err');
         loadIssue(kind, 'could not load "' + path + '" (' + err.message + '). Check the file is in the ' + RATES_FOLDER +
-          '/ folder next to the tool and that the tool was started with start-server.bat (a page opened straight from disk can\'t read it).');
+          '/ folder (next to backend_files/) and that the tool was started with _start-coverage-optimizer.bat (a page opened straight from disk can\'t read it).');
       });
     });
   }
@@ -534,6 +538,15 @@
      `data-state` drives the red / yellow / green marker (optimizer_preload.css).
      'ratesstatus' tells optimizer_preload.js to re-check its Start gate. */
   var RATE_STATE_TEXT = { notloaded: 'Not loaded', loading: 'Loading', loaded: 'Loaded' };
+  /* One line per Term Life sheet under the Term Life row (#plSheets, "Term 10" … "Term 65"),
+     red → yellow → green as ingestTermLifeWorkbook reads each one. Progress detail only —
+     the Start gate watches the two `.pl-rate` file rows, not these. */
+  function setSheetState(suffix, state) {
+    var row = $('plSheet_' + suffix);
+    if (!row) return;
+    row.dataset.state = state;
+    row.querySelector('.pl-state').textContent = RATE_STATE_TEXT[state];
+  }
   function setRateState(kind, state) {
     var row = $('plRate_' + kind);
     row.dataset.state = state;
@@ -1047,6 +1060,10 @@
     core.bandAt = bandAt;           // … and, for Results' Highest Amt, the band an amount falls in
     core.bandTotalsAll = bandTotalsAll;
     core.diagnostics(ratesIssues);   // the top-bar messages: why a cell here is an Error
+    $('plSheets').innerHTML = TERM_LIFE_DURATIONS.map(function (s) {   // "Term 10" … "Term 65" (t10 → Term 10)
+      return '<div class="pl-sheet" id="plSheet_' + s + '" data-state="notloaded"><span class="dot"></span>' +
+             '<span class="pl-name">Term ' + s.slice(1) + '</span><span class="pl-state">Not loaded</span></div>';
+    }).join('');
     loadFromRatesFolder();     // every launch — the pre-load page (optimizer_preload.js) waits on both files
     $('plRetry').addEventListener('click', loadFromRatesFolder);
 

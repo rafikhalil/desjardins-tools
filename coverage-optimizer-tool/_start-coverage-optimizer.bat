@@ -1,12 +1,10 @@
 @echo off
 setlocal
 
-rem Coverage Optimizer — local server (server.py).
-rem Serves this folder over http instead of opening optimizer.html directly
-rem from disk — needed for fetch() (the pre-load page loads rates/ this way),
-rem to dodge stale-cache issues where the browser holds on to an old .js file
-rem after an edit (OPTIMIZER_REFERENCE.md "Running it"), and so Save Test can
-rem write its .json straight into data/ (server.py, this PC only).
+rem Coverage Optimizer - launcher. Runs backend_files\server.py in THIS window (close the
+rem window, or press Ctrl+C, to stop the server) and opens the tool in the browser.
+rem Served over http (not opened from disk) so the pre-load page can fetch() rates\, the
+rem browser never serves a stale .js, and Save Test can write into history_data\.
 
 cd /d "%~dp0"
 set PORT=8000
@@ -21,15 +19,17 @@ if %errorlevel%==0 (
     ) else (
         echo Python was not found on PATH.
         echo Install Python 3, or run this manually from this folder:
-        echo     python server.py %PORT%
+        echo     python backend_files\server.py %PORT%
         pause
         exit /b 1
     )
 )
 
-start "Coverage Optimizer server (port %PORT%) - close this window to stop it" cmd /k %PYCMD% server.py %PORT%
-timeout /t 2 /nobreak >nul
-start "" http://localhost:%PORT%/optimizer.html
+rem Open the browser ~2 s from now, in the background of THIS window (no second console).
+start "" /b powershell -NoProfile -WindowStyle Hidden -Command "Start-Sleep -Seconds 2; Start-Process 'http://localhost:%PORT%/backend_files/optimizer.html'"
 
-echo Server starting in a separate window on port %PORT%.
-echo Close that window (or press Ctrl+C in it) to stop the server.
+echo Coverage Optimizer server on port %PORT% - close this window (or press Ctrl+C) to stop it.
+%PYCMD% backend_files\server.py %PORT%
+
+rem Only reached if the server stopped by itself (e.g. the port is already in use) - keep the message readable.
+pause

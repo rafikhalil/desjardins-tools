@@ -23,10 +23,15 @@
  * local UI state — not part of `coverages`/`insureds`/`settings`, so it
  * lives here rather than being added to the core model for a toggle only
  * this container reads, the same reasoning the Coverages tab's own Unit
- * Value follows), two pending savings-date figures, and a 6-column table
- * whose formulas don't exist yet either — every column highlighted amber
- * rather than given invented rows, since no row-generation rule (period,
- * date range) has been specified.
+ * Value follows) and a 6-column table, ported line-for-line from the
+ * operator's own Excel Python-in-Excel projection script (chat, 2026-09-20):
+ * two branches (Annual / everything else = Monthly) on settings.freq, each
+ * building a union of Current-anniversary and Backdated-anniversary dates
+ * and cumulating both sides' premiums. Needs a Final Backdate Date (there is
+ * nothing to project against otherwise) and both Modal Premium totals
+ * resolved — the same blocked/pending/error states as everywhere else on
+ * this page, never an invented row. The Monthly/Annual Savings Date figures
+ * in the header are a separate, later task (TO_DO C-3) and stay pending.
  */
 (function () {
   'use strict';
@@ -54,6 +59,197 @@
      "off until the operator opts in" reading Settings' own Multi-Coverage
      Discount default already uses (OPTIMIZER_REFERENCE.md §2a). */
   var showProjection = false;
+
+  // ------------------------------------------------------- projection rows
+  /* dt + n months (n may be negative) — subtractMonths already normalises
+     through plain Date arithmetic (an out-of-range day rolls into the next
+     month, e.g. 31-AUG + 1mo ~= 1-OCT), so this is just its mirror. */
+  function addMonths(dt, n) { return subtractMonths(dt, -n); }
+
+  /** Sorted union of two date arrays, deduplicated by day, each entry
+      flagged with which side(s) it belongs to — the script's own
+      `DatetimeIndex.union()` plus the isCurrent/isBackdated membership
+      checks it relies on, done in one pass instead of two array scans. */
+  function unionDates(datesA, datesB) {
+    var byTime = {};
+    function mark(list, key) {
+      list.forEach(function (d) {
+        var t = d.getTime();
+        if (!byTime[t]) byTime[t] = { date: d, inA: false, inB: false };
+        byTime[t][key] = true;
+      });
+    }
+    mark(datesA, 'inA');
+    mark(datesB, 'inB');
+    return Object.keys(byTime).map(Number).sort(function (a, b) { return a - b; })
+      .map(function (t) { return byTime[t]; });
+  }
+
+  /** Running cumulative sums + Difference (cumC - cumB, per the script's own
+      output header) over a { date, payC, payB } row set. */
+  function cumulate(rows) {
+    var cumC = 0, cumB = 0;
+    return rows.map(function (r) {
+      cumC += r.payC; cumB += r.payB;
+      return { date: r.date, payC: r.payC, cumC: cumC, payB: r.payB, cumB: cumB, diff: cumC - cumB };
+    });
+  }
+
+  /** Annual branch — union of yearly anniversaries on each side. The first
+      Backdated anniversary (the Backdate Date itself) pays only the prorated
+      partial-year amount; the first CURRENT anniversary after it pays the
+      remainder (the "catch-up" year); every CURRENT anniversary after that
+      pays a full Backdated premium; the Backdated side's own later
+      anniversaries are checkpoints only (0) — ported exactly as the script's
+      own np.where chain has it, including using isCurrent (not isBackdated)
+      for that third branch. */
+  function projectionAnnual(dateCurrent, dateBackdated, premCurrent, premBackdated) {
+    var HORIZON_YEARS = 60;   // no Excel array-size limit here, but no reason to outgrow the original horizon either
+    var daysProrated = Math.max(0, Math.round((dateCurrent.getTime() - dateBackdated.getTime()) / MS_PER_DAY));
+    var proratedBackdated = premBackdated * (daysProrated / 365);
+    var annualBackdated = premBackdated - proratedBackdated;
+
+    var datesCurrent = [], datesBackdated = [];
+    for (var y = 0; y <= HORIZON_YEARS; y++) {
+      datesCurrent.push(addMonths(dateCurrent, y * 12));
+      datesBackdated.push(addMonths(dateBackdated, y * 12));
+    }
+    var firstCurrent = datesCurrent[0].getTime(), firstBackdated = datesBackdated[0].getTime();
+
+    var rows = unionDates(datesCurrent, datesBackdated).map(function (u) {
+      var payC = u.inA ? premCurrent : 0, payB;
+      if (u.date.getTime() === firstBackdated) payB = proratedBackdated;
+      else if (u.date.getTime() === firstCurrent) payB = annualBackdated;
+      else if (u.inA) payB = premBackdated;   // subsequent CURRENT anniversaries, per the script
+      else payB = 0;                          // subsequent Backdated-only anniversaries — checkpoint
+      return { date: u.date, payC: payC, payB: payB };
+    });
+    return cumulate(rows);
+  }
+
+  /** Monthly branch — union of monthly anniversaries on each side, full
+      premium on each side's own dates, no prorating. `searchMonths` is the
+      script's own horizon-sizing heuristic (how far out a stable crossing
+      could plausibly need); ported as-is since it costs nothing here and the
+      eventual Savings Date logic (TO_DO C-3) will want the same horizon. */
+  function projectionMonthly(dateCurrent, dateBackdated, premCurrent, premBackdated) {
+    var datedifM = (dateCurrent.getUTCFullYear() - dateBackdated.getUTCFullYear()) * 12
+      + (dateCurrent.getUTCMonth() - dateBackdated.getUTCMonth())
+      - (dateCurrent.getUTCDate() < dateBackdated.getUTCDate() ? 1 : 0);
+    var backBeforeCurrent = dateBackdated.getTime() < dateCurrent.getTime()
+      ? datedifM + 1 - (dateCurrent.getUTCDate() === dateBackdated.getUTCDate() ? 1 : 0)
+      : 0;
+
+    var REQUIRED_STREAK = 5;
+    var delta = premCurrent - premBackdated;
+    var denomForSizing = delta > 0 ? delta : 1;
+    var initialGap = backBeforeCurrent * premBackdated;
+    var approxMonths = Math.max(12, Math.ceil(initialGap / denomForSizing));
+    var searchMonths = approxMonths + REQUIRED_STREAK + 24;
+
+    var datesCurrent = [], datesBackdated = [];
+    for (var i = 0; i < searchMonths; i++) {
+      datesCurrent.push(addMonths(dateCurrent, i));
+      datesBackdated.push(addMonths(dateBackdated, i));
+    }
+
+    var rows = unionDates(datesCurrent, datesBackdated).map(function (u) {
+      return { date: u.date, payC: u.inA ? premCurrent : 0, payB: u.inB ? premBackdated : 0 };
+    });
+    return cumulate(rows);
+  }
+
+  /** { rows } or { error/pending/blocked } — the same three non-value states
+      every other Backdate/Rates figure can be in. Needs a Final Backdate
+      Date to project against, and both Modal Premium totals resolved. */
+  function projectionInputs() {
+    var fin = finalBackdateDate();
+    if (fin.error) return { error: fin.error };
+    if (!fin.date) return { blocked: fin.blocked };
+    var curTotal = core.premiumTotal('modalPrem'), bdTotal = core.premiumTotal('modalPremBackdated');
+    if (curTotal.error || bdTotal.error) return { error: curTotal.error || bdTotal.error };
+    if (curTotal.pending || bdTotal.pending) return { pending: true };
+    if (curTotal.blocked || bdTotal.blocked) return { blocked: curTotal.blocked || bdTotal.blocked };
+    return {
+      dateCurrent: core.parseDate(core.settings.refDate), dateBackdated: fin.date,
+      premCurrent: curTotal.value, premBackdated: bdTotal.value
+    };
+  }
+
+  function buildProjection() {
+    var x = projectionInputs();
+    if (x.error || x.pending || x.blocked) return x;
+    var rows = core.settings.freq === 'annually'
+      ? projectionAnnual(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated)
+      : projectionMonthly(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+    return { rows: rows };
+  }
+
+  /** Annual Savings Date — ported from your annual.md: the first date the
+      cumulative Difference reaches or passes the prorated first-year
+      Backdated premium (the retroactive amount paid to obtain backdating).
+      Always computed on the Annual schedule, regardless of settings.freq —
+      it's a separate figure from the visible projection table. */
+  function annualSavingsDate() {
+    var x = projectionInputs();
+    if (x.error || x.pending || x.blocked) return x;
+    var daysProrated = Math.max(0, Math.round((x.dateCurrent.getTime() - x.dateBackdated.getTime()) / MS_PER_DAY));
+    var proratedBackdated = x.premBackdated * (daysProrated / 365);
+    var rows = projectionAnnual(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].diff >= proratedBackdated) return { date: rows[i].date };
+    }
+    return { blocked: 'no stabilization within the annual horizon' };
+  }
+
+  /** Monthly Savings Date — ported from your monthly.md: no stabilization at
+      all when the Backdated premium isn't actually lower; otherwise the
+      first date after which the cumulative Difference stays positive for
+      the rest of the (same-sized) search window. Always computed on the
+      Monthly schedule, regardless of settings.freq. */
+  function monthlySavingsDate() {
+    var x = projectionInputs();
+    if (x.error || x.pending || x.blocked) return x;
+    if (x.premCurrent - x.premBackdated <= 0) {
+      return { blocked: 'no stabilization — the Backdated premium is not lower than Current' };
+    }
+    var rows = projectionMonthly(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+    var lastNonPositive = -1;
+    for (var i = 0; i < rows.length; i++) {
+      if (rows[i].diff <= 0) lastNonPositive = i;
+    }
+    if (lastNonPositive === -1) return { date: rows[0].date };                // positive from the very first row
+    if (lastNonPositive >= rows.length - 1) return { blocked: 'no stabilization within the derived window' };
+    return { date: rows[lastNonPositive + 1].date };
+  }
+
+  function moneyCell(v, sep) { return '<td class="r' + (sep ? ' col-hard-sep' : '') + '">' + core.group(v, 2) + '</td>'; }
+
+  /** The whole row wears .cell-pos once its Difference turns positive —
+      cumulative Current has overtaken cumulative Backdated. */
+  function projectionRow(r) {
+    return '<tr' + (r.diff > 0 ? ' class="cell-pos"' : '') + '>' +
+        '<td class="r">' + core.esc(core.fmtDate(r.date)) + '</td>' +
+        moneyCell(r.payC, 1) + moneyCell(r.cumC) + moneyCell(r.payB, 1) + moneyCell(r.cumB) + moneyCell(r.diff, 1) +
+      '</tr>';
+  }
+
+  /** Rebuilds just the table body — called from renderBackdateTab() so the
+      Projection stays current with every coverages/insureds/settings/rates
+      change, the same as the Insureds Backdate container above. */
+  function renderProjectionBody() {
+    var body = $('bdProjTableBody');
+    if (!body) return;
+    var p = buildProjection();
+    var msg = p.error
+      ? '<span class="cell-error">' + core.esc(p.error) + '</span>'
+      : p.pending ? 'Not calculated yet.'
+      : p.blocked ? core.esc(p.blocked)
+      : null;
+    body.innerHTML = msg
+      ? '<tr><td colspan="' + PROJECTION_COLUMNS.length + '"><div class="proj-slot" style="margin:0;"><div class="s">' + msg + '</div></div></td></tr>'
+      : p.rows.map(projectionRow).join('');
+  }
 
   /** A plain "nothing to show" cell — the page's usual muted "—" for a value
       that genuinely has no figure (blank input, or a fully-resolved blank
@@ -259,6 +455,9 @@
             'No insureds yet — add one in Insured Input.' +
           '</div></div></td></tr>';
     $('bdInsCount').textContent = list.length + ' insured' + (list.length === 1 ? '' : 's');
+
+    renderProjectionBody();
+    renderSavingsDates();
   }
 
   function insuredsBackdateShell() {
@@ -292,18 +491,13 @@
       '</div>';
   }
 
-  /** The second container. Its table has no row source yet (§ file header),
-      so it's a header-only shell — every header cell wears the amber
-      "pending" look (`.cell-pending`, reused on a <th> here rather than a
-      <td> — see optimizer_backdate.css for the specificity override that
-      needs) plus a single spanning placeholder row, the same empty-state
-      idiom the Insureds tab and Results' own coverage table already use for
-      "nothing to render yet". Show Projection's OFF state hides `#bdProjBody`
-      (the table) while leaving the band itself always visible, per the
-      request. */
+  /** The second container. The table and both Savings Date figures are real
+      now (§ file header, renderProjectionBody/renderSavingsDates). Show
+      Projection's OFF state hides `#bdProjBody` (the table) while leaving
+      the band itself always visible, per the request. */
   function backdateProjectionShell() {
-    var headCells = PROJECTION_COLUMNS.map(function (l) {
-      return '<th class="r cell-pending" title="Formula not yet provided">' + core.esc(l) + '</th>';
+    var headCells = PROJECTION_COLUMNS.map(function (l, i) {
+      return '<th class="r' + (i === 1 || i === 3 || i === 5 ? ' col-hard-sep' : '') + '">' + core.esc(l) + '</th>';   // hard separators before Premium Current, Premium Backdated and Difference
     }).join('');
     return '<div class="card card--out">' +
         '<div class="card-head card-head--band">' +
@@ -315,13 +509,13 @@
               '<button class="switch" type="button" role="switch" data-act="toggle-bdproj"' +
                 ' aria-checked="' + showProjection + '">' + (showProjection ? 'ON' : 'OFF') + '</button>' +
             '</div>' +
-            '<div class="bd-band-fig bd-band-fig--warn" title="Formula not yet provided">' +
+            '<div class="bd-band-fig">' +
               '<span class="bd-band-fig-k">Monthly Savings Date</span>' +
-              '<span class="bd-band-fig-v">—</span>' +
+              '<span class="bd-band-fig-v" id="bdMonthlySavingsDate">—</span>' +
             '</div>' +
-            '<div class="bd-band-fig bd-band-fig--warn" title="Formula not yet provided">' +
+            '<div class="bd-band-fig">' +
               '<span class="bd-band-fig-k">Annual Savings Date</span>' +
-              '<span class="bd-band-fig-v">—</span>' +
+              '<span class="bd-band-fig-v" id="bdAnnualSavingsDate">—</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -329,21 +523,33 @@
           '<div class="table-scroll-wrap">' +
             '<table class="ins bd-proj-table">' +
               '<thead><tr>' + headCells + '</tr></thead>' +
-              '<tbody><tr><td colspan="' + PROJECTION_COLUMNS.length + '">' +
-                '<div class="proj-slot" style="margin:0;"><div class="s">' +
-                  'Formulas not yet provided — nothing to project yet.' +
-                '</div></div>' +
-              '</td></tr></tbody>' +
+              '<tbody id="bdProjTableBody"></tbody>' +
             '</table>' +
           '</div>' +
         '</div>' +
       '</div>';
   }
 
+  /** Fills the two header pills — same figure/Error/blocked-with-reason
+      convention as Final Backdate Date above, each independent of
+      settings.freq (§ annualSavingsDate/monthlySavingsDate). */
+  function renderSavingsDates() {
+    [['bdMonthlySavingsDate', monthlySavingsDate], ['bdAnnualSavingsDate', annualSavingsDate]].forEach(function (pair) {
+      var el = $(pair[0]);
+      if (!el) return;
+      var r = pair[1]();
+      el.className = 'bd-band-fig-v' + (r.error ? ' cell-error' : '');
+      el.textContent = r.date ? core.fmtDate(r.date) : (r.error ? 'Error' : '—');
+      el.title = r.date ? '' : (r.error || r.blocked || '');
+    });
+  }
+
   function initBackdateTab() {
     // Lent to the Rates tab (BD_Final): this insured's Backdate Eligible —
     // true / false, or null while the birthdate is blank/invalid.
     core.finalBackdateDate = finalBackdateDate;   // lent to the Results Summary (optimizer.js)
+    core.monthlySavingsDate = monthlySavingsDate; // lent to the Results Summary (optimizer.js)
+    core.annualSavingsDate = annualSavingsDate;    // same
 
     core.backdateEligible = function (ins) {
       var birth = ins.birthdate ? core.parseDate(ins.birthdate) : null, ill = core.parseDate(core.settings.refDate);

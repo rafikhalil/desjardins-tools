@@ -317,7 +317,7 @@
     /** The Modal Prem. of a trial amount, at whichever band THAT amount falls
         in — the band can change under it, which is the whole point. */
     function premAt(amount) {
-      var band = core.bandAt(c.category, amount), hit = null;
+      var band = core.bandAt(c, amount), hit = null;
       if (!band) return null;
       all.list.forEach(function (b) { if (b.band.code === band.code) hit = b; });
       return hit ? modalPremAt(ctx, hit.pr, hit.pep, amount).modal : null;
@@ -370,7 +370,7 @@
     // Only worth reporting when the premium reaches a HIGHER rate band (your
     // call): inside the operator's own band the extra dollars are rounding
     // slack, not "the next band costs you the same".
-    var band = core.bandAt(c.category, r.amount);
+    var band = core.bandAt(c, r.amount);
     if (!band || band.amount <= own.band.amount) {
       return { blocked: 'no higher rate band is within this premium (still ' + own.band.code + ')', info: true };   // not a problem — the message bar skips it
     }

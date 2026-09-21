@@ -1053,9 +1053,8 @@ Joint Extra Prem. % Backdated** and **$ Backdated**, amber (*TO_DO C-5*).
 §12.2). It is the key the rate file's column D is indexed by, minus the
 6-character band code the Rates tab appends. Rendered `mono`. When no prefix can
 be built the cell is the standard amber pending cell — Critical Illness (no format
-given), `WL to 100` / `Term to 100` (6- and 4-character codes that do not fit the
-5-character slot; never padded, *TO_DO Q-1*) — and, for an incomplete row (no
-Sex / Rate / Coverage Rate / Coverage Type), the same cell; the **reason** is
+given) and an incomplete row (no Sex / Rate / Coverage Rate / Coverage Type / Coverage);
+`WL to 100` / `Term to 100` show their 27-character 2017-style prefix (§12.2); the **reason** is
 what the Rates tab and the message bar quote (`core.axisKeyWhy`).
 
 `.col-hard-sep` (`optimizer.css`) is a visible divider between column *groups*,
@@ -1927,13 +1926,14 @@ existed to port), which is exactly why Rates vendors `xlsx.full.min.js`
     defaulting to 1 is what keeps today's only real caller-shape simple, not
     a sign the other 99 durations are disposable.
 33. **The Axis Key builder never guesses at a value the format didn't
-    specify** (`axisKeyResult`, §12.2) — `WL to 100`/`Term to 100`
-    (`VEG100`/`T100`, 6 and 4 characters) don't fit Permanent Life's stated
-    5-character Coverage slot, so they return a `why`, not a padded/truncated
-    key. Don't "fix" this by force-truncating; get the real 5-character code
-    for those two products and add it to `COVERAGE_ABBR`. Every path that
-    can't build a key returns a sentence (`axisKeyWhy`) — keep that: it is what
-    the Error cells and the message bar quote.
+    specify** (`axisKeyResult`, §12.2). `WL to 100` / `Term to 100` (`VEG100` /
+    `T100`) are the two **2017-style** Permanent products: a 27-character prefix +
+    band = 33, `T_` + the code padded to 13 with `_` + `17-01_` + sex + rate + `____`,
+    with their own band lists (§12.4) — the layout was supplied by the requester,
+    not inferred. Any other Permanent code that is not 5 characters (there is none
+    today) still returns a `why` rather than a padded key. Every path that can't
+    build a key returns a sentence (`axisKeyWhy`) — keep that: it is what the Error
+    cells and the message bar quote.
 34. **History's Load order is restoreState() THEN setSnapshot('unitValues',
     …), never the other way round** (§2h) — Unit Value's own `set` callback
     re-syncs against whatever `coverages` currently holds, so it has to run
@@ -2238,7 +2238,7 @@ Use these before trusting any change to §12.
       Axis Key, the age and the bands affected. A file not loaded: **one** message for
       the file, not one per coverage.
 - [ ] Joint Perm with Equiv. Substd. % blank: **one** message "· Joint" (not one per
-      insured). `WL to 100`: the "5-character slot" message.
+      insured). `WL to 100` / `Term to 100`: a 33-character key (§11.3).
 - [ ] Payment Frequency blank with a complete coverage: **one** message for the page;
       set it: gone. Amount 5,000 (Perm): "below the lowest rate band".
 - [ ] Two or more messages: the counter `n / total` and ▲ ▼ appear and wrap; **✕**
@@ -2332,8 +2332,9 @@ A total is **never a partial sum**: an Error anywhere makes the total an Error; 
 ### 12.2 The Axis Key — how it is built
 
 The Axis Key is the string the rate workbooks are indexed by (column D). It is
-**32 characters** = a **26-character prefix** built from the inputs + a
-**6-character rate-band code** (§12.4) appended by the Rates tab. The Insureds
+**32 characters** (**33** for the two 2017 products, below) = a **26-character
+prefix** (27 for those two) built from the inputs + a **6-character rate-band code**
+(§12.4) appended by the Rates tab. The Insureds
 tab shows the prefix; the Rates tab completes it per band. Built by
 `axisKeyResult()` in `optimizer.js`; if a key cannot be built it returns the
 reason in words (`core.axisKeyWhy`), which is what the Error cell's tooltip and
@@ -2353,7 +2354,7 @@ the message bar quote.
 | 2 | coverage rate | the **slot's** Coverage Rate: `P1` `P2` `P3` (Preferred) / `R1` `R2` (Regular) |
 | 1 | `_` | fixed |
 
-**Permanent Life** (`axisKeyPermLife`) — 26 characters:
+**Permanent Life** (`axisKeyPermLife`) — 26 characters (every product except `VEG100` / `T100`):
 
 | Chars | Segment | Value |
 |---|---|---|
@@ -2379,14 +2380,31 @@ Individual vs joint differs solely through the sex/rate pair (`MN` for joint).
 | WL 10 Pay, Individual, F, Preferred, band B00100 | `DT_VEG10________2007_FN___B00100` |
 | WL 10 Pay, any joint type, band B00100 | `DT_VEG10________2007_MN___B00100` |
 | …its **Substandard** (EPR) key | `DTSVEG10________2007_MN___B00100` — first 3 characters `DT_` → `DTS` |
+| WL to 100, Individual, M, Regular, band B00500 — **2017 layout, 33 characters** | `T_VEG100_______17-01_MS____B00500` |
+| …its Substandard (EPR) key | `TSVEG100_______17-01_MS____B00500` — the **2nd** character `_` → `S` |
+| Term to 100, Individual, F, Preferred, band B00010 | `T_T100_________17-01_FN____B00010` |
+| …its Substandard (EPR) key | `TST100_________17-01_FN____B00010` |
+
+**The 2017 layout** (`VEG100` = *WL to 100*, `T100` = *Term to 100*; older rates in the same
+`perm_rates_2007_combined` sheet) — 27-character prefix + 6-character band:
+
+| Chars | Segment | Value |
+|---|---|---|
+| 2 | `T_` | fixed |
+| 13 | coverage | the code padded on the right with `_` to 13 (`VEG100_______`, `T100_________`) |
+| 6 | `17-01_` | the 2017 version stamp + `_` |
+| 1 + 1 | sex, rate | as the standard layout (Individual: the insured's own; **joint: `M`, `N`** — *assumed the same, TO_DO R-12*) |
+| 4 | `____` | fixed |
+
+The lookup itself is identical (Axis Key + age → rate). The Substandard key is built by
+`substandardKey` (`optimizer_rates.js`): a key starting `T` swaps its 2nd character for `S`,
+any other swaps its 3rd (`DT_` → `DTS`).
 
 **Cases with no key** (each has a message-bar sentence, §13): no insured on
 the slot; no Coverage; no Coverage Type; Term Life with a Coverage Type other
 than Individual/JFTD; insured without Sex; insured without Rate; Term Life slot
-without a Coverage Rate; **`WL to 100` (`VEG100`, 6 chars) and `Term to 100`
-(`T100`, 4 chars)** — they do not fit the 5-character Permanent slot and no
-format was ever supplied (*TO_DO Q-1*; never pad or truncate); Critical
-Illness (no format given).
+without a Coverage Rate; Critical Illness (no format given).
+(`WL to 100` / `Term to 100` have a key — the 2017 layout above.)
 
 > **Changing a rate-table version.** The stamps `2509` (Term) and `2007`
 > (Perm) appear in **two** places that must change together: `RATE_VERSION` /
@@ -2419,7 +2437,13 @@ never a default.
 |---|---|
 | Term Life | B00025 — 25,000 · B00050 — 50,000 · B00100 — 100,000 · B00250 — 250,000 · B00500 — 500,000 · B01000 — 1,000,000 · B02000 — 2,000,000 · B10000 — 10,000,000 |
 | Permanent Life | B00010 — 10,000 · B00025 — 25,000 · B00050 — 50,000 · B00100 — 100,000 · B00250 — 250,000 · B00500 — 500,000 |
+| **WL to 100** (Permanent, 2017) | B00001 — 1,000 · B00010 · B00025 · B00050 · B00100 · B00500 — **no B00250** |
+| **Term to 100** (Permanent, 2017) | B00010 · B00025 · B00050 · B00100 · B00500 — **no B00250** — · B01000 — 1,000,000 |
 | Critical Illness | none — the Rates tab says "not built yet" |
+
+(`bandsFor(c)` picks the list per *coverage*, not per category; every band lookup — the Rates tab rows,
+the coverage's band, Highest Amt's per-band candidates — goes through it. The absence of B00250 in the
+two 2017 lists is taken from the requester's list of bands — *TO_DO R-12*.)
 
 **A coverage's band is the closest LOWER band**: the highest band whose face
 amount is ≤ the amount; at or above the top band → the top band; below the
@@ -2797,7 +2821,7 @@ category has bands **and** that have an insured chosen.
 | # | Reason (`why`) |
 |---|---|
 | C-1 | **The rate file isn't loaded** — `the Term Life / Permanent Life rate file isn't loaded …` (one message per file) |
-| C-2 | **No Axis Key can be built:** no Coverage chosen · no Coverage Type chosen · the Coverage Type has no Term Life format · Insured has no Sex · Insured has no Rate · no Coverage Rate chosen for the insured (Term Life) · `"WL to 100" (VEG100) doesn't fit the 5-character … slot` (also `Term to 100`) · no Axis Key format for this category · no insured on the slot |
+| C-2 | **No Axis Key can be built:** no Coverage chosen · no Coverage Type chosen · the Coverage Type has no Term Life format · Insured has no Sex · Insured has no Rate · no Coverage Rate chosen for the insured (Term Life) · no Axis Key format for this category · no insured on the slot |
 | C-3 | **No age:** the insured has no valid Birthdate (or the Reference Date is invalid) |
 | C-4 | **The Joint Age can't be calculated:** fewer than two insureds · a slot has no insured · an insured has no Sex / no Rate / no valid Birthdate · **Last-to-Die with waiver needs both insureds to be 18 or over** (also as backdated) |
 | C-5 | **No row:** `the <file> rate file has no row for Axis Key <key> at age <n> [bands]` — or `has no Substandard row for Axis Key DTS…` (Perm EPR) |
@@ -3017,7 +3041,7 @@ time of writing: real backdated age in `_BD` (C-2), Backdate Projection (C-3),
 History "Total Modal Premium" (C-4), the two "Joint Extra Prem. Backdated"
 columns (C-5), Critical Illness (C-6), Term durations > 1 (C-7), a calculated
 Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-10; the
-`WL to 100` / `Term to 100` Axis Key format (Q-1).
+review R-12 (the 2017 products' assumptions).
 
 ### 14.8 Change log of this document
 

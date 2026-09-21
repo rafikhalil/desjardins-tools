@@ -33,10 +33,10 @@
  * insureds directly, not just what this tab already mirrors) — the
  * 6-character rate band code that completes the real 32-character key is a
  * Rates-tab concept (one row per band) with no home on a per-insured row
- * here. Falls back to the usual pending cell for Critical Illness (no
- * format given) and for the two Permanent Life products whose own
- * abbreviation doesn't fit the format's fixed-width slot (VEG100, T100 —
- * see axisKeyPrefixPermLife's own comment, optimizer.js).
+ * here (27 characters for the 2017 products VEG100 / T100, whose full key is
+ * 33 — see axisKeyPermLife, optimizer.js). Falls back to the usual pending
+ * cell for Critical Illness (no format given) and while an input the key
+ * needs is still missing.
  */
 (function () {
   'use strict';

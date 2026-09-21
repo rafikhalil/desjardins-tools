@@ -24,8 +24,8 @@ Things parked for later, and things to review. **One item = one short block** (w
 | R-8 | Review | BD_Final when an insured's eligibility is unknown (blank birthdate) → Error | Your OK |
 | R-9 | Review | **Modal Prem. formula**: Prem. Adj. % as %/100, joint uses Flat Perm only, Input Premium as-is | Your OK |
 | R-10 | Review | Highest Amt: the $1 walk stops at the first amount over the premium (local) | Your OK |
+| R-12 | Review | **WL to 100 / Term to 100** (2017 keys): assumptions I made | Your OK |
 | R-11 | Review | **Message bar scope**: what raises a message and what deliberately doesn't | Your OK |
-| Q-1 | Question | "WL to 100" / "Term to 100" Axis Key format | Your answer |
 | S-2…S-5 | Suggestions | .gitignore for rates/, lock Remove on joint, brighter yellow, one source for the rate-version stamps | Your yes/no |
 
 ---
@@ -132,6 +132,12 @@ Things parked for later, and things to review. **One item = one short block** (w
 - **Check:** compare a couple of coverages against the Excel tool.
 - **Where:** `optimizer_coverages.js` → `highestAmt`.
 
+### R-12 · WL to 100 / Term to 100 — what I assumed
+- **Built from your examples:** key = `T_` + code padded to 13 with `_` + `17-01_` + sex + rate + `____` (+ band) = 33; Substandard = 2nd character `_` → `S`.
+- **Assumed:** (1) **no B00250** in either band list — I took your two "in total" lists literally (WL to 100: B00001, B00010, B00025, B00050, B00100, B00500; Term to 100: B00010, B00025, B00050, B00100, B00500, B01000); if the real tables do have B00250, it is one line in `LEGACY_BANDS`. (2) B00001 = 1,000 and B01000 = 1,000,000 (the file's naming: thousands). (3) **joint** WL/Term to 100 use `M` + `N` like the other Permanent products. (4) Term to 100 as JFTD/JLTD/JLTDPU is possible in the UI — check it is a real product.
+- **Check:** one WL to 100 and one Term to 100 case against Excel, incl. a coverage amount between 250,000 and 499,999 (falls to B00100 with these lists).
+- **Where:** `optimizer.js` → `axisKeyPermLife`; `optimizer_rates.js` → `LEGACY_BANDS`, `bandsFor`, `substandardKey`.
+
 ### R-11 · Message bar scope  *(my design choices — first version)*
 - **Raised:** rejected inputs; state problems (Reference Date, out-of-range age after a Reference Date change, too many insureds); every rate-lookup failure with its cause; the actionable Modal Prem. blockers (Payment Frequency, Coverage Fee, joint Flat Perm $ blank, amount / premium below the lowest band, search that never settles); rate-file load problems; History save / import / load / storage problems; any uncaught error.
 - **Deliberately NOT raised:** amber "no formula yet" cells (Critical Illness, Backdate Projection, the two Joint Extra Prem. Backdated columns); plain blank required inputs (already yellow); "no higher rate band is within this premium" and "no insured is backdatable" (information); anything on a brand-new blank coverage.
@@ -143,10 +149,7 @@ Things parked for later, and things to review. **One item = one short block** (w
 
 ## 3 · Questions waiting on you
 
-### Q-1 · "WL to 100" (VEG100) and "Term to 100" (T100) Axis Key
-- **Why:** the codes are 6 and 4 characters; the Permanent Life Axis Key slot is 5. No key can be built, so their rate cells show Error.
-- **Need:** the intended 5-character code (or format).
-- **Where:** `optimizer.js` → `axisKeyPrefixPermLife`.
+*(nothing waiting — Q-1, the WL to 100 / Term to 100 key format, is answered; see Done and R-12.)*
 
 ---
 
@@ -161,6 +164,7 @@ Things parked for later, and things to review. **One item = one short block** (w
 
 ## 5 · Done (moved here from the lists above)
 
+- 2026-09-21 · **WL to 100 / Term to 100 Axis Key + rates** (old Q-1) — the 2017-style 33-character key (`T_VEG100_______17-01_MS____B00500`, `T_T100_________17-01_FN____B00010`), its Substandard key (`TS…`), and their own band lists (WL to 100 adds B00001, Term to 100 adds B01000, neither has B00250). Lookup unchanged (Axis Key + age → rate). Every band lookup now goes through `bandsFor(coverage)`. Verified with synthetic rows built from your example keys (PR/EPR at age 40, keys 33 characters, bands, 250,000 → B00100). Assumptions in R-12.
 - 2026-09-20 · **Backdate Projection: Monthly/Annual Savings Date** (completes old C-3) — two independent calculations, ported from your `annual.md`/`monthly.md` scripts, always computed regardless of `settings.freq`: Annual is the first date the cumulative Difference reaches or passes the prorated first-year Backdated premium; Monthly is the first date after which the cumulative Difference stays positive through the rest of the search window (blocked with a reason if the Backdated premium isn't actually lower, or if it never stabilizes). Fill the two header pills (`bdMonthlySavingsDate`/`bdAnnualSavingsDate`) and the Results Summary's "Backdate Savings Date" (whichever one matches the current Payment Frequency). Verified live: Monthly gave 20-JUN-2028, Annual gave 20-SEP-2027 on the same scenario; switching Payment Frequency correctly swapped which one the Summary mirrors.
 - 2026-09-20 · **Backdate Projection table** (part of old C-3) — the 6-column table (Date, Premium Current, Cumul. Prem. Current, Premium Backdated, Cumul. Prem. Backdated, Difference), ported line-for-line from the operator's own Excel Python-in-Excel script: Annual branch (prorated first Backdated payment, remainder on the first Current anniversary, full Backdated premium on every later Current anniversary, later Backdated anniversaries are 0-payment checkpoints) and Monthly branch (full premium on each side's own anniversaries), both driven by `settings.freq`. Needs a Final Backdate Date and both Modal Premium totals resolved — reuses the exact same blocked/pending/error states as everywhere else (`core.premiumTotal`, newly lent onto the bridge). Verified live: Monthly gave 102 rows, Annual gave 122, both with cumulative sums and the prorated/remainder/checkpoint split matching the script exactly; a coverage with no rate resolved correctly propagates "not on any coverage yet" into the table instead of crashing.
 - 2026-09-20 · **Message bar + error catalogue** — a top-bar message area between the tool name and Test Case Name that says why a figure is an Error (or why an action failed): count with ▲ ▼ when there are several, ✕ to clear (Shift+✕ = all), click to read in full, messages fix themselves when the cause is fixed. Covers rejected inputs, Reference Date / age problems, every rate-lookup failure with its root cause (Axis Key can't be built and why, no age, Joint Age can't be calculated, no rate row — with the key, age and bands —, blank %, BD_Final undecidable), the Modal Prem. blockers, rate-file load problems (fetch / unreadable / not a rate workbook / missing sheets / no usable rows / text cells), History save / import / load / storage problems, and uncaught errors. The Rates cells' Error tooltips now carry the same sentence. See R-11 for the judgement calls.

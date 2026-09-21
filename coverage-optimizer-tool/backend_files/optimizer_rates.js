@@ -147,6 +147,19 @@
       { code: 'B00250', amount: 250000 }, { code: 'B00500', amount: 500000 }
     ]
   };
+  /* The two 2017 Permanent products have their own band lists (no B00250 in either; WL to 100 adds
+     B00001 = 1,000, Term to 100 adds B01000 = 1,000,000). bandsFor(c) is what every band lookup uses. */
+  var LEGACY_BANDS = {
+    'WL to 100': [
+      { code: 'B00001', amount: 1000 }, { code: 'B00010', amount: 10000 }, { code: 'B00025', amount: 25000 },
+      { code: 'B00050', amount: 50000 }, { code: 'B00100', amount: 100000 }, { code: 'B00500', amount: 500000 }
+    ],
+    'Term to 100': [
+      { code: 'B00010', amount: 10000 }, { code: 'B00025', amount: 25000 }, { code: 'B00050', amount: 50000 },
+      { code: 'B00100', amount: 100000 }, { code: 'B00500', amount: 500000 }, { code: 'B01000', amount: 1000000 }
+    ]
+  };
+  function bandsFor(c) { return (c.category === 'permLife' && LEGACY_BANDS[c.coverage]) || BAND_TABLES[c.category]; }
 
   // ------------------------------------------------------------- workbook
   /* termLifeTables[suffix][axisKey][duration][age] = rate. Every Duration
@@ -673,13 +686,16 @@
           them.)
       Same { pending } / { error } / { value } return shape as
       baseRateResult() — never a guessed number. */
+  /* PR key -> EPR key: 'DT_…' -> 'DTS…' (3rd character), and for the 2017 products 'T_…' -> 'TS…' (2nd). */
+  function substandardKey(k) { return k.charAt(0) === 'T' ? 'TS' + k.slice(2) : 'DTS' + k.slice(3); }
+
   function extraRateResult(c, ins, slot, band, ageOffset) {
     if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset);
     var age = lookupAge(c, ins, ageOffset);
     if (age === null) return fail(ageWhy(c, ins, ageOffset));
     var prefix = core.axisKeyPrefix(c, slot);
     if (!prefix) return fail('no Axis Key can be built: ' + core.axisKeyWhy(c, slot));
-    var subKey = 'DTS' + (prefix + band.code).slice(3);      // the Substandard row of the same key
+    var subKey = substandardKey(prefix + band.code);         // the Substandard row of the same key
     var rate = lookupPermLifeRate(subKey, age);
     if (rate === null) return fail(missingRow(c, subKey, age).replace('has no row', 'has no Substandard row'));
     return { value: rate };
@@ -764,15 +780,15 @@
       (core.premBasis, optimizer_coverages.js), which is the most that premium
       buys. { band }, or { why } while there's no answer: no bands for the
       Category, no amount, or an amount below the lowest band. */
-  function bandAt(category, amount) {
-    var bands = BAND_TABLES[category], hit = null;
+  function bandAt(c, amount) {
+    var bands = bandsFor(c), hit = null;
     if (!bands || amount === null || amount === undefined) return null;
     bands.forEach(function (b) { if (b.amount <= amount) hit = b; });
     return hit;
   }
 
   function bandFor(c) {
-    if (!BAND_TABLES[c.category]) return { why: 'no rate bands for this Coverage Category' };
+    if (!bandsFor(c)) return { why: 'no rate bands for this Coverage Category' };
     var amount = c.amount;
     if (c.calcType === 'premium') {                 // the band follows Prem. Basis Ins. Amt
       var pb = core.premBasis ? core.premBasis(c) : null;
@@ -783,7 +799,7 @@
     if (amount === null || amount === undefined) {
       return { why: c.calcType === 'premium' ? 'needs the Input premium' : 'needs a Coverage Amount' };
     }
-    var hit = bandAt(c.category, amount);
+    var hit = bandAt(c, amount);
     return hit ? { band: hit } : { why: 'amount is below the lowest rate band' };
   }
 
@@ -856,7 +872,7 @@
       amount cost the same?" search inverts. { list: [{band, pr, pep}, …] }, or
       the first { blocked } / { error } that stops any one of them. */
   function bandTotalsAll(c) {
-    var bands = BAND_TABLES[c.category];
+    var bands = bandsFor(c);
     if (!bands) return { blocked: 'no rate bands for this Coverage Category' };
     var slots = c.insureds.filter(function (s) { return s.insuredId; }), list = [], stop = null;
     bands.forEach(function (b) {
@@ -879,7 +895,7 @@
   function ratesIssues() {
     var out = [], notLoaded = {};
     core.coverages().forEach(function (c, ci) {
-      var bands = BAND_TABLES[c.category];
+      var bands = bandsFor(c);
       var slots = c.insureds.filter(function (s) { return s.insuredId; });
       if (!bands || !slots.length) return;
       var joint = core.isJointPerm(c);
@@ -938,7 +954,7 @@
     // filler cell in each header row keeps both tables' rows aligned.
     var ph = slots.length ? '' : '<th class="rate-ph">&nbsp;</th>';
 
-    var bandRows = BAND_TABLES[c.category].map(function (b) {
+    var bandRows = bandsFor(c).map(function (b) {
       var cells = slots.map(function (s, i) {
         var ins = core.findInsured(s.insuredId);
         return [0, 1, 2, 3, 4, 5].map(function (j) {
@@ -979,7 +995,7 @@
       }).join('');
     }).join('');
 
-    var bandRows = BAND_TABLES[c.category].map(function (b) {
+    var bandRows = bandsFor(c).map(function (b) {
       return '<tr>' + GROUPS.map(function (g, gi) {
         return g.cols.map(function (l, j) {
           var extra = [(j === 0 && gi > 0) ? 'col-hard-sep' : '', g.bd ? 'rate-bd' : ''].join(' ').trim();
@@ -999,7 +1015,7 @@
 
   function coverageRatesCard(c) {
     var title = core.esc(core.coverageTitle(c));
-    if (!BAND_TABLES[c.category]) {
+    if (!bandsFor(c)) {
       return '<div class="card card--out">' +
           '<div class="card-head card-head--band"><span class="card-title">' + title + '</span></div>' +
           '<div class="proj-slot"><div class="t">' + title + '</div>' +
@@ -1008,7 +1024,7 @@
         '</div>';
     }
     var slots = c.insureds.filter(function (s) { return s.insuredId; });
-    var bandCount = BAND_TABLES[c.category].length;
+    var bandCount = bandsFor(c).length;
     return '<div class="card card--out">' +
         '<div class="card-head card-head--band">' +
           '<span class="card-title">' + title + '</span>' +

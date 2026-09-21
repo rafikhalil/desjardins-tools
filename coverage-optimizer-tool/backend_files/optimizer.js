@@ -2123,17 +2123,19 @@
     return { key: 'DT' + typeChar + coverageCode + '______' + mcdBlock + ins.sex + insuredRateCode(ins) + slot.rate + '_' };
   }
 
-  /* VEG100 ('WL to 100') and T100 ('Term to 100') are 6 and 4 characters —
-     COVERAGE_ABBR's own values, unchanged since they're also what the
-     Coverages/Insureds tabs display — neither fits the stated 5-character
-     slot for Permanent Life. Rather than guess at a truncated/padded form
-     that was never specified, those two products simply can't produce a key
-     yet (a `why` below); every other Permanent Life product is unaffected. */
+  /* Permanent Life. Every product but two has a 5-character code (VEG10 … VEG65) and the 2007 layout:
+     26-character prefix + 6-character band = 32. VEG100 ('WL to 100') and T100 ('Term to 100') are
+     older, 2017 rate tables in the same sheet with a slightly different, 33-character key: 'T_' + the
+     code padded with '_' to 13 characters + '17-01_' + sex + rate + '____' (27-character prefix + band).
+     Their Substandard key swaps the 2nd character for 'S' (TS…), where the standard one swaps the 3rd
+     (DTS…) — see substandardKey in optimizer_rates.js. */
+  var LEGACY_PERM_CODES = ['VEG100', 'T100'];
   function axisKeyPermLife(c, ins) {
     var coverageCode = COVERAGE_ABBR[c.coverage], who = 'Insured "' + (ins.name || 'Insured') + '"';
     if (!coverageCode) return { why: 'no Coverage is chosen' };
-    if (coverageCode.length !== 5) {
-      return { why: '"' + c.coverage + '" (' + coverageCode + ') doesn\'t fit the 5-character Permanent Life Axis Key slot and no format was given for it yet (TO_DO Q-1)' };
+    var legacy = LEGACY_PERM_CODES.indexOf(coverageCode) >= 0;
+    if (!legacy && coverageCode.length !== 5) {
+      return { why: '"' + c.coverage + '" (' + coverageCode + ') doesn\'t fit the 5-character Permanent Life Axis Key slot and has no 2017-style format either' };
     }
     if (!c.covType) return { why: 'no Coverage Type is chosen' };   // blank Coverage Type ≠ Individual
     var isJoint = isJointPerm(c);
@@ -2141,6 +2143,7 @@
     if (!isJoint && !ins.rate) return { why: who + ' has no Rate (Preferred / Regular)' };
     var sexChar = isJoint ? JOINT_SEX : ins.sex;
     var rateChar = isJoint ? JOINT_RATE : insuredRateCode(ins);
+    if (legacy) return { key: 'T_' + (coverageCode + '_____________').slice(0, 13) + '17-01_' + sexChar + rateChar + '____' };
     return { key: 'DT' + '_' + coverageCode + '________2007_' + sexChar + rateChar + '___' };
   }
 

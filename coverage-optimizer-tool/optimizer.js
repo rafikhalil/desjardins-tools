@@ -4,11 +4,13 @@
  * self-contained; the header dropdown navigates between them. Only the theme
  * choice carries across, via localStorage.
  *
- * This page is a scaffold: the shell, the tab set and one empty container per
- * tab. The views themselves are not built yet. When they are, the extract
- * parser, the field descriptors and the validated-input controls can be
- * lifted from inforce.js — they were written to be portable, and
- * UI_REFERENCE.md documents them.
+ * This file is the shell and the "core" model: Settings, Insured Input, Coverage
+ * Input (incl. the Joint container and its Equivalent Age, § equivAge), Results,
+ * the Axis Key builder, Save/Load of a whole test case (snapshotState /
+ * restoreState), the top-bar MESSAGE BAR (§ message bar — why something is an
+ * Error) and the public bridge window.OptimizerCore the other tab files read
+ * through. Every other tab is its own file (optimizer_<tab>.js). The complete
+ * spec — UI, calculations, Axis Key, error catalogue — is OPTIMIZER_REFERENCE.md.
  */
 (function () {
   'use strict';
@@ -53,6 +55,122 @@
     n.className = 'toast show' + (kind ? ' toast--' + kind : '');
     clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { n.className = 'toast'; }, kind === 'err' ? 5000 : 3000);
+  }
+
+  // ------------------------------------------------------------ message bar
+  /* The top-bar message display (#issues, between the brand block and Test Case
+     Name): WHY something is an Error, not just that it is. One list, two sources:
+       - EVENT messages — raise(key, msg[, fk]) when something fails once: a
+         rejected input, a rate file that wouldn't load, a save that fell back to
+         a download. They stay until the user clears them, resolve(key) is called
+         (the same thing later succeeding) or — with `fk`, an input's data-fk —
+         until that input no longer sits on the page flagged .fi--bad (it was
+         re-rendered, corrected or removed).
+       - DIAGNOSTICS — diagnostics(fn) providers, each returning [{ key, msg }] for
+         what is wrong RIGHT NOW. Recomputed on every change, so a fixed problem
+         disappears by itself; clearing one hides it only until it has gone away
+         and comes back. Each tab's own file supplies its own (they read the same
+         result functions the tab's cells do, so message and cell can't disagree).
+     Keys: 'f:…' file/load, 'h:…' History, 'js:…' unexpected error, 'd:…'
+     diagnostics, otherwise an input's data-fk. Text convention: "<Tab> — <where>:
+     <what is wrong>". */
+  var eventIssues = {}, eventOrder = [], providers = [], dismissed = {}, shown = [], curKey = null;
+
+  function raise(key, msg, fk) {
+    if (!(key in eventIssues)) eventOrder.push(key);
+    eventIssues[key] = { key: key, msg: msg, fk: fk };
+    refreshIssues();
+  }
+  function dropEvent(key) {
+    delete eventIssues[key];
+    eventOrder = eventOrder.filter(function (k) { return k !== key; });
+  }
+  function resolve(key) {
+    if (!(key in eventIssues)) return;
+    dropEvent(key);
+    refreshIssues();
+  }
+  /** A field's commit was rejected: red box + tooltip + toast + a message in the bar. */
+  function badInput(el, msg, where) {
+    el.classList.add('fi--bad');
+    el.title = msg;
+    toast(msg, 'err');
+    raise(el.dataset.fk, where + ': ' + msg, el.dataset.fk);
+  }
+  function goodInput(el) {
+    el.classList.remove('fi--bad');
+    resolve(el.dataset.fk);
+  }
+
+  function refreshIssues() {
+    var list = [], live = {};
+    eventOrder.slice().forEach(function (k) {
+      var e = eventIssues[k];
+      if (e.fk && !document.querySelector('[data-fk="' + e.fk + '"].fi--bad')) { dropEvent(k); return; }
+      list.push(e);
+    });
+    providers.forEach(function (fn) {
+      var found;
+      try { found = fn(); } catch (err) { found = [{ key: 'd:internal:' + err.message, msg: 'Internal — a check for problems failed: ' + err.message }]; }
+      found.forEach(function (d) {
+        if (live[d.key]) return;                       // one message per key
+        live[d.key] = 1;
+        if (!dismissed[d.key]) list.push(d);
+      });
+    });
+    Object.keys(dismissed).forEach(function (k) { if (!live[k]) delete dismissed[k]; });
+    shown = list;
+    drawIssues();
+  }
+
+  function issueIdx() {
+    for (var i = 0; i < shown.length; i++) if (shown[i].key === curKey) return i;
+    return 0;
+  }
+  function drawIssues() {
+    var box = $('issuesBox');
+    box.hidden = !shown.length;
+    if (!shown.length) { curKey = null; $('issuesPop').hidden = true; return; }
+    var i = issueIdx();
+    curKey = shown[i].key;
+    $('issuesTxt').textContent = $('issuesPop').textContent = shown[i].msg;
+    $('issuesN').textContent = (i + 1) + ' / ' + shown.length;
+    $('issuesNav').hidden = shown.length < 2;
+  }
+  function stepIssue(d) {
+    var n = shown.length;
+    if (n < 2) return;
+    curKey = shown[(issueIdx() + d + n) % n].key;
+    drawIssues();
+  }
+  /** ✕ clears the message on show; Shift+✕ clears them all. */
+  function clearIssue(all) {
+    var i = issueIdx(), next = shown[i + 1] || shown[i - 1];
+    (all ? shown.slice() : shown.slice(i, i + 1)).forEach(function (m) {
+      if (m.key in eventIssues) dropEvent(m.key); else dismissed[m.key] = 1;
+    });
+    curKey = (all || !next) ? null : next.key;
+    refreshIssues();
+  }
+  function initIssueBar() {
+    $('issuesUp').addEventListener('click', function () { stepIssue(-1); });
+    $('issuesDown').addEventListener('click', function () { stepIssue(1); });
+    $('issuesX').addEventListener('click', function (e) { clearIssue(e.shiftKey); });
+    $('issuesTxt').addEventListener('click', function () { $('issuesPop').hidden = !$('issuesPop').hidden; });
+    $('issuesTxt').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); this.click(); }
+    });
+    document.addEventListener('click', function (e) {        // a click anywhere else closes the full-text popup
+      if (!$('issuesPop').hidden && !$('issuesBox').contains(e.target)) $('issuesPop').hidden = true;
+    });
+    // Anything that throws is a bug, not an input problem — say so instead of failing silently.
+    function crash(msg, where) {
+      raise('js:' + msg, 'Unexpected error — ' + msg + (where ? ' (' + where + ')' : '') + '. Reload the page; if it comes back, note what you did just before it.');
+    }
+    window.addEventListener('error', function (e) {
+      crash(e.message, e.filename ? e.filename.split('/').pop() + ':' + e.lineno : '');
+    });
+    window.addEventListener('unhandledrejection', function (e) { crash(String(e.reason && e.reason.message || e.reason), 'in a background task'); });
   }
 
   // ------------------------------------------------------- dates / ages
@@ -420,13 +538,8 @@
     if (!f || !rec) return;
 
     var res = validateIns(f, el.value);
-    if (!res.ok) {
-      el.classList.add('fi--bad');
-      el.title = res.msg;
-      toast(res.msg, 'err');
-      return;
-    }
-    el.classList.remove('fi--bad');
+    if (!res.ok) { badInput(el, res.msg, 'Insured Input — ' + (rec.name || 'Insured')); return; }
+    goodInput(el);
     rec[f.k] = res.v;
     deferRenderInsureds();
   }
@@ -595,13 +708,8 @@
     if (!f) return;
 
     var res = validateSettings(f, el.value);
-    if (!res.ok) {
-      el.classList.add('fi--bad');
-      el.title = res.msg;
-      toast(res.msg, 'err');
-      return;
-    }
-    el.classList.remove('fi--bad');
+    if (!res.ok) { badInput(el, res.msg, 'Settings'); return; }
+    goodInput(el);
     settings[f.k] = res.v;
 
     // This field is not part of a repeating list, so nothing else re-renders
@@ -743,15 +851,80 @@
      blank (not whatever stale value the slot still holds) with this title. */
   var JOINT_OFF = 'Not used on a joint coverage — see the Joint container below';
 
+  /* Equivalent single age of a joint Perm coverage's two lives ("Equivalent
+     Single Formula" spec). All tables are the document's, band tops inclusive.
+       Step 1  adjusted age = real age + adjustment by (band, sex+status);
+               status is S for a Regular rate OR an age under 18, else N.
+               Last-to-Die differs from First-to-Die only in FN (-2 vs -3).
+       Step 2  d = |adjusted1 - adjusted2|. FTD: oldest + add(d); LTD/LTDPU:
+               youngest - sub(d).
+       Step 3  FTD: + table 3A (youngest x oldest), floor 18, then -1 for
+               WL 10/15/20 Pay and WL to 65 when 19..55.
+               JLTD: floor 18. JLTDPU: + 3A (oldest) + 3B (d), floor 19; both
+               lives must be 18+.
+     Any negative intermediate is 0 (rule 2.3). Perm joint is capped at 2
+     lives, so the spec's more-than-two-lives loop (3B, FTD) never applies.
+     `backdated`: each insured Backdate Eligible (core.backdateEligible, the
+     eligibility alone — Confirm Backdate reads rates, which read this) is a
+     year younger (the same "age - 1" stand-in as the Rates _BD columns, C-2).
+     Returns { v } or { why, err } — err: the inputs are all there but the
+     spec has no answer (JLTDPU under 18). */
+  function eqIdx(tops, x) { for (var i = 0; i < tops.length; i++) if (x <= tops[i]) return i; return tops.length - 1; }
+  var EQ_TOPS = [43, 47, 54, 57, 59, 63, 65, 68, 72, 999];
+  var EQ_ADJ = {
+    MN: [0, 0, 0, 0, 0, 0, 0, 0, 0, 0], MS: [7, 6, 6, 5, 5, 4, 3, 3, 2, 1],
+    FN: [-3, -3, -3, -3, -3, -3, -3, -3, -3, -1], FS: [3, 3, 2, 2, 1, 1, 1, 0, 0, 0]
+  };
+  var EQ_FN_LTD = [-2, -2, -2, -2, -2, -2, -2, -2, -2, -1];
+  var EQ_DIFF = [0, 2, 5, 7, 10, 13, 15, 19, 24, 999];
+  var EQ_FTD_ADD = [9, 8, 7, 6, 5, 4, 3, 2, 2, 2], EQ_LTD_SUB = [8, 7, 6, 5, 4, 3, 2, 1, 0, 0];
+  var EQ_3A_YOUNG = [14, 20, 21, 22, 23, 24, 999], EQ_3A_OLD = [14, 27, 30, 33, 999];
+  var EQ_3A = [[3, 3, 2, 2, 1], [0, 3, 2, 2, 1], [0, 3, 2, 1, 1], [0, 3, 2, 1, 0], [0, 2, 2, 1, 0], [0, 1, 1, 0, 0], [0, 0, 0, 0, 0]];   // col 0 below row 0 can't occur (oldest >= youngest)
+  var EQ_PU_OLD = [49, 59, 69, 71, 73, 75, 999], EQ_PU_OLD_ADD = [0, 1, 2, 3, 4, 5, 6];
+  var EQ_PU_DIFF = [14, 24, 34, 39, 49, 999], EQ_PU_DIFF_ADD = [5, 6, 9, 11, 14, 18];
+  var EQ_WL_MINUS1 = ['WL 10 Pay', 'WL 15 Pay', 'WL 20 Pay', 'WL to 65'];
+
+  function equivAge(c, backdated) {
+    if (!isJointPerm(c)) return { why: 'not a joint Permanent Life coverage' };
+    if (c.insureds.length < 2) return { why: 'a joint Permanent Life coverage needs two insureds (it has ' + c.insureds.length + ')' };
+    var pu = c.covType === 'Joint Last-to-Die, Paid-up 1st Death', ftd = c.covType === 'Joint First-to-Die';
+    var core = window.OptimizerCore, ad = [], reals = [], i;
+    for (i = 0; i < 2; i++) {
+      var ins = findInsured(c.insureds[i].insuredId), a = ins && slotAge(c.insureds[i]);
+      if (!ins) return { why: 'insured slot ' + (i + 1) + ' has no insured chosen' };
+      var who = 'Insured "' + (ins.name || 'Insured') + '" ';
+      if (!ins.sex) return { why: who + 'has no Sex' };
+      if (!ins.rate) return { why: who + 'has no Rate (Preferred / Regular)' };
+      if (a === null) return { why: who + 'has no valid Birthdate' };
+      if (backdated && core.backdateEligible && core.backdateEligible(ins)) a = Math.max(0, a - 1);
+      var st = ins.sex + (ins.rate === 'reg' || a < 18 ? 'S' : 'N');
+      var adj = (st === 'FN' && !ftd ? EQ_FN_LTD : EQ_ADJ[st])[eqIdx(EQ_TOPS, a)];
+      reals.push(a); ad.push(Math.max(0, a + adj));
+    }
+    if (pu && (reals[0] < 18 || reals[1] < 18)) {
+      return { why: 'Last-to-Die with waiver needs both insureds to be 18 or over' + (backdated ? ' (as backdated)' : '') +
+        ' — they are ' + reals[0] + ' and ' + reals[1], err: true };
+    }
+    var old = Math.max(ad[0], ad[1]), young = Math.min(ad[0], ad[1]), d = old - young, dx = eqIdx(EQ_DIFF, d), v;
+    if (ftd) {
+      v = old + EQ_FTD_ADD[dx] + EQ_3A[eqIdx(EQ_3A_YOUNG, young)][eqIdx(EQ_3A_OLD, old)];
+      v = Math.max(v, 18);
+      if (EQ_WL_MINUS1.indexOf(c.coverage) !== -1 && v >= 19 && v <= 55) v -= 1;
+    } else {
+      v = Math.max(0, young - EQ_LTD_SUB[dx]);
+      if (pu) v = Math.max(19, v + EQ_PU_OLD_ADD[eqIdx(EQ_PU_OLD, old)] + EQ_PU_DIFF_ADD[eqIdx(EQ_PU_DIFF, d)]);
+      else v = Math.max(18, v);
+    }
+    return { v: v };
+  }
+
   /* A joint Perm coverage's Joint Age (offset 0) or Joint Age Backdated
-     (offset -1: the same "age - 1" stand-in the Rates tab's _BD columns use
-     for an insured, since the Backdate tab is still unwired). null when it
-     isn't a joint Perm coverage, the Joint Age box is blank, or the result
-     would be negative. The Rates lookups and the Insureds tab both read it. */
+     (offset -1) — equivAge() above, so no longer typed in. null when it isn't
+     a joint Perm coverage or the equivalent age can't be worked out yet. The
+     Rates lookups and the Insureds/Coverages tabs all read it. */
   function jointAge(c, offset) {
-    if (!isJointPerm(c) || !c.joint || c.joint.age === null || c.joint.age === undefined) return null;
-    var a = c.joint.age + offset;
-    return a < 0 ? null : a;
+    var r = equivAge(c, offset < 0);
+    return r.v === undefined ? null : r.v;
   }
 
   /* A joint Perm coverage's Joint-container figures as display strings, in the
@@ -760,12 +933,12 @@
      Prem. $ Duration, Joint Age Backdated. "—" for a blank box, and for every
      figure when the coverage has no joint side. One formatter, two tabs. */
   function jointFigures(c) {
-    var j = c.joint || {}, on = isJointPerm(c), bd = jointAge(c, -1);
+    var j = c.joint || {}, on = isJointPerm(c), cur = jointAge(c, 0), bd = jointAge(c, -1);
     function num(v, dec) {                      // no `dec` -> as many decimals as it was typed with (the % field)
       if (!on || v === null || v === undefined) return '—';
       return group(v, dec === undefined ? decimals(v) : dec);
     }
-    return [num(j.age, 0), num(j.extraPct), num(j.extraFlat, 2), num(j.extraTempAmt, 2),
+    return [cur === null ? '—' : String(cur), num(j.extraPct), num(j.extraFlat, 2), num(j.extraTempAmt, 2),
             num(j.extraTempYears, 0), bd === null ? '—' : String(bd)];
   }
 
@@ -844,14 +1017,13 @@
   ];
   /* The Joint container's own inputs (rec.joint — one set per coverage, not
      per slot). Same descriptor shape as COV_FIELDS, so validateCov/covControl/
-     covRaw/covLive apply unchanged. All five start blank and are highlighted
+     covRaw/covLive apply unchanged. All four start blank and are highlighted
      (`need`) until filled; `opt` lets a cleared box commit back to blank —
      unlike an insured slot's Extra Premium, whose defaults are a real 0.
      Flat Perm and Flat Term/Duration lock each other once one side has a
      value (covJointSlot), like a slot's Extra Premium; a locked box isn't
      highlighted, since there's nothing to fill in. */
   var JOINT_FIELDS = [
-    { k: 'age', l: 'Joint Age', t: 'int', min: 0, max: 999, opt: 1, need: true },
     { k: 'extraPct', l: 'Equiv. Substd. %', t: 'pct', min: 0, max: 10000, u: '%', opt: 1, need: true },
     { k: 'extraFlat', l: 'Flat Extra Prem. $ Perm', t: 'money', min: 0, max: 9999.99, dec: 2, u: 'CAD', opt: 1, need: true },
     { k: 'extraTempAmt', l: 'Flat Extra Prem. $ Term', t: 'money', min: 0, max: 9999.99, dec: 2, u: 'CAD', opt: 1, need: true },
@@ -1106,7 +1278,7 @@
      one, so flipping between joint types (or back) doesn't lose what was
      typed; it's simply not shown, and nothing reads it, unless isJointPerm. */
   function newJoint() {
-    return { age: null, extraPct: null, extraFlat: null, extraTempAmt: null, extraTempYears: null };
+    return { extraPct: null, extraFlat: null, extraTempAmt: null, extraTempYears: null };
   }
 
   /* Coverage Fee auto-default. Term Life: whichever Term Life coverage has
@@ -1205,6 +1377,10 @@
     if (!cat) return 'New Coverage';                  // no Category chosen yet
     return rec.coverage ? cat + ' — ' + rec.coverage : cat;
   }
+  /** "Coverage Input — Coverage 2 (Term Life — Term 20)" — where a message points. */
+  function covWhere(rec) {
+    return 'Coverage Input — Coverage ' + (coverages.indexOf(rec) + 1) + ' (' + coverageTitle(rec) + ')';
+  }
 
   /* One row per insured slot: Insured / Sex / Age / Rate / Extra Premium,
      all five cells side by side (§2b requires this to read as one line, not
@@ -1236,14 +1412,24 @@
      Premium. Insured is read-only, "Joint <name 1> / <name 2>" from the two
      slots just above (—, not a partial name, until both are chosen); Joint
      Sex and Joint Rate are fixed (JOINT_SEX/JOINT_RATE, locked boxes); Joint
-     Age and the four Extra Premium boxes are the operator's own input
-     (rec.joint, JOINT_FIELDS). */
+     Age is calculated from the two insureds (equivAge); the four Extra
+     Premium boxes are the operator's own input (rec.joint, JOINT_FIELDS). */
   function covJointField(f, rec) {
     return covControl(f, rec.joint[f.k], 'joint|' + rec._id + '|' + f.k, rec);
   }
-  function covJointFixed(label, v) {
+  function covJointFixed(label, v, title, bad) {
     return '<div class="fc"><span class="rs-k">' + esc(label) + '</span>' +
-           '<input class="fi fi--ro" value="' + esc(v) + '" readonly tabindex="-1" title="Fixed — can\'t be changed"></div>';
+           '<input class="fi fi--ro' + (bad ? ' fi--bad' : '') + '" value="' + esc(v) + '" readonly tabindex="-1" title="' +
+           esc(title || 'Fixed — can\'t be changed') + '"></div>';
+  }
+  /* Joint Age — computed (equivAge), never typed: the number, a dash while an
+     insured / Sex / Rate / Birthdate is missing, or a red Error when the spec
+     has no answer (JLTDPU with a life under 18). */
+  function covJointAge(rec) {
+    var r = equivAge(rec, false);
+    return covJointFixed(
+      'Joint Age', r.v !== undefined ? r.v : r.err ? 'Error' : '—',
+      r.v !== undefined ? 'Equivalent single age of the two insureds (calculated)' : r.why, r.err);
   }
   function covJointMiniField(f, rec, locked) {
     var control = locked
@@ -1267,7 +1453,7 @@
           '<span class="rs-v' + (label ? '' : ' is-empty') + '"' + (label ? ' title="' + esc(label) + '"' : '') + '>' +
             (label ? esc(label) : '—') + '</span></div>' +
         covJointFixed('Joint Sex', JOINT_SEX) +
-        '<div class="fc"><span class="rs-k">' + esc(JOINT_FIELD_MAP.age.l) + '</span>' + covJointField(JOINT_FIELD_MAP.age, rec) + '</div>' +
+        covJointAge(rec) +
         covJointFixed('Joint Rate', JOINT_RATE) +
         '<div class="fc cov-extra-cell"><span class="rs-k">Extra Premium</span><div class="cov-extra-mini">' +
           ['extraPct', 'extraFlat', 'extraTempAmt', 'extraTempYears'].map(function (k) {
@@ -1351,11 +1537,9 @@
     // Results' per-coverage table (§ results) is one row per coverage — keep
     // it in step with every coverage add/remove/edit, the same way Coverage
     // Input itself stays in step with every insured change.
-    renderResultsPanel();
-
-    // The Coverages tab (optimizer_coverages.js, its own file) has its own
-    // per-coverage table too — notify it the same way, through the public
-    // bridge (§ below) rather than reaching into another file's internals.
+    // Results and the Coverages tab (optimizer_coverages.js, its own file)
+    // both have their own per-coverage table — refreshed through this one
+    // notifier rather than by reaching into another file's internals.
     notifyOptimizerCoreChange();
 
     if (!fk) return;
@@ -1376,9 +1560,9 @@
       var f = r.f, rec = r.rec, key = r.key;
       if (!f) return;
       var res = validateCov(f, el.value, rec);
-      if (!res.ok) { el.classList.add('fi--bad'); el.title = res.msg; toast(res.msg, 'err'); return; }
-      el.classList.remove('fi--bad');
-      rec[key] = (res.v === '' && f.t !== 'enum') ? null : res.v;   // a cleared dropdown stays '' (never null)
+      if (!res.ok) { badInput(el, res.msg, covWhere(rec)); return; }
+      goodInput(el);
+      rec[key] =(res.v === '' && f.t !== 'enum') ? null : res.v;   // a cleared dropdown stays '' (never null)
 
       if (key === 'category') {
         rec.coverage = ''; rec.covType = '';                   // no defaults — the operator re-picks both
@@ -1413,8 +1597,8 @@
     if (r.kind === 'joint') {
       if (!r.f) return;
       var resJ = validateCov(r.f, el.value, r.rec);
-      if (!resJ.ok) { el.classList.add('fi--bad'); el.title = resJ.msg; toast(resJ.msg, 'err'); return; }
-      el.classList.remove('fi--bad');
+      if (!resJ.ok) { badInput(el, resJ.msg, covWhere(r.rec) + ' · Joint'); return; }
+      goodInput(el);
       r.rec.joint[r.key] = resJ.v === '' ? null : resJ.v;
       deferRenderCoverages();
       return;
@@ -1442,8 +1626,8 @@
     }
     if (!r.f) return;
     var res2 = validateCov(r.f, el.value, rec2);
-    if (!res2.ok) { el.classList.add('fi--bad'); el.title = res2.msg; toast(res2.msg, 'err'); return; }
-    el.classList.remove('fi--bad');
+    if (!res2.ok) { badInput(el, res2.msg, covWhere(rec2) + ' · Insured ' + (rec2.insureds.indexOf(slot) + 1)); return; }
+    goodInput(el);
     slot[r.key] = res2.v === '' ? null : res2.v;
     deferRenderCoverages();
   }
@@ -1518,7 +1702,65 @@
   var RESULTS_COVERAGE_FIELDS = [
     'Prem. Basis Ins. Amt', 'Highest Amt (Min.)', 'Highest Amt (Max.)', 'Modal Prem', 'Modal Prem Backdated'
   ];
-  var RESULTS_SUMMARY_FIELDS = ['Modal Premium', 'Modal Premium Backdated', 'Backdate Savings Date'];
+  /** The Summary strip. Modal Premium is the sum of every coverage's own Modal
+      Prem. (the Coverages tab's column, core.modalPrem). The other three mirror
+      figures whose formulas are still to come — each coverage's Modal Prem.
+      Backdated. Possible Backdate Date is the Backdate tab's own Final
+      Backdate Date; only Backdate Savings Date is still amber, waiting on that
+      tab's Monthly or Annual Savings Date (whichever Payment Frequency picks,
+      TO_DO C-3). */
+  function summaryFields() {
+    var freq = settings.freq === 'annually' ? 'Annual' : 'Monthly';
+    function money(r) { return group(r.value, 2); }
+    function soon(what) {
+      return '<span class="rs-v cell-pending" title="' + esc(what + ' \u2014 no formula yet') + '">—</span>';
+    }
+    return [
+      { l: 'Modal Premium', v: summaryValue(premiumTotal('modalPrem'), money) },
+      { l: 'Modal Premium Backdated', v: summaryValue(premiumTotal('modalPremBackdated'), money) },
+      { l: 'Possible Backdate Date', v: summaryValue(finalBackdateFor(), function (r) { return fmtDate(r.date); }) },
+      { l: 'Backdate Savings Date', v: soon('the Backdate tab\'s ' + freq + ' Savings Date') }
+    ];
+  }
+
+  function summaryValue(r, fmt) {
+    if (!r) return '<span class="rs-v is-empty" title="Not calculated yet">—</span>';
+    if (r.error) return '<span class="rs-v cell-error" title="' + esc(r.error) + '">Error</span>';
+    if (r.pending) return '<span class="rs-v cell-pending" title="Formula not yet provided">—</span>';
+    if (r.blocked) return '<span class="rs-v is-empty" title="' + esc(r.blocked) + '">—</span>';
+    return '<span class="rs-v">' + esc(fmt(r)) + '</span>';
+  }
+
+  /** Final Backdate Date, computed in optimizer_backdate.js (it owns the
+      per-insured Backdate Date this is the MIN of) and lent back through the
+      bridge. Null until that file has loaded — it comes after this one. */
+  function finalBackdateFor() {
+    var api = window.OptimizerCore;
+    return api && api.finalBackdateDate ? api.finalBackdateDate() : null;
+  }
+
+  /** Modal Premium / Modal Premium Backdated = the sum of every coverage's own
+      Modal Prem. / Modal Prem. Backdated. An Error anywhere makes the total an
+      Error; a coverage whose own figure has no formula yet (Critical Illness)
+      leaves it pending, a missing input leaves it blocked — never a partial
+      total, the same rule the Rates tab's own totals follow. */
+  function premiumTotal(which) {
+    var api = window.OptimizerCore;
+    if (!api || !api[which]) return { blocked: 'Not calculated yet' };
+    if (!coverages.length) return { blocked: 'no coverages yet' };
+    var sum = 0, error = null, pending = false, blocked = null;
+    coverages.forEach(function (c) {
+      var m = api[which](c);
+      if (m.error) error = error || m.error;
+      else if (m.pending) pending = true;
+      else if (m.blocked) blocked = blocked || m.blocked;
+      else sum += m.value;
+    });
+    if (error) return { error: error };
+    if (pending) return { pending: true };
+    if (blocked) return { blocked: blocked };
+    return { value: sum };
+  }
 
   function resultsPanelShell() {
     return '<div class="card card--out">' +
@@ -1549,6 +1791,11 @@
     return api && api.premBasis ? api.premBasis(c) : null;
   }
 
+  function premFor(c, which) {
+    var api = window.OptimizerCore;
+    return api && api[which] ? api[which](c) : null;
+  }
+
   /** One solved Results figure. Blank — not "—" — when the column does not
       apply to this coverage's Calculation Type (Prem. Basis Ins. Amt is for
       Input Premium, the two Highest Amt for Coverage Amount): per the request,
@@ -1556,13 +1803,13 @@
       is no formula, red where the rate lookup failed, muted "—" with the
       reason in its tooltip while an input is missing; the figure's own tooltip
       names the premium it was solved against. */
-  function solvedCell(r, value) {
+  function solvedCell(r, value, dec) {
     if (!r) return '<td class="r"><span class="muted" title="Not calculated yet">—</span></td>';
     if (r.blank) return '<td class="r"></td>';
     if (r.pending) return window.OptimizerCore.pendingCell();
     if (r.error) return '<td class="r cell-error" title="' + esc(r.error) + '">Error</td>';
     if (r.blocked) return '<td class="r"><span class="muted" title="' + esc(r.blocked) + '">—</span></td>';
-    return '<td class="r" title="' + esc(r.tip) + '">' + esc(group(value, 0)) + '</td>';
+    return '<td class="r" title="' + esc(r.tip) + '">' + esc(group(value, dec || 0)) + '</td>';
   }
 
   function resultsCoverageTable() {
@@ -1572,10 +1819,12 @@
     var headCells = RESULTS_COVERAGE_FIELDS.map(function (l) { return '<th class="r">' + esc(l) + '</th>'; }).join('');
     var bodyRows = coverages.map(function (c, idx) {
       var h = highestAmtFor(c), pb = premBasisFor(c);
+      var m = premFor(c, 'modalPrem'), mb = premFor(c, 'modalPremBackdated');
       var cells = RESULTS_COVERAGE_FIELDS.map(function (label) {
         if (label === 'Prem. Basis Ins. Amt') return solvedCell(pb, pb && pb.amount);
         if (label.indexOf('Highest Amt') === 0) return solvedCell(h, h && (label.indexOf('Max') > 0 ? h.max : h.min));
-        return '<td class="r"><span class="muted" title="Not calculated yet">—</span></td>';
+        if (label === 'Modal Prem') return solvedCell(m, m && m.value, 2);
+        return solvedCell(mb, mb && mb.value, 2);          // Modal Prem Backdated
       }).join('');
       return '<tr><td>' + (idx + 1) + '. ' + esc(coverageTitle(c)) + '</td>' + cells + '</tr>';
     }).join('');
@@ -1588,7 +1837,7 @@
   function renderResultsPanel() {
     if (!$('resultsCoverageWrap')) return;   // not built yet — see init() ordering
     $('resultsCoverageWrap').innerHTML = resultsCoverageTable();
-    $('resultsSummaryWrap').innerHTML = resultsBar('Summary', RESULTS_SUMMARY_FIELDS);
+    $('resultsSummaryWrap').innerHTML = resultsBar('Summary', summaryFields());
   }
 
   function initResultsPanel() {
@@ -1597,6 +1846,8 @@
     // Highest Amt needs the rate files; optimizer_rates.js fires this as each
     // one reports in (the same hook the Coverages/Backdate tabs listen on).
     document.addEventListener('ratesstatus', renderResultsPanel);
+    // Unit Value lives in the Coverages tab but feeds Modal Prem. (§ there).
+    document.addEventListener('unitvaluechange', renderResultsPanel);
   }
 
   // ------------------------------------------------------------------ tabs
@@ -1613,7 +1864,6 @@
     { id: 'optInsureds',  label: 'Insureds' },
     { id: 'optRates',     label: 'Rates' },
     { id: 'optBackdate',  label: 'Backdate' },
-    { id: 'optEqAge',     label: 'Eq. Age / Substd Prem.' },
     { id: 'optHistory',   label: 'History' }
   ];
 
@@ -1637,11 +1887,8 @@
   function resultsBar(tag, fields) {
     return '<div class="resultbar">' +
         '<span class="resultbar-tag">' + esc(tag) + '</span>' +
-        fields.map(function (label) {
-          return '<div class="rs">' +
-                   '<span class="rs-k">' + esc(label) + '</span>' +
-                   '<span class="rs-v is-empty" title="Not calculated yet">—</span>' +
-                 '</div>';
+        fields.map(function (f) {
+          return '<div class="rs"><span class="rs-k">' + esc(f.l) + '</span>' + f.v + '</div>';
         }).join('') +
       '</div>';
   }
@@ -1796,6 +2043,42 @@
     renderInsuredList();
   }
 
+  // ------------------------------------------------- input-state diagnostics
+  /* What is wrong with the INPUTS themselves — the cases the field-by-field
+     validators can't catch because they only see one field at a time: the
+     Reference Date moved after a birthdate was accepted (or a loaded test case
+     carries values this page would have refused). Registered with the message
+     bar below; the other tabs' own files register theirs. */
+  function inputIssues() {
+    var out = [];
+    if (!parseDate(settings.refDate)) {
+      out.push({ key: 'd:refdate', msg: 'Settings — Reference Date "' + settings.refDate + '" isn\'t a valid date (' + DATE_FORMATS +
+        '), so no age can be calculated: every rate lookup and the Backdate tab stay blank.' });
+    }
+    insureds.forEach(function (i) {
+      if (!i.birthdate) return;
+      var who = 'Insured Input — ' + (i.name || 'Insured') + ': Birthdate "' + i.birthdate + '" ';
+      if (!parseDate(i.birthdate)) {
+        out.push({ key: 'd:bd:' + i._id, msg: who + 'isn\'t a valid date (' + DATE_FORMATS + ').' });
+        return;
+      }
+      var a = agesAt(i.birthdate, settings.refDate);
+      if (a.real !== null && (a.real < 0 || a.real > 120)) {
+        out.push({ key: 'd:age:' + i._id, msg: who + 'gives an age of ' + a.real + ' at the Reference Date ' + settings.refDate +
+          ' — it must be between 0 and 120. Change the Birthdate or the Reference Date.' });
+      }
+    });
+    coverages.forEach(function (c) {
+      var cap = maxInsuredsFor(c.category, c.covType);
+      if (c.insureds.length > cap) {
+        out.push({ key: 'd:cap:' + c._id, msg: covWhere(c) + ': has ' + c.insureds.length + ' insureds but "' + (COVTYPE_ABBR[c.covType] || 'this Coverage Type') +
+          '" allows at most ' + cap + '. Remove the extra insured(s).' });
+      }
+    });
+    return out;
+  }
+  providers.push(inputIssues);
+
   // ----------------------------------------------------------------- axis key
   /* Preferred/Non-smoker -> N, Regular/Smoker -> S, blank Rate -> '' (never
      defaulted to N). Originally local to
@@ -1815,15 +2098,22 @@
      format depends on isn't available yet (no Coverage Rate chosen, an
      unrecognised covType, …) — the same "blank stays blank" rule as
      everywhere else on this page. */
-  function axisKeyPrefixTermLife(c, ins, slot) {
+  /* Each layout returns { key } or { why } — the reason no key can be built, in
+     words, so the Rates tab's Error cells and the message bar can say WHAT is
+     missing instead of just failing. */
+  function axisKeyTermLife(c, ins, slot) {
     var typeChar = c.covType === 'Individual' ? '_' : (c.covType === 'Joint First-to-Die' ? 'C' : null);
-    var coverageCode = COVERAGE_ABBR[c.coverage];
-    if (typeChar === null || !coverageCode || !slot.rate || !ins.sex || !ins.rate) return null;
+    var coverageCode = COVERAGE_ABBR[c.coverage], who = 'Insured "' + (ins.name || 'Insured') + '"';
+    if (!coverageCode) return { why: 'no Coverage is chosen' };
+    if (typeChar === null) return { why: c.covType ? 'Coverage Type "' + c.covType + '" has no Term Life Axis Key format' : 'no Coverage Type is chosen' };
+    if (!ins.sex) return { why: who + ' has no Sex' };
+    if (!ins.rate) return { why: who + ' has no Rate (Preferred / Regular)' };
+    if (!slot.rate) return { why: 'no Coverage Rate (' + rateOptionsFor('termLife', ins.rate).join(' / ') + ') is chosen for ' + who };
     // Joint First-to-Die has no MCD-rated table — the block stays blank
     // (no rate would be found under "_RMC_") even when Has MCD is TRUE.
     var mcdOn = settings.mcd && c.covType !== 'Joint First-to-Die';
     var mcdBlock = mcdOn ? 'RMC_2509_' : '____2509_';
-    return 'DT' + typeChar + coverageCode + '______' + mcdBlock + ins.sex + insuredRateCode(ins) + slot.rate + '_';
+    return { key: 'DT' + typeChar + coverageCode + '______' + mcdBlock + ins.sex + insuredRateCode(ins) + slot.rate + '_' };
   }
 
   /* VEG100 ('WL to 100') and T100 ('Term to 100') are 6 and 4 characters —
@@ -1831,24 +2121,31 @@
      Coverages/Insureds tabs display — neither fits the stated 5-character
      slot for Permanent Life. Rather than guess at a truncated/padded form
      that was never specified, those two products simply can't produce a key
-     yet (null below); every other Permanent Life product is unaffected. */
-  function axisKeyPrefixPermLife(c, ins) {
-    var coverageCode = COVERAGE_ABBR[c.coverage];
-    if (!coverageCode || coverageCode.length !== 5 || !c.covType) return null;   // blank Coverage Type ≠ Individual
+     yet (a `why` below); every other Permanent Life product is unaffected. */
+  function axisKeyPermLife(c, ins) {
+    var coverageCode = COVERAGE_ABBR[c.coverage], who = 'Insured "' + (ins.name || 'Insured') + '"';
+    if (!coverageCode) return { why: 'no Coverage is chosen' };
+    if (coverageCode.length !== 5) {
+      return { why: '"' + c.coverage + '" (' + coverageCode + ') doesn\'t fit the 5-character Permanent Life Axis Key slot and no format was given for it yet (TO_DO Q-1)' };
+    }
+    if (!c.covType) return { why: 'no Coverage Type is chosen' };   // blank Coverage Type ≠ Individual
     var isJoint = isJointPerm(c);
-    if (!isJoint && (!ins.sex || !ins.rate)) return null;
+    if (!isJoint && !ins.sex) return { why: who + ' has no Sex' };
+    if (!isJoint && !ins.rate) return { why: who + ' has no Rate (Preferred / Regular)' };
     var sexChar = isJoint ? JOINT_SEX : ins.sex;
     var rateChar = isJoint ? JOINT_RATE : insuredRateCode(ins);
-    return 'DT' + '_' + coverageCode + '________2007_' + sexChar + rateChar + '___';
+    return { key: 'DT' + '_' + coverageCode + '________2007_' + sexChar + rateChar + '___' };
   }
 
-  function axisKeyPrefix(c, slot) {
+  function axisKeyResult(c, slot) {
     var ins = findInsured(slot.insuredId);
-    if (!ins) return null;
-    if (c.category === 'termLife') return axisKeyPrefixTermLife(c, ins, slot);
-    if (c.category === 'permLife') return axisKeyPrefixPermLife(c, ins);
-    return null;   // Critical Illness — no Axis Key format given yet
+    if (!ins) return { why: 'no insured is chosen on this slot' };
+    if (c.category === 'termLife') return axisKeyTermLife(c, ins, slot);
+    if (c.category === 'permLife') return axisKeyPermLife(c, ins);
+    return { why: 'no Axis Key format exists for this Coverage Category yet' };   // Critical Illness
   }
+  function axisKeyPrefix(c, slot) { return axisKeyResult(c, slot).key || null; }
+  function axisKeyWhy(c, slot) { return axisKeyResult(c, slot).why || null; }
 
   // ------------------------------------------------------------ public bridge
   /* The one deliberate exception to "everything lives inside one IIFE, no
@@ -1867,7 +2164,13 @@
      comments for why each is safe. */
   var coreChangeListeners = [];
   function notifyOptimizerCoreChange() {
+    // Results is a consumer of this change too, not just the split-off tabs:
+    // its Modal Prem / Highest Amt / Summary read Settings (Payment Frequency,
+    // Prem. Adj. %/$, Multi-Coverage Discount) as much as they read coverages,
+    // and those commit through here without touching renderCoverageList.
+    renderResultsPanel();
     coreChangeListeners.forEach(function (fn) { fn(); });
+    refreshIssues();       // last: the message bar asks the same result functions the tabs just rendered from
   }
 
   /* A split-off tab's own LOCAL state (not part of coverages/insureds/
@@ -1910,6 +2213,16 @@
         produce one yet (§ axis key, above). The Rates tab appends its own
         6-character rate band code to complete the full 32-character key. */
     axisKeyPrefix: axisKeyPrefix,
+    /** Why axisKeyPrefix() is null (a sentence), or null when a key can be built. */
+    axisKeyWhy: axisKeyWhy,
+    /** { v } or { why, err } — the Joint Age calculation itself (§ equivAge), so
+        the Rates tab can say why a joint lookup has no age. */
+    equivAge: equivAge,
+    /** The message bar (§ message bar): keyed event messages, per-tab
+        diagnostics providers, and the rejected-input helpers History and the
+        Coverages tab's Unit Value share with the main commit handlers. */
+    raise: raise, resolve: resolve, badInput: badInput, goodInput: goodInput,
+    diagnostics: function (fn) { providers.push(fn); refreshIssues(); },
     /** One "formula not yet provided" cell — `.cell-pending` (optimizer.css),
         amber/warn rather than the page's usual muted "—" for a plain
         not-yet-calculated figure, since these are explicitly flagged as
@@ -1957,6 +2270,10 @@
                            // sync/render into, not just a no-op guard.
   initInsuredInput();
   showTab(TABS[0].id);
+  initIssueBar();
+  // The rate files reporting in, or a Unit Value edit, change what can be calculated without touching the inputs.
+  document.addEventListener('ratesstatus', refreshIssues);
+  document.addEventListener('unitvaluechange', refreshIssues);
 
   $('toolSelect').addEventListener('click', function () {
     openToolMenu($('toolMenu').hidden);

@@ -15,9 +15,10 @@
  * columns (Joint Sex … Perm Joint Age Backdated) are filled from the
  * coverage's own Joint container in Coverage Input — Permanent Life with a
  * joint Coverage Type only (core.isJointPerm); every other coverage has no
- * joint side, so they read "—". Perm Joint Age Backdated is Joint Age - 1 (the
- * same stand-in the Rates tab's _BD columns use; the Backdate tab is unwired)
- * and is the age the Rates tab's joint _BD lookups match on; the other two
+ * joint side, so they read "—". Perm Joint Age is calculated from the two
+ * insureds (core.jointAge -> equivAge in optimizer.js); Perm Joint Age
+ * Backdated is that calculation re-run with each Backdate-Eligible insured a
+ * year younger, and is the age the Rates tab's joint _BD lookups match on; the other two
  * Backdated columns still have no formula. The Coverages tab lists the same
  * columns from Perm Joint Age on (core.jointFigures feeds both). On a joint
  * coverage the insured's own Coverage Rate and Extra

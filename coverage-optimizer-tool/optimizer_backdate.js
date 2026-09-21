@@ -15,6 +15,10 @@
  * never real "today" — since that's the one date this container's own header
  * anchors Max. Backdate Date to.
  *
+ * The container's own "Final Backdate Date" is the MIN of the Backdate Date
+ * column below it (finalBackdateDate), and the Results Summary's "Possible
+ * Backdate Date" mirrors it through the bridge.
+ *
  * "Backdate Projection": a Show Projection on/off switch (this tab's own
  * local UI state — not part of `coverages`/`insureds`/`settings`, so it
  * lives here rather than being added to the core model for a toggle only
@@ -133,6 +137,50 @@
     };
   }
 
+  /** One insured's backdate decision as VALUES rather than cells, so the row
+      below and the Final Backdate Date above it can never disagree:
+        Rate Current / Rate Backdated (All Cov.) are the sums of the insured's
+        PR_N / PR_BD_N over every coverage they are on (core.allCovRate — the
+        Rates tab owns the lookups). Confirm Backdate = AND(Eligible; Rate
+        Backdated < Rate Current), and Backdate Date is the Midpoint when that
+        is TRUE, otherwise BLANK(). Not eligible is FALSE whatever the rates
+        say (AND(FALSE; anything)); eligible with a rate unavailable leaves the
+        comparison unknown (`unresolved`, carrying that rate's own state).
+      Returns { e, cur, bd, date: Date|null, unresolved: null|{error|blocked} }. */
+  function insuredBackdate(ins, illustration, maxBackdate) {
+    var e = eligibility(core.parseDate(ins.birthdate), illustration, maxBackdate);
+    var cur = core.allCovRate(ins._id, false), bd = core.allCovRate(ins._id, true);
+    var out = { e: e, cur: cur, bd: bd, date: null, unresolved: null };
+    if (!e.eligible) return out;
+    if (cur.value === undefined || bd.value === undefined) {
+      out.unresolved = (cur.error && cur) || (bd.error && bd) || (cur.value === undefined ? cur : bd);
+    } else if (bd.value < cur.value - 1e-9) {   // strict "<", not fooled by float noise (0.1 + 0.2 vs 0.3)
+      out.date = e.mid;
+    }
+    return out;
+  }
+
+  /** Final Backdate Date = MIN of the per-insured Backdate Dates, ignoring the
+      blank ones — an insured who can't be backdated doesn't hold the others
+      back (3 insureds at 13-JUL-2026 / BLANK / 24-MAY-2026 give 24-MAY-2026).
+      No dates at all, or nobody with a birthdate, is itself blank. An insured
+      whose own date couldn't be resolved makes the MIN unknowable — it might
+      have been the earliest — so that state wins over a possibly-wrong date.
+      Lent to the Results Summary (optimizer.js) as core.finalBackdateDate. */
+  function finalBackdateDate() {
+    var illustration = core.parseDate(core.settings.refDate);
+    if (!illustration) return { blocked: 'needs a Reference Date' };
+    var maxBackdate = subtractMonths(illustration, 6), best = null, unresolved = null;
+    core.insureds().forEach(function (ins) {
+      if (!ins.birthdate || !core.parseDate(ins.birthdate)) return;   // nothing to contribute
+      var r = insuredBackdate(ins, illustration, maxBackdate);
+      if (r.unresolved) unresolved = unresolved || r.unresolved;
+      else if (r.date && (!best || r.date.getTime() < best.getTime())) best = r.date;
+    });
+    if (unresolved) return unresolved;
+    return best ? { date: best } : { blocked: 'no insured is backdatable' };
+  }
+
   /** One insured's row. `illustration`/`maxBackdate` are Date objects (or
       null if settings.refDate somehow failed to parse — defensive; Settings
       never actually lets refDate go blank or invalid). A blank Birthdate
@@ -153,34 +201,21 @@
     var ages = core.agesAt(ins.birthdate, core.fmtDate(illustration));
     var ageCalc = ins.ageCalc === 'last' ? ages.real : ages.nearest;
 
-    var e = eligibility(birth, illustration, maxBackdate);
-    var bdays = e.bdays, mid = e.mid, eligible = e.eligible;
+    var r = insuredBackdate(ins, illustration, maxBackdate);
+    var bdays = r.e.bdays, mid = r.e.mid, eligible = r.e.eligible, cur = r.cur, bd = r.bd;
 
     var backdatedAges = core.agesAt(ins.birthdate, core.fmtDate(mid));
     var backdatedAgeCalc = ins.ageCalc === 'last' ? backdatedAges.real : backdatedAges.nearest;
 
-    /* Rate Current / Rate Backdated (All Cov.): the sum of the insured's PR_N /
-       PR_BD_N over every coverage they're on (core.allCovRate — the Rates tab
-       owns the lookups), shown whether or not the row is eligible.
-       Confirm Backdate = AND(Eligible; Rate Backdated < Rate Current). Not
-       eligible: FALSE whatever the rates are (AND(FALSE; anything)). Eligible
-       but a rate is unavailable: the comparison is unknown, so it wears that
-       rate's own state (Error beats "—"). Backdate Date = the Midpoint when
-       Confirm Backdate is TRUE, otherwise BLANK() (a muted "—"). */
-    var cur = core.allCovRate(ins._id, false), bd = core.allCovRate(ins._id, true);
     var confirmCell, backdateDateCell;
-    if (!eligible) {
-      confirmCell = '<td class="r">FALSE</td>';
-      backdateDateCell = dashCell();
-    } else if (cur.value === undefined || bd.value === undefined) {
-      var bad = (cur.error && cur) || (bd.error && bd) || (cur.value === undefined ? cur : bd);
-      confirmCell = backdateDateCell = rateCell(bad);
-    } else if (bd.value < cur.value - 1e-9) {   // strict "<", not fooled by float noise (0.1 + 0.2 vs 0.3)
+    if (r.unresolved) {                         // the comparison can't be made — wear the rate's own state
+      confirmCell = backdateDateCell = rateCell(r.unresolved);
+    } else if (r.date) {
       confirmCell = '<td class="r">TRUE</td>';
-      backdateDateCell = '<td class="r">' + core.esc(core.fmtDate(mid)) + '</td>';
+      backdateDateCell = '<td class="r">' + core.esc(core.fmtDate(r.date)) + '</td>';
     } else {
       confirmCell = '<td class="r">FALSE</td>';
-      backdateDateCell = dashCell();
+      backdateDateCell = dashCell();            // BLANK()
     }
 
     return '<tr>' +
@@ -209,6 +244,13 @@
     $('bdIllustrationDate').textContent = illustration ? core.fmtDate(illustration) : '—';
     $('bdMaxBackdateDate').textContent = maxBackdate ? core.fmtDate(maxBackdate) : '—';
 
+    // MIN of the column below it. `.cell-error` is a bare class, so the red
+    // "a rate wouldn't resolve" state reads the same here as in any table cell.
+    var fin = finalBackdateDate(), el = $('bdFinalBackdateDate');
+    el.className = 'bd-band-fig-v' + (fin.error ? ' cell-error' : '');
+    el.textContent = fin.date ? core.fmtDate(fin.date) : (fin.error ? 'Error' : '—');
+    el.title = fin.date ? 'the earliest Backdate Date below' : (fin.error || fin.blocked);
+
     var list = core.insureds();
     $('bdInsBody').innerHTML = list.length
       ? list.map(function (ins) { return backdateRow(ins, illustration, maxBackdate); }).join('')
@@ -235,9 +277,9 @@
               '<span class="bd-band-fig-k">Max. Backdate Date</span>' +
               '<span class="bd-band-fig-v" id="bdMaxBackdateDate">—</span>' +
             '</div>' +
-            '<div class="bd-band-fig bd-band-fig--warn" title="Formula not yet provided">' +
+            '<div class="bd-band-fig">' +
               '<span class="bd-band-fig-k">Final Backdate Date</span>' +
-              '<span class="bd-band-fig-v">—</span>' +
+              '<span class="bd-band-fig-v" id="bdFinalBackdateDate">—</span>' +
             '</div>' +
           '</div>' +
         '</div>' +
@@ -301,6 +343,8 @@
   function initBackdateTab() {
     // Lent to the Rates tab (BD_Final): this insured's Backdate Eligible —
     // true / false, or null while the birthdate is blank/invalid.
+    core.finalBackdateDate = finalBackdateDate;   // lent to the Results Summary (optimizer.js)
+
     core.backdateEligible = function (ins) {
       var birth = ins.birthdate ? core.parseDate(ins.birthdate) : null, ill = core.parseDate(core.settings.refDate);
       return birth && ill ? eligibility(birth, ill, subtractMonths(ill, 6)).eligible : null;

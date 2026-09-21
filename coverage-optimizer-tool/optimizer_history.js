@@ -44,13 +44,17 @@
     try {
       var raw = localStorage.getItem(STORAGE_KEY);
       var parsed = raw ? JSON.parse(raw) : [];
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) { return []; }   // storage unavailable/corrupt — start empty, tool still runs
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) { /* fall through to the message */ }   // storage unavailable/corrupt — start empty, tool still runs
+    core.raise('h:store', 'History — the test cases saved in this browser couldn\'t be read, so the list starts empty. The .json files in the data/ folder are unaffected (Import Test Case brings one back).');
+    return [];
   }
 
   function persistCatalog() {
-    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog)); }
-    catch (e) { /* storage unavailable (quota, private mode, …) — saved case still downloads as a file */ }
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(catalog)); core.resolve('h:store'); }
+    catch (e) {   // storage unavailable (quota, private mode, …) — the data/ file is then the only copy
+      core.raise('h:store', 'History — this browser wouldn\'t keep the saved test cases (storage full or blocked), so the list will be empty next time you open the tool. The .json file in data/ is your copy.');
+    }
   }
 
   var catalog = loadCatalog();
@@ -94,16 +98,16 @@
 
   /** POSTs the test case to server.py (start-server.bat), which writes it into
       the tool's data/ folder and never overwrites — a taken name comes back
-      with a timestamp suffix. Resolves the file name actually written, or null
-      (page opened from disk, server down, refused) → the caller downloads. */
+      with a timestamp suffix. Resolves { name } — the file name actually written — or
+      { why } (page opened from disk, server down, refused) → the caller downloads. */
   function saveToDataFolder(filename, obj) {
     return fetch('data/' + filename, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 2)
     }).then(function (r) {
-      if (!r.ok) throw new Error('HTTP ' + r.status);
+      if (!r.ok) throw new Error('the server answered HTTP ' + r.status);
       return r.json();
-    }).then(function (j) { return j.name; })
-      .catch(function () { return null; });
+    }).then(function (j) { return { name: j.name }; })
+      .catch(function (e) { return { why: e.message === 'Failed to fetch' ? 'the tool\'s server isn\'t reachable' : e.message }; });
   }
 
   /** Every operator input needed to reproduce a test case: Settings/
@@ -138,11 +142,13 @@
       nameEl.classList.add('fi--bad');
       nameEl.title = 'Enter a Test Case Name before saving';
       toast('Enter a Test Case Name before saving', 'err');
+      core.raise('h:name', 'Save Test — enter a Test Case Name (top right) before saving.');
       nameEl.focus();
       return;
     }
     nameEl.classList.remove('fi--bad');
     nameEl.title = 'Test Case Name';
+    core.resolve('h:name');
 
     var entry = buildEntry(name, $('tcUser').textContent);
     catalog.push(entry);
@@ -151,10 +157,12 @@
     nameEl.value = '';
 
     var fname = safeFileName(name);
-    saveToDataFolder(fname, entry).then(function (written) {
-      if (written) { toast('Saved "' + name + '" to History and data/' + written + '.'); return; }
+    saveToDataFolder(fname, entry).then(function (r) {
+      if (r.name) { toast('Saved "' + name + '" to History and data/' + r.name + '.'); core.resolve('h:save'); return; }
       downloadJSON(fname, entry);
       toast('Saved "' + name + '" to History; downloaded instead — data/ not reachable (start the tool with start-server.bat).', 'err');
+      core.raise('h:save', 'Save Test — "' + name + '" is in History but the file couldn\'t be written to data/ (' + r.why +
+        '); it was downloaded to your Downloads folder instead. Start the tool with start-server.bat to save into data/.');
     });
   }
 
@@ -162,18 +170,25 @@
     var reader = new FileReader();
     reader.onload = function () {
       var data;
-      try { data = JSON.parse(reader.result); } catch (e) { toast('Not a valid test case file', 'err'); return; }
-      if (!data || typeof data !== 'object' || !data.snapshot || !data.name) {
+      var bad = function (why) {
         toast('Not a valid test case file', 'err');
-        return;
-      }
+        core.raise('h:import', 'History — "' + file.name + '" can\'t be imported: ' + why);
+      };
+      try { data = JSON.parse(reader.result); } catch (e) { bad('it isn\'t valid JSON (' + e.message + ').'); return; }
+      var snap = data && data.snapshot;
+      if (!data || typeof data !== 'object' || !data.name) { bad('it has no test case "name" — is it a file saved by this tool?'); return; }
+      if (!snap || !Array.isArray(snap.insureds) || !Array.isArray(snap.coverages)) { bad('its "snapshot" has no insureds / coverages lists.'); return; }
       data.id = newId();   // never trust an id from outside this browser — could collide
       catalog.push(data);
       persistCatalog();
       renderHistoryTab();
+      core.resolve('h:import');
       toast('Imported "' + data.name + '" into History.');
     };
-    reader.onerror = function () { toast('Could not read that file', 'err'); };
+    reader.onerror = function () {
+      toast('Could not read that file', 'err');
+      core.raise('h:import', 'History — "' + file.name + '" couldn\'t be read from disk.');
+    };
     reader.readAsText(file);
   }
 
@@ -187,8 +202,18 @@
     // optimizer_coverages.js) reconciles against the NEW coverage _ids —
     // reversing this order would make it see the OLD coverages still in
     // place and discard the just-restored Unit Values as "stale".
-    core.restoreState(entry.snapshot);
-    core.setSnapshot('unitValues', entry.snapshot.unitValues);
+    var backup = buildSnapshot();
+    try {
+      core.restoreState(entry.snapshot);
+      core.setSnapshot('unitValues', entry.snapshot.unitValues);
+    } catch (e) {          // a hand-edited / damaged file: put back what was on screen
+      core.restoreState(backup);
+      core.setSnapshot('unitValues', backup.unitValues);
+      toast('Could not load "' + entry.name + '"', 'err');
+      core.raise('h:load', 'History — "' + entry.name + '" couldn\'t be loaded (' + e.message + '); what was on screen has been put back. The saved file is probably damaged or hand-edited.');
+      return;
+    }
+    core.resolve('h:load');
 
     var tabBtn = document.querySelector('.tab[data-pane="optInput"]');
     if (tabBtn) tabBtn.click();
@@ -296,7 +321,7 @@
       if (e.key === 'Enter') { e.preventDefault(); doSaveTest(); }
     });
     $('tcName').addEventListener('input', function () {
-      if ($('tcName').value.trim()) $('tcName').classList.remove('fi--bad');
+      if ($('tcName').value.trim()) { $('tcName').classList.remove('fi--bad'); core.resolve('h:name'); }
     });
   }
 

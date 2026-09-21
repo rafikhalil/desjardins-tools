@@ -53,12 +53,13 @@
  *     Age Nearest/Last (Calculated) at Duration 1; Permanent Life Individual
  *     the same age. Permanent Life Joint First-to-Die / Joint Last-to-Die /
  *     JLTDPU: the same lookup on the joint Axis Key (Joint Sex/Joint Rate)
- *     with the Joint Age from the coverage's Joint container (lookupAge).
- *     PR_BD_i is the identical lookup at (age - 1) — Joint Age Backdated on a
- *     joint coverage, which is Joint Age - 1; this is NOT a real backdated age
- *     from the Backdate tab (§9 invariant #39 still applies — the two tabs
- *     stay unwired). A lookup that runs but can't resolve a number (no Axis
- *     Key yet, no rate file loaded, no matching row, no birthdate/Joint Age)
+ *     with the Joint Age of the coverage's Joint container (lookupAge) — the
+ *     equivalent single age of the two insureds, calculated in optimizer.js
+ *     (equivAge), not typed. PR_BD_i is the identical lookup at (age - 1); on
+ *     a joint coverage it is Joint Age Backdated — equivAge re-run with each
+ *     Backdate-Eligible insured a year younger. Neither is the Backdate tab's
+ *     real backdated age (TO_DO C-2). A lookup that runs but can't resolve a number (no Axis
+ *     Key yet, no rate file loaded, no matching row, no birthdate, no Joint Age)
  *     renders core's the new .cell-error "Error" cell, not a silent blank —
  *     the old formula's IFERROR(...;"") reinterpreted as a visible failure
  *     rather than a blank one.
@@ -196,6 +197,18 @@
      legitimately need to run, just not at once (they'd fight over the one
      progress bar). Each job runs to completion, including its own
      renderRatesTab()/renderStatus() calls, before the next one starts. */
+  /* A rate-file problem for the top-bar message list (core.raise): one message per
+     file (`kind`), replaced by the next attempt and cleared when that file
+     loads cleanly. A manual import of an unrecognisable file has no kind. */
+  function loadIssue(kind, msg) { core.raise('f:' + (kind || 'import'), 'Rates — ' + msg); }
+  function loadFixed(kind) { core.resolve('f:' + kind); core.resolve('f:import'); }
+
+  /** Rate cells that held text or an error (#N/A…) instead of a number: skipped, so
+      their lookups are "no row" Errors — this says the file itself is the cause. */
+  function skippedIssue(kind, fileName, n) {
+    if (n) loadIssue(kind, '"' + fileName + '" loaded, but ' + n + ' rate cell(s) held text or an error instead of a number and were skipped — lookups that land on them will be an Error. Check the source workbook.');
+  }
+
   var importQueue = [];
   var importing = false;
   var current = null;   // the job running now — afterImport() needs its `kind`
@@ -227,6 +240,7 @@
       try { wb = XLSX.read(job.bytes, { type: 'array' }); }
       catch (e) {
         toast('Could not read "' + job.fileName + '" as an Excel file (' + e.message + ').', 'err');
+        loadIssue(job.kind, 'could not read "' + job.fileName + '" as an Excel (.xlsx) file: ' + e.message + '. Re-export it or pick another file.');
         afterImport();
         return;
       }
@@ -239,6 +253,8 @@
       else {
         toast('"' + job.fileName + '" doesn\'t look like a Term Life or Permanent Life rate workbook ' +
           '(expected a sheet name starting with "temp_rates_" or "perm_rates_").', 'err');
+        loadIssue(job.kind, '"' + job.fileName + '" isn\'t a Term Life or Permanent Life rate workbook — none of its sheets starts with "temp_rates_" or "perm_rates_" (its sheets: ' +
+          wb.SheetNames.slice(0, 6).join(', ') + (wb.SheetNames.length > 6 ? ', …' : '') + ').');
         afterImport();
       }
     }, 0);
@@ -263,7 +279,7 @@
       correctly than fast, and staying sequential keeps memory/CPU bounded
       to one sheet at a time); `done` fires after the last one, success or not. */
   function ingestTermLifeWorkbook(wb, bytes, fileName, done) {
-    var tables = {}, counts = {}, missing = [];
+    var tables = {}, counts = {}, missing = [], skipped = 0;
     var sheetIdx = 0;
 
     function nextSheet() {
@@ -293,6 +309,7 @@
         for (var c = 6; c <= 105; c++) {                            // ColG..ColDB = age 0..99
           var v = row[c];
           if (v === null || v === undefined || v === '') continue;
+          if (!isFinite(Number(v))) { skipped++; continue; }           // text / #N/A — a hole, not a NaN rate
           ages[c - 6] = Number(v);
         }
         if (!(axisKey in table)) table[axisKey] = {};
@@ -319,8 +336,15 @@
       var total = TERM_LIFE_DURATIONS.reduce(function (s, suf) { return s + (counts[suf] || 0); }, 0);
       if (missing.length) {
         toast('Loaded "' + fileName + '", but couldn\'t find sheet(s): ' + missing.join(', ') + '.', 'err');
+        loadIssue('termLife', '"' + fileName + '" is missing sheet(s) ' + missing.join(', ') + ' — Term Life rates stay "Not loaded" until the file has all ' + TERM_LIFE_DURATIONS.length + ' sheets.');
+      } else if (!total) {
+        setRateState('termLife', 'notloaded');
+        toast('"' + fileName + '" has no usable rate rows.', 'err');
+        loadIssue('termLife', '"' + fileName + '" has the right sheets but no usable rate rows — expected the Axis Key in column D, the Duration (1-100) in column E and the rates from column G.');
       } else {
         toast('Loaded "' + fileName + '" — ' + total + ' rate row(s) across ' + TERM_LIFE_DURATIONS.length + ' sheets.');
+        loadFixed('termLife');
+        skippedIssue('termLife', fileName, skipped);
       }
       done();
     }
@@ -343,13 +367,14 @@
       setRateState('permLife', 'notloaded');
       renderStatus();
       toast('Loaded "' + fileName + '", but couldn\'t find sheet "' + PERM_LIFE_SHEET + '".', 'err');
+      loadIssue('permLife', '"' + fileName + '" has no sheet named "' + PERM_LIFE_SHEET + '" — Permanent Life rates stay "Not loaded".');
       done();
       return;
     }
 
     showProgress('Reading "' + fileName + '"…', 0);
     var rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null });
-    var table = {}, n = 0;
+    var table = {}, n = 0, skipped = 0;
 
     processRowsChunked(rows, function (row) {
       if (!row || row[3] === null || row[3] === '') return;         // ColD, Axis Key
@@ -359,6 +384,7 @@
       if (v === null || v === undefined || v === '') return;
       var axisKey = String(row[3]).trim(), age = rowNum - 1;
       if (!(axisKey in table)) table[axisKey] = {};
+      if (!isFinite(Number(v))) { skipped++; return; }               // text / #N/A — a hole, not a NaN rate
       table[axisKey][age] = Number(v);
       n++;
     }, function (doneCount, total) {
@@ -366,10 +392,17 @@
     }, function () {
       permLifeTable = table;
       permLifeMeta = { fileName: fileName, count: n, missingSheet: false };
-      setRateState('permLife', 'loaded');
+      setRateState('permLife', n ? 'loaded' : 'notloaded');
       renderRatesTab();
       renderStatus();
-      toast('Loaded "' + fileName + '" — ' + n + ' rate row(s).');
+      if (n) {
+        toast('Loaded "' + fileName + '" — ' + n + ' rate row(s).');
+        loadFixed('permLife');
+        skippedIssue('permLife', fileName, skipped);
+      } else {
+        toast('"' + fileName + '" has no usable rate rows.', 'err');
+        loadIssue('permLife', '"' + fileName + '" has the right sheet but no usable rate rows — expected the Axis Key in column D, Age + 1 (1-100) in column E and the rate in column G.');
+      }
       done();
     });
   }
@@ -402,7 +435,7 @@
   function handleFilePicked(file) {
     var reader = new FileReader();
     reader.onload = function () { detectAndIngest(new Uint8Array(reader.result), file.name); };
-    reader.onerror = function () { toast('Could not read that file.', 'err'); };
+    reader.onerror = function () { toast('Could not read that file.', 'err'); loadIssue(null, 'could not read "' + file.name + '" from disk.'); };
     reader.readAsArrayBuffer(file);
   }
 
@@ -425,8 +458,11 @@
         detectAndIngest(new Uint8Array(buf), name, kind);
       }).catch(function (err) {
         setRateState(kind, 'notloaded');
+        $('plLabel').textContent = 'Could not load "' + path + '" (' + err.message + ') — check the file is in ' + RATES_FOLDER + '/, then Retry.';
         toast('Could not load "' + path + '" (' + err.message + ') — check the file is in ' + RATES_FOLDER +
           '/ and the tool was started with start-server.bat.', 'err');
+        loadIssue(kind, 'could not load "' + path + '" (' + err.message + '). Check the file is in the ' + RATES_FOLDER +
+          '/ folder next to the tool and that the tool was started with start-server.bat (a page opened straight from disk can\'t read it).');
       });
     });
   }
@@ -532,8 +568,28 @@
       key yet (insured/rate not fully chosen), no rate file loaded, or no
       matching row in the workbook. Distinct from core.pendingCell(), which
       means "no formula coded here yet"; this one means the formula ran. */
-  function errorCell(extraClass) {
-    return '<td class="r cell-error' + (extraClass ? ' ' + extraClass : '') + '" title="Could not resolve a rate for this cell">Error</td>';
+  function errorCell(extraClass, why) {
+    return '<td class="r cell-error' + (extraClass ? ' ' + extraClass : '') + '" title="' + core.esc(why || 'Could not resolve a rate for this cell') + '">Error</td>';
+  }
+
+  /** A failed lookup, with the reason in words ({ error, why }): it goes to the
+      cell's tooltip and, through ratesIssues() below, to the top-bar message. */
+  function fail(why) { return { error: true, why: why }; }
+
+  /** Why lookupAge() came back null. */
+  function ageWhy(c, ins, ageOffset) {
+    if (core.isJointPerm(c)) return 'the Joint Age can\'t be calculated: ' + core.equivAge(c, ageOffset < 0).why;
+    if (!ins) return 'no insured is chosen on this slot';
+    return 'Insured "' + (ins.name || 'Insured') + '" has no valid Birthdate (or the Reference Date is invalid), so there is no age to look up';
+  }
+
+  /** Why a lookup found no row: the file isn't (fully) loaded, or it has no row
+      for this Axis Key at this age. */
+  function missingRow(c, axisKey, age) {
+    var term = c.category === 'termLife', file = term ? 'Term Life' : 'Permanent Life';
+    var loaded = term ? termLifeMeta && !termLifeMeta.missingSheets.length : permLifeMeta && !permLifeMeta.missingSheet;
+    return loaded ? 'the ' + file + ' rate file has no row for Axis Key ' + axisKey + ' at age ' + age
+                  : 'the ' + file + ' rate file isn\'t loaded (Rates tab → Load from ' + RATES_FOLDER + '/)';
   }
 
   /** Age Real or Age Nearest, whichever the insured's own Age Calculation
@@ -548,7 +604,7 @@
       the Joint container's Joint Age — Joint Age Backdated when `ageOffset`
       is -1 — the same values the Insureds tab shows (core.jointAge). Every
       other coverage: the insured's own Age Nearest/Last, plus `ageOffset`.
-      null → the caller reports Error (blank birthdate/Joint Age, no insured). */
+      null → the caller reports Error (blank birthdate/Sex/Rate, Joint Age not calculable, no insured). */
   function lookupAge(c, ins, ageOffset) {
     if (core.isJointPerm(c)) return core.jointAge(c, ageOffset);
     if (!ins) return null;
@@ -572,19 +628,19 @@
       never a guessed number. */
   function baseRateResult(c, ins, slot, band, ageOffset) {
     var age = lookupAge(c, ins, ageOffset);
-    if (age === null) return { error: true };
+    if (age === null) return fail(ageWhy(c, ins, ageOffset));
     var prefix = core.axisKeyPrefix(c, slot);
-    if (!prefix) return { error: true };
+    if (!prefix) return fail('no Axis Key can be built: ' + core.axisKeyWhy(c, slot));
     var axisKey = prefix + band.code;
     var rate;
     if (c.category === 'termLife') {
       var suffix = TERM_LIFE_COVERAGE_SUFFIX[c.coverage];
-      if (!suffix) return { error: true };
+      if (!suffix) return fail('"' + c.coverage + '" has no Term Life rate sheet');
       rate = lookupTermLifeRate(suffix, axisKey, age, 1);
     } else {
       rate = lookupPermLifeRate(axisKey, age);
     }
-    if (rate === null) return { error: true };
+    if (rate === null) return fail(missingRow(c, axisKey, age));
     return { value: rate };
   }
 
@@ -607,11 +663,12 @@
   function extraRateResult(c, ins, slot, band, ageOffset) {
     if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset);
     var age = lookupAge(c, ins, ageOffset);
-    if (age === null) return { error: true };
+    if (age === null) return fail(ageWhy(c, ins, ageOffset));
     var prefix = core.axisKeyPrefix(c, slot);
-    if (!prefix) return { error: true };
-    var rate = lookupPermLifeRate('DTS' + (prefix + band.code).slice(3), age);
-    if (rate === null) return { error: true };
+    if (!prefix) return fail('no Axis Key can be built: ' + core.axisKeyWhy(c, slot));
+    var subKey = 'DTS' + (prefix + band.code).slice(3);      // the Substandard row of the same key
+    var rate = lookupPermLifeRate(subKey, age);
+    if (rate === null) return fail(missingRow(c, subKey, age).replace('has no row', 'has no Substandard row'));
     return { value: rate };
   }
 
@@ -624,7 +681,10 @@
     var epr = extraRateResult(c, ins, slot, band, ageOffset);
     if (epr.pending || epr.error) return epr;
     var pct = core.isJointPerm(c) ? c.joint.extraPct : slot.extraPct;
-    if (pct === null || pct === undefined) return { error: true };
+    if (pct === null || pct === undefined) {
+      return fail(core.isJointPerm(c) ? 'Equiv. Substd. % is blank in the Joint container (type 0 if there is none)'
+                                      : 'Perm Extra Prem. % is blank on this insured slot');
+    }
     return { value: epr.value * pct / 100 };
   }
 
@@ -649,7 +709,9 @@
     var n = cellResult(c, ins, slot, band, j);
     if (n.error || n.pending) return n;
     var eligible = ins && core.backdateEligible ? core.backdateEligible(ins) : null;   // true / false / null (unknown)
-    if (eligible === null) return { error: true };
+    if (eligible === null) {
+      return fail(ins ? 'BD_Final needs Backdate Eligible, and Insured "' + (ins.name || 'Insured') + '" has no valid Birthdate' : 'no insured is chosen on this slot');
+    }
     if (!eligible) return n;
     var bd = cellResult(c, ins, slot, band, j + 3);
     if (bd.error || bd.pending) return bd;
@@ -727,7 +789,7 @@
         var label = (ci + 1) + '. ' + core.coverageTitle(c), b = bandFor(c);
         if (!b.band) { blocked = blocked || label + ' — ' + b.why; return; }
         var res = cellResult(c, core.findInsured(insuredId), s, b.band, backdated ? 3 : 0);
-        if (res.error) error = error || label + ' — no rate found at ' + b.band.code;
+        if (res.error) error = error || label + ' — no rate found at ' + b.band.code + ': ' + res.why;
         else if (res.pending) blocked = blocked || label + ' — rate pending';
         else { sum += res.value; parts.push(label + ' · ' + b.band.code + ' · ' + core.group(res.value, 2)); }
       });
@@ -741,23 +803,39 @@
       shows on that band's row. { band, pr, pep }, or { blocked } / { error }
       with the reason — never a partial answer. bandTotals() is the coverage's
       own band (Modal Prem.); bandTotalsAll() below is every band. */
-  function bandTotalsFor(c, slots, band) {
-    var out = { band: band }, names = ['pr', 'pep'], cols = [0, 2];
-    for (var i = 0; i < 2; i++) {
-      var t = totalResult(c, slots, band, cols[i]);
+  // Which pair of columns a caller wants off a band: the plain per-insured
+  // totals (Modal Prem.), or the same two run through finalResult — the
+  // BD_Final block (Modal Prem. Backdated). `[key, cellResult column, final?,
+  // name for the message]`.
+  var PLAIN_COLS = [['pr', 0, false, 'PR_Total'], ['pep', 2, false, 'PEP_Total']];
+  var FINAL_COLS = [['pr', 0, true, 'PR_BD_Final'], ['pep', 2, true, 'PEP_BD_Final']];
+
+  function bandTotalsFor(c, slots, band, cols) {
+    var out = { band: band };
+    for (var i = 0; i < cols.length; i++) {
+      var t = totalResult(c, slots, band, cols[i][1], cols[i][2]);
       if (!t) return { blocked: 'no insured chosen on this coverage' };
-      if (t.error) return { error: 'no rate found at ' + band.code + ' (' + names[i].toUpperCase() + '_Total)' };
-      if (t.pending) return { blocked: names[i].toUpperCase() + '_Total is pending' };
-      out[names[i]] = t.value;
+      if (t.error) return { error: 'no rate found at ' + band.code + ' (' + cols[i][3] + '): ' + t.why };
+      if (t.pending) return { blocked: cols[i][3] + ' is pending' };
+      out[cols[i][0]] = t.value;
     }
     return out;
   }
 
-  function bandTotals(c) {
+  function bandTotalsOn(c, cols) {
     var b = bandFor(c);
     if (!b.band) return { blocked: b.why };
-    return bandTotalsFor(c, c.insureds.filter(function (s) { return s.insuredId; }), b.band);
+    return bandTotalsFor(c, c.insureds.filter(function (s) { return s.insuredId; }), b.band, cols);
   }
+
+  function bandTotals(c) { return bandTotalsOn(c, PLAIN_COLS); }
+
+  /** The same two figures on the same band, from the BD_Final block instead —
+      what Modal Prem. Backdated is built from. Kept a separate call rather
+      than extra fields on bandTotals() so that a BD_Final the Backdate tab
+      cannot decide (an insured with no birthdate, § finalResult) never takes
+      Modal Prem. itself down with it. */
+  function bandFinalTotals(c) { return bandTotalsOn(c, FINAL_COLS); }
 
   /** Results' Highest Amt (§ optimizer_coverages.js): the same two figures for
       EVERY band of the coverage's Category, in BAND_TABLES order — the whole
@@ -770,11 +848,57 @@
     var slots = c.insureds.filter(function (s) { return s.insuredId; }), list = [], stop = null;
     bands.forEach(function (b) {
       if (stop) return;
-      var t = bandTotalsFor(c, slots, b);
+      var t = bandTotalsFor(c, slots, b, PLAIN_COLS);
       if (t.error || t.blocked) { stop = t; return; }
       list.push(t);
     });
     return stop || { list: list };
+  }
+
+  /** The top-bar messages for this tab (core.diagnostics): every lookup that
+      would show a red Error here, with its reason — by calling the very same
+      cellResult() / finalResult() the tables do, so message and cell can't
+      disagree. Grouped so one cause is one message: a reason that doesn't depend
+      on the band (no Sex, no Birthdate, file not loaded, …) collapses to a single
+      line, and a "no row" reason says which bands it hit. A joint Permanent Life
+      coverage reports once (its two insureds share one Joint Age and Axis Key).
+      A rate file that isn't loaded is one message per file, not one per coverage. */
+  function ratesIssues() {
+    var out = [], notLoaded = {};
+    core.coverages().forEach(function (c, ci) {
+      var bands = BAND_TABLES[c.category];
+      var slots = c.insureds.filter(function (s) { return s.insuredId; });
+      if (!bands || !slots.length) return;
+      var joint = core.isJointPerm(c);
+      var where = 'Rates — Coverage ' + (ci + 1) + ' (' + core.coverageTitle(c) + ')';
+      slots.forEach(function (s, si) {
+        var ins = core.findInsured(s.insuredId), seen = {}, order = [];
+        var who = joint ? ' · Joint' : ' · Insured ' + (si + 1) + (ins ? ' (' + ins.name + ')' : '');
+        function note(res, band) {
+          if (!res.error) return;
+          var k = res.why.split(band.code).join('‹band›').replace(/ at age \d+/, '');   // one reason, whatever the band or age
+          if (!seen[k]) { seen[k] = { why: res.why, bands: [] }; order.push(k); }
+          if (seen[k].bands.indexOf(band.code) < 0) seen[k].bands.push(band.code);
+        }
+        bands.forEach(function (b) {
+          [0, 1, 2, 3, 4, 5].forEach(function (j) { note(cellResult(c, ins, s, b, j), b); });
+          [0, 1, 2].forEach(function (j) { note(finalResult(c, ins, s, b, j), b); });
+        });
+        order.forEach(function (k) {
+          var e = seen[k], m = /the (Term Life|Permanent Life) rate file isn't loaded/.exec(e.why);
+          if (m) {                                                            // the file, not this coverage
+            if (notLoaded[m[1]]) return;
+            notLoaded[m[1]] = 1;
+            out.push({ key: 'd:load:' + m[1], msg: 'Rates — the ' + m[1] + ' rate file isn\'t loaded, so every ' + m[1] +
+              ' rate is an Error. Load it from the Rates tab (Load from ' + RATES_FOLDER + '/, or Import Rates File).' });
+            return;
+          }
+          out.push({ key: 'd:rate:' + c._id + ':' + (joint ? 'J' : s._id) + ':' + k,
+            msg: where + who + ': ' + e.why + (e.bands.length < bands.length ? ' [' + e.bands.join(', ') + ']' : '') + '.' });
+        });
+      });
+    });
+    return out;
   }
 
   /** LEFT table: Rate Band Code + one 6-column group per insured actually
@@ -808,7 +932,7 @@
           var extraClass = (j === 0 && i > 0) ? 'col-soft-sep' : (j >= 3 ? 'rate-bd' : null);
           var res = cellResult(c, ins, s, b, j);
           if (res.pending) return core.pendingCell(extraClass);
-          if (res.error) return errorCell(extraClass);
+          if (res.error) return errorCell(extraClass, res.why);
           return '<td class="r' + (extraClass ? ' ' + extraClass : '') + '">' + core.esc(core.group(res.value, 2)) + '</td>';
         }).join('');
       }).join('');
@@ -848,7 +972,7 @@
           var extra = [(j === 0 && gi > 0) ? 'col-hard-sep' : '', g.bd ? 'rate-bd' : ''].join(' ').trim();
           var res = totalResult(c, slots, b, g.first + j, g.final);
           if (!res || res.pending) return dashCell(extra);
-          if (res.error) return errorCell(extra);
+          if (res.error) return errorCell(extra, res.why);
           return '<td class="r' + (extra ? ' ' + extra : '') + '">' + core.esc(core.group(res.value, 2)) + '</td>';
         }).join('');
       }).join('') + '</tr>';
@@ -919,8 +1043,10 @@
     renderRatesTab();
     core.allCovRate = allCovRate;   // lent out from here: the Backdate tab's rate sums …
     core.bandTotals = bandTotals;   // … the Coverages tab's PR_Total / PEP_Total at the coverage's band …
+    core.bandFinalTotals = bandFinalTotals;   // … the same two from BD_Final, for Modal Prem. Backdated …
     core.bandAt = bandAt;           // … and, for Results' Highest Amt, the band an amount falls in
     core.bandTotalsAll = bandTotalsAll;
+    core.diagnostics(ratesIssues);   // the top-bar messages: why a cell here is an Error
     loadFromRatesFolder();     // every launch — the pre-load page (optimizer_preload.js) waits on both files
     $('plRetry').addEventListener('click', loadFromRatesFolder);
 

@@ -18,9 +18,9 @@
  * reads the Rates tab through core.bandTotals), and this file also owns
  * Results' Prem. Basis Ins. Amt and Highest Amt (Max./Min.) — that same
  * formula run backwards (premBasis / highestAmt, lent to optimizer.js through
- * the bridge). Three columns (Modal Prem.
- * Backdated, the two Perm Joint … Backdated ones — plus Extra Prem. Term $ and
- * Modal Prem. for Critical Illness, whose rule isn't specified) have no
+ * the bridge). Two columns (the two Perm Joint … Backdated
+ * ones — plus Extra Prem. Term $ and both Modal Prem. columns for Critical
+ * Illness, whose rules aren't specified) have no
  * formula yet — highlighted amber/"warn" (the closest existing semantic token to
  * "pending", not a new colour) rather than the page's usual muted "—" for a
  * merely-not-yet-calculated figure, since these are explicitly flagged as
@@ -160,13 +160,13 @@
       it. { ctx } or { blocked } with the reason. */
   function premContext(c) {
     var modal_factor = modalFactor();
-    if (modal_factor === null) return { blocked: 'needs a Payment Frequency' };
+    if (modal_factor === null) return { blocked: 'needs a Payment Frequency (Settings)' };
     var joint = core.isJointPerm(c);
     var term_extra_prem = joint ? c.joint.extraFlat : extraTermTotal(c);
     if (term_extra_prem === null || term_extra_prem === undefined) {
       return { blocked: joint ? 'Flat Extra Prem. $ Perm is blank (Joint container)' : 'Extra Prem. Term $ isn\'t available yet' };
     }
-    if (c.fee === null || c.fee === undefined) return { blocked: 'needs a Coverage Fee' };
+    if (c.fee === null || c.fee === undefined) return { blocked: 'needs a Coverage Fee (Coverage Input)' };
     var s = core.settings;
     return { ctx: {
       modal_factor: modal_factor, term_extra_prem: term_extra_prem, coverage_fee: c.fee,
@@ -185,33 +185,82 @@
     var cost_of_insurance = xRound(xRound(xTrunc(pr, 6) * units, 2) * x.prem_adj_percentage + x.prem_adj_dollar, 2);
     var pep_value = xRound(xRound(pep * units, 2) * x.prem_adj_percentage, 2);
     var tep_value = xRound(x.term_extra_prem * units, 2);
+    // The outer xRound is NOT in the Excel formula and changes no value: both
+    // halves are already 2-decimal figures, so their decimal sum is one too. It
+    // is here because the sum of two doubles lands a hair off the double the
+    // same decimal parses to — 163.99 + 1.80 is 165.79000000000002, which is
+    // `> 165.79`. Prem. Basis Ins. Amt compares a computed premium against the
+    // premium the operator typed, so without this every amount that costs
+    // exactly the premium was rejected as too expensive (a 165.79 premium
+    // returned 152,660, the answer for 165.78, instead of 152,669).
     return {
       coi: cost_of_insurance, pep: pep_value, tep: tep_value,
-      modal: xRound((cost_of_insurance + pep_value + tep_value) * x.modal_factor, 2) +
-             xRound(x.coverage_fee * x.modal_factor, 2)
+      modal: xRound(xRound((cost_of_insurance + pep_value + tep_value) * x.modal_factor, 2) +
+                    xRound(x.coverage_fee * x.modal_factor, 2), 2)
     };
   }
 
-  function modalPremCell(c) {
-    var dash = function (why) { return '<td class="r"><span class="muted" title="' + core.esc(why) + '">—</span></td>'; };
+  /** Modal Prem. as a VALUE — { value, tip } / { blocked } / { error } /
+      { pending } — so this tab's own column and the Results table's mirror of
+      it (optimizer.js, through core.modalPrem) can never disagree. */
+  function modalPrem(c) {
     if (c.calcType === 'premium') {
-      return c.amount === null || c.amount === undefined ? dash('needs the Input premium')
-        : '<td class="r">' + core.group(c.amount, 2) + '</td>';
+      return (c.amount === null || c.amount === undefined)
+        ? { blocked: 'needs the Input premium' }
+        : { value: c.amount, tip: 'the premium entered' };
     }
     if (c.category !== 'termLife' && c.category !== 'permLife') {
-      return c.category ? core.pendingCell() : dash('choose a Coverage Category');
+      return c.category ? { pending: true } : { blocked: 'choose a Coverage Category' };
     }
-    if (c.amount === null || c.amount === undefined) return dash('needs a Coverage Amount');
-    var t = core.bandTotals(c);                                   // band_match, pr_match, pep_match
-    if (t.error) return '<td class="r cell-error" title="' + core.esc(t.error) + '">Error</td>';
-    if (t.blocked) return dash(t.blocked);
+    if (c.amount === null || c.amount === undefined) return { blocked: 'needs a Coverage Amount' };
+    var t = core.bandTotals(c);                            // band_match, pr_match, pep_match
+    if (t.error || t.blocked) return t;
     var x = premContext(c);
-    if (x.blocked) return dash(x.blocked);
+    if (x.blocked) return x;
     var p = modalPremAt(x.ctx, t.pr, t.pep, c.amount);
-    return '<td class="r" title="' + core.esc('band ' + t.band.code + ' · PR_Total ' + t.pr + ' · PEP_Total ' + t.pep +
+    return { value: p.modal, tip: 'band ' + t.band.code + ' · PR_Total ' + t.pr + ' · PEP_Total ' + t.pep +
       ' · cost_of_insurance ' + p.coi + ' · pep_value ' + p.pep + ' · tep_value ' + p.tep +
-      ' · modal_factor ' + x.ctx.modal_factor + ' · coverage_fee ' + x.ctx.coverage_fee) + '">' +
-      core.group(p.modal, 2) + '</td>';
+      ' · modal_factor ' + x.ctx.modal_factor + ' · coverage_fee ' + x.ctx.coverage_fee };
+  }
+
+  /** Modal Prem. Backdated — the same LET() as Modal Prem., on the SAME rate
+      band, but built from PR_BD_Final / PEP_BD_Final instead of PR_Total /
+      PEP_Total (core.bandFinalTotals, which matches the band through the same
+      bandFor): the Coverage Amount's own band, NOT the Highest Amt optimum's;
+      or, on Calculation Type "Input Premium", the band of Prem. Basis Ins. Amt.
+      `insurance_amount` follows the same rule — the Coverage Amount, or that
+      same Prem. Basis Ins. Amt. Unlike Modal Prem., an Input Premium coverage's
+      backdated figure is calculated rather than the premium typed in: that is
+      the whole point of comparing them. */
+  function modalPremBackdated(c) {
+    if (c.category !== 'termLife' && c.category !== 'permLife') {
+      return c.category ? { pending: true } : { blocked: 'choose a Coverage Category' };
+    }
+    var insurance_amount = c.amount;
+    if (c.calcType === 'premium') {
+      var pb = premBasis(c);                               // the amount that premium buys
+      if (!pb.amount) return pb;
+      insurance_amount = pb.amount;
+    }
+    if (insurance_amount === null || insurance_amount === undefined) {
+      return { blocked: 'needs a Coverage Amount' };
+    }
+    var t = core.bandFinalTotals(c);
+    if (t.error || t.blocked) return t;
+    var x = premContext(c);
+    if (x.blocked) return x;
+    var p = modalPremAt(x.ctx, t.pr, t.pep, insurance_amount);
+    return { value: p.modal, tip: 'band ' + t.band.code + ' · on ' + core.group(insurance_amount, 0) +
+      ' · PR_BD_Final ' + t.pr + ' · PEP_BD_Final ' + t.pep +
+      ' · cost_of_insurance ' + p.coi + ' · pep_value ' + p.pep + ' · tep_value ' + p.tep };
+  }
+
+  /** One premium result — Modal Prem. or Modal Prem. Backdated — as a cell. */
+  function premCell(m) {
+    if (m.pending) return core.pendingCell();
+    if (m.error) return '<td class="r cell-error" title="' + core.esc(m.error) + '">Error</td>';
+    if (m.blocked) return '<td class="r"><span class="muted" title="' + core.esc(m.blocked) + '">—</span></td>';
+    return '<td class="r" title="' + core.esc(m.tip) + '">' + core.group(m.value, 2) + '</td>';
   }
 
   /* Results' Prem. Basis Ins. Amt and Highest Amt (Max.)/(Min.) — computed
@@ -318,9 +367,14 @@
     var target = modalPremAt(inp.ctx, own.pr, own.pep, c.amount).modal;
     var r = solveAmount(c, inp.ctx, inp.all, target, c.amount);
     if (!r.amount) return r;
+    // Only worth reporting when the premium reaches a HIGHER rate band (your
+    // call): inside the operator's own band the extra dollars are rounding
+    // slack, not "the next band costs you the same".
     var band = core.bandAt(c.category, r.amount);
-    return { max: r.amount, min: band ? band.amount : null,
-             tip: 'at Modal Prem. ' + core.group(target, 2) };
+    if (!band || band.amount <= own.band.amount) {
+      return { blocked: 'no higher rate band is within this premium (still ' + own.band.code + ')', info: true };   // not a problem — the message bar skips it
+    }
+    return { max: r.amount, min: band.amount, tip: 'at Modal Prem. ' + core.group(target, 2) };
   }
 
   function premBasis(c) {
@@ -331,6 +385,44 @@
     var r = solveAmount(c, inp.ctx, inp.all, c.amount, inp.all.list[0].band.amount);
     if (!r.amount) return r;
     return { amount: r.amount, tip: 'the most the ' + core.group(c.amount, 2) + ' premium buys' };
+  }
+
+  /** The top-bar messages for this tab (core.diagnostics): what stops a Term /
+      Permanent Life coverage's Modal Prem., Modal Prem. Backdated, Prem. Basis
+      Ins. Amt or Highest Amt that the operator can FIX — asked of the very
+      functions the cells call, so they can't disagree. Deliberately left out:
+        - rate-lookup failures ("no rate found at …"): those are the Rates tab's
+          messages, with the real cause (ratesIssues), not repeated here;
+        - a plain blank input (no Coverage Amount / Input premium, no insured,
+          no Category): the yellow highlight and the cell tooltip cover it;
+        - "no higher rate band is within this premium": information, not a fault.
+      What is left is ACTIONABLE below. The checks run in dependency order, so a
+      reason only shows once everything before it is in place. Payment Frequency
+      is one message for the whole page, not one per coverage. */
+  var ACTIONABLE = /Payment Frequency|Coverage Fee|Flat Extra Prem|lowest rate band|did not settle/;
+  function coverageIssues() {
+    var out = [];
+    core.coverages().forEach(function (c, ci) {
+      if (c.category !== 'termLife' && c.category !== 'permLife') return;
+      var where = 'Coverages — Coverage ' + (ci + 1) + ' (' + core.coverageTitle(c) + ')', byWhy = {}, order = [];
+      [['Modal Prem.', modalPrem(c)], ['Modal Prem. Backdated', modalPremBackdated(c)],
+       ['Prem. Basis Ins. Amt', premBasis(c)], ['Highest Amt', highestAmt(c)]].forEach(function (p) {
+        var why = p[1].error || p[1].blocked;
+        if (!why || p[1].info || !ACTIONABLE.test(why)) return;
+        if (!byWhy[why]) { byWhy[why] = []; order.push(why); }
+        byWhy[why].push(p[0]);
+      });
+      order.forEach(function (why) {
+        if (/Payment Frequency/.test(why)) {
+          out.push({ key: 'd:freq', msg: 'Settings — Payment Frequency isn\'t set, so no Modal Prem. can be calculated (the monthly / annual modal factor depends on it).' });
+          return;
+        }
+        var reason = /^amount is below/.test(why) ? 'the Coverage Amount is below the lowest rate band — raise it to at least that band'
+          : /^this premium does not/.test(why) ? 'the Input premium is too low to buy even the lowest rate band — raise it' : why;
+        out.push({ key: 'd:cov:' + c._id + ':' + why, msg: where + ': ' + byWhy[why].join(', ') + ' can\'t be calculated — ' + reason + '.' });
+      });
+    });
+    return out;
   }
 
   /* Column order matches COLUMNS above exactly — 24 cells, 1 per header.
@@ -358,8 +450,8 @@
         core.jointFigures(c).map(function (v) { return '<td class="r">' + core.esc(v) + '</td>'; }).join('') +
         core.pendingCell() +   // Perm Joint Extra Prem. % Backdated
         core.pendingCell() +   // Perm Joint Extra Prem. $ Backdated
-        modalPremCell(c) +     // Modal Prem.
-        core.pendingCell() +   // Modal Prem. Backdated
+        premCell(modalPrem(c)) +              // Modal Prem.
+        premCell(modalPremBackdated(c)) +     // Modal Prem. Backdated
       '</tr>';
   }
 
@@ -397,13 +489,21 @@
 
     var res = validateUnitValue(el.value);
     if (!res.ok) {
-      el.classList.add('fi--bad');
-      el.title = res.msg;
+      var n = core.coverages().map(function (c) { return c._id; }).indexOf(p[1]) + 1;
+      core.badInput(el, res.msg, 'Coverages — Coverage ' + n);
       return;
     }
-    el.classList.remove('fi--bad');
+    core.goodInput(el);
     unitValues[p[1]] = res.v;
+    unitValuesChanged();
+  }
+
+  /** Unit Value feeds Modal Prem., which the Results panel mirrors — but it
+      lives only in this file, so nothing else re-renders when it changes.
+      One event, which optimizer.js's Results listens for. */
+  function unitValuesChanged() {
     renderCoveragesTab();
+    document.dispatchEvent(new Event('unitvaluechange'));
   }
 
   function covTabLive(e) {
@@ -430,14 +530,18 @@
     // restore it without this tab opting in. `set` is this file's own
     // mutation path (same idea as covTabCommit), just reachable from outside
     // through the bridge rather than a DOM event.
-    core.highestAmt = highestAmt;   // lent to Results (optimizer.js): the Modal Prem. formula run backwards …
+    core.modalPrem = modalPrem;     // lent to Results (optimizer.js): the two premium columns it mirrors …
+    core.modalPremBackdated = modalPremBackdated;
+    core.highestAmt = highestAmt;   // … the same formula run backwards …
     core.premBasis = premBasis;     // … and the same search against the premium typed in (a premium coverage's band follows it)
+
+    core.diagnostics(coverageIssues);   // the top-bar messages (§ coverageIssues)
 
     core.registerSnapshot('unitValues', {
       get: function () { return unitValues; },
       set: function (data) {
         unitValues = (data && typeof data === 'object') ? data : {};
-        renderCoveragesTab();
+        unitValuesChanged();
       }
     });
   }

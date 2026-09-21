@@ -33,7 +33,23 @@
       <div class="brand-menu" id="toolMenu" role="listbox" aria-label="Tool" hidden></div>
     </div>
 
-    <div class="spacer"></div>
+    <!-- Message bar (optimizer.js § message bar): why something is an Error. Takes the
+         free space between the brand block and Test Case Name; empty (hidden) when
+         there is nothing to say. ▲/▼ appear with 2+ messages; ✕ clears the one shown
+         (Shift+✕ clears all); clicking the text opens it in full. -->
+    <div class="issues" id="issues" role="status" aria-live="polite">
+      <div class="issues-box" id="issuesBox" hidden>
+        <span class="issues-ico" aria-hidden="true">⚠</span>
+        <span class="issues-txt" id="issuesTxt" role="button" tabindex="0" title="Click to read the whole message"></span>
+        <span class="issues-nav" id="issuesNav" hidden>
+          <span class="issues-n" id="issuesN"></span>
+          <button class="btn btn--sm btn--icon" id="issuesUp" type="button" title="Previous message" aria-label="Previous message">▲</button>
+          <button class="btn btn--sm btn--icon" id="issuesDown" type="button" title="Next message" aria-label="Next message">▼</button>
+        </span>
+        <button class="btn btn--sm btn--icon" id="issuesX" type="button" title="Clear this message (Shift+click clears all)" aria-label="Clear this message">✕</button>
+        <div class="issues-pop" id="issuesPop" hidden></div>
+      </div>
+    </div>
 
     <!-- Save Test / History (optimizer_history.js owns all the wiring here,
          even though the controls themselves are static markup, not

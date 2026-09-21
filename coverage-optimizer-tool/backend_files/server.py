@@ -4,7 +4,8 @@ Serves the TOOL folder (the one holding backend_files/, rates/ and history_data/
 `python -m http.server`, so the page at /backend_files/optimizer.html reaches ../rates/
 and ../history_data/. One extra route: POST /history_data/<name>.json writes the body
 into history_data/ and never overwrites — a taken name gets a timestamp suffix, and
-the JSON reply {"name": ...} carries the name actually used. Listens on this PC only
+the JSON reply {"name": ...} carries the name actually used. GET /history_data/ lists every
+saved test case; DELETE /history_data/<name>.json moves one to history_data/_deleted/. Listens on this PC only
 (127.0.0.1).
 """
 import http.server
@@ -39,6 +40,33 @@ class Handler(http.server.SimpleHTTPRequestHandler):
         self.send_header('Content-Length', str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def do_GET(self):
+        # GET /history_data/ -> every saved test case in the folder, in one reply: [{file, entry}] (entry null if unreadable).
+        if self.path.split('?')[0] == '/history_data/':
+            out = []
+            for f in sorted(os.listdir(DATA)) if os.path.isdir(DATA) else []:
+                if NAME.fullmatch(f):
+                    try:
+                        with open(os.path.join(DATA, f), encoding='utf-8') as fh:
+                            out.append({'file': f, 'entry': json.load(fh)})
+                    except (ValueError, OSError):
+                        out.append({'file': f, 'entry': None})
+            return self.reply(200, out)
+        super().do_GET()
+
+    def do_DELETE(self):
+        # DELETE /history_data/<name>.json -> moved to history_data/_deleted/ (with a timestamp), never erased.
+        name = self.path.split('?')[0][len('/history_data/'):] if self.path.startswith('/history_data/') else ''
+        if not NAME.fullmatch(name):
+            return self.reply(400, {'error': 'bad file name'})
+        src = os.path.join(DATA, name)
+        if not os.path.isfile(src):
+            return self.reply(404, {'error': 'no such file'})
+        trash = os.path.join(DATA, '_deleted')
+        os.makedirs(trash, exist_ok=True)
+        os.replace(src, os.path.join(trash, '%d_%s' % (int(time.time() * 1000), name)))
+        self.reply(200, {'moved': name})
 
     def do_POST(self):
         name = self.path.split('?')[0][len('/history_data/'):] if self.path.startswith('/history_data/') else ''

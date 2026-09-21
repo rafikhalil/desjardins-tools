@@ -58,6 +58,7 @@
   }
 
   var catalog = loadCatalog();
+  var filters = { name: '', user: '', date: '' };   // the History table's filter row (name / date: "contains", user: exact)
 
   function newId() { return 'tc' + Date.now() + Math.floor(Math.random() * 1000); }
 
@@ -158,7 +159,7 @@
 
     var fname = safeFileName(name);
     saveToDataFolder(fname, entry).then(function (r) {
-      if (r.name) { toast('Saved "' + name + '" to History and history_data/' + r.name + '.'); core.resolve('h:save'); return; }
+      if (r.name) { entry.file = r.name; persistCatalog(); toast('Saved "' + name + '" to History and history_data/' + r.name + '.'); core.resolve('h:save'); return; }
       downloadJSON(fname, entry);
       toast('Saved "' + name + '" to History; downloaded instead — history_data/ not reachable (start the tool with _start-coverage-optimizer.bat).', 'err');
       core.raise('h:save', 'Save Test — "' + name + '" is in History but the file couldn\'t be written to history_data/ (' + r.why +
@@ -178,7 +179,8 @@
       var snap = data && data.snapshot;
       if (!data || typeof data !== 'object' || !data.name) { bad('it has no test case "name" — is it a file saved by this tool?'); return; }
       if (!snap || !Array.isArray(snap.insureds) || !Array.isArray(snap.coverages)) { bad('its "snapshot" has no insureds / coverages lists.'); return; }
-      data.id = newId();   // never trust an id from outside this browser — could collide
+      if (!data.id) data.id = newId();   // keep the case's own id: the same file also lives in history_data/, and a new id would list it twice
+      if (catalog.some(function (e) { return e.id === data.id; })) { toast('"' + data.name + '" is already in History.'); return; }
       catalog.push(data);
       persistCatalog();
       renderHistoryTab();
@@ -222,12 +224,53 @@
   }
 
   function doDelete(id) {
-    var before = catalog.length;
-    catalog = catalog.filter(function (e) { return e.id !== id; });
-    if (catalog.length === before) return;
+    var entry = null;
+    catalog.forEach(function (e) { if (e.id === id) entry = e; });
+    if (!entry) return;
+    catalog = catalog.filter(function (e) { return e !== entry; });
     persistCatalog();
     renderHistoryTab();
-    toast('Test case removed.');
+    if (!entry.file) { toast('Test case removed.'); return; }
+    // Its file goes too (else it would come back at the next start) — moved to history_data/_deleted/, never erased.
+    fetch('../history_data/' + entry.file, { method: 'DELETE' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      core.resolve('h:delete');
+      toast('Test case removed (its file is in history_data/_deleted/).');
+    }).catch(function (e) {
+      core.raise('h:delete', 'History — "' + entry.name + '" was removed from the list, but its file ' + entry.file +
+        ' couldn\'t be moved out of history_data/ (' + e.message + '), so it will reappear the next time the tool starts.');
+    });
+  }
+
+  /* Every launch: read EVERY test case in history_data/ (all three users' saves) into the list, so a case saved by a
+     colleague is there when you open the tool. Merged with this browser's own list by id; a case this browser saved as
+     a file that is no longer in the folder (someone deleted it) is dropped; a case that only ever went to Downloads
+     (no file) stays. Files that aren't test cases are skipped and named in a message. */
+  function loadFromFolder() {
+    fetch('../history_data/').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (files) {
+      var inFolder = {}, have = {}, skipped = [];
+      files.forEach(function (f) { inFolder[f.file] = 1; });
+      catalog = catalog.filter(function (e) { return !e.file || inFolder[e.file]; });
+      catalog.forEach(function (e) { have[e.id] = e; });
+      files.forEach(function (f) {
+        var d = f.entry, snap = d && d.snapshot;
+        if (!d || !d.name || !snap || !Array.isArray(snap.insureds) || !Array.isArray(snap.coverages)) { skipped.push(f.file); return; }
+        if (!d.id) d.id = newId();
+        if (have[d.id]) { have[d.id].file = f.file; return; }       // already listed (this browser saved it)
+        d.file = f.file;
+        d.insuredCount = snap.insureds.length; d.coverageCount = snap.coverages.length;
+        catalog.push(d); have[d.id] = d;
+      });
+      persistCatalog();
+      renderHistoryTab();
+      if (skipped.length) core.raise('h:folder', 'History — ' + skipped.length + ' file(s) in history_data/ aren\'t test cases saved by this tool and were skipped: ' + skipped.join(', ') + '.');
+      else core.resolve('h:folder');
+    }).catch(function (e) {
+      core.raise('h:folder', 'History — couldn\'t read the history_data/ folder (' + e.message + '), so only the test cases saved in this browser are listed. Start the tool with _start-coverage-optimizer.bat to see everyone\'s.');
+    });
   }
 
   // ---------------------------------------------------------------- render
@@ -250,15 +293,29 @@
       '</tr>';
   }
 
+  /* The filter row: Test Case Name and Date Saved match "contains" (case-insensitive), Username is one of the people
+     who have saved. Newest first (the id starts with the save time in ms). */
+  function has(v, q) { return !q || String(v || '').toLowerCase().indexOf(q.toLowerCase()) >= 0; }
+  function shows(e) { return has(e.name, filters.name) && (!filters.user || e.user === filters.user) && has(e.savedAt, filters.date); }
+  function savedMs(e) { return parseInt(String(e.id).slice(2, 15), 10) || 0; }
+
   function renderHistoryTab() {
     if (!$('historyTabBody')) return;   // not built yet — see init() ordering
-    $('historyTabBody').innerHTML = catalog.length
-      ? catalog.map(historyRow).join('')
+    var users = [];
+    catalog.forEach(function (e) { if (e.user && users.indexOf(e.user) < 0) users.push(e.user); });
+    users.sort();
+    $('hfUser').innerHTML = '<option value="">All</option>' + users.map(function (u) {
+      return '<option' + (u === filters.user ? ' selected' : '') + '>' + core.esc(u) + '</option>';
+    }).join('');
+    var list = catalog.slice().sort(function (a, b) { return savedMs(b) - savedMs(a); }).filter(shows);
+    $('historyTabBody').innerHTML = list.length
+      ? list.map(historyRow).join('')
       : '<tr><td colspan="' + COLUMNS.length + '">' +
           '<div class="proj-slot" style="margin:0;"><div class="s">' +
-            'No test cases saved yet — use Save Test in the top bar to add one.' +
+            (catalog.length ? 'No test case matches the filters.' : 'No test cases saved yet — use Save Test in the top bar to add one.') +
           '</div></div></td></tr>';
-    $('historyTabCount').textContent = catalog.length + ' test case' + (catalog.length === 1 ? '' : 's');
+    $('historyTabCount').textContent = (list.length === catalog.length ? '' : list.length + ' of ') +
+      catalog.length + ' test case' + (catalog.length === 1 ? '' : 's');
   }
 
   function historyTabShell() {
@@ -274,7 +331,13 @@
         '</div>' +
         '<div class="table-scroll-wrap">' +
           '<table class="ins hist-tab-table">' +
-            '<thead><tr>' + headCells + '</tr></thead>' +
+            '<thead><tr>' + headCells + '</tr>' +
+              '<tr class="hist-filter">' +
+                '<th><input class="fi fi--txt" data-hf="name" placeholder="Filter name…" spellcheck="false" autocomplete="off" aria-label="Filter by Test Case Name"></th>' +
+                '<th><select class="fi" id="hfUser" data-hf="user" aria-label="Filter by Username"></select></th>' +
+                '<th><input class="fi fi--txt" data-hf="date" placeholder="e.g. 21-SEP-2026" spellcheck="false" autocomplete="off" aria-label="Filter by Date Saved"></th>' +
+                '<th colspan="5"><button class="btn btn--sm" data-act="clear-hf" type="button">Clear filters</button></th>' +
+              '</tr></thead>' +
             '<tbody id="historyTabBody"></tbody>' +
           '</table>' +
         '</div>' +
@@ -306,6 +369,17 @@
       var delBtn = e.target.closest ? e.target.closest('[data-act="del-tc"]') : null;
       if (delBtn) { doDelete(delBtn.dataset.id); return; }
       if (e.target.id === 'btnImportTestCase') $('historyImportFile').click();
+      if (e.target.closest && e.target.closest('[data-act="clear-hf"]')) {
+        filters = { name: '', user: '', date: '' };
+        Array.prototype.forEach.call(document.querySelectorAll('input[data-hf]'), function (i) { i.value = ''; });
+        renderHistoryTab();
+      }
+    });
+    $('historyTabHost').addEventListener('input', function (e) {
+      if (e.target.dataset && e.target.dataset.hf) { filters[e.target.dataset.hf] = e.target.value; renderHistoryTab(); }
+    });
+    $('historyTabHost').addEventListener('change', function (e) {      // the Username <select> fires `change`
+      if (e.target.dataset && e.target.dataset.hf === 'user') { filters.user = e.target.value; renderHistoryTab(); }
     });
 
     $('historyImportFile').addEventListener('change', function (e) {
@@ -326,4 +400,5 @@
   }
 
   initHistoryTab();
+  loadFromFolder();      // every launch: everyone's saved test cases
 })();

@@ -58,3 +58,10 @@
    every row (--ink-4, the dense-grid line token, §9 #22) instead of `.ins`'s
    faint hairline. The two hard column separators come from `.col-hard-sep`. */
 .bd-proj-table tbody td { border-bottom: 1px solid var(--ink-4); }
+
+/* Frozen column names: the projection can run to hundreds of rows, so the table scrolls INSIDE
+   its own box (max 65vh) and the header row sticks to the top of that box. (position: sticky
+   needs a scroll container that actually scrolls vertically — the page itself doesn't scroll
+   the table's <thead>.) `.ins thead th` already has an opaque band background. */
+#bdProjBody .table-scroll-wrap { max-height: 65vh; overflow: auto; }
+.bd-proj-table thead th { position: sticky; top: 0; z-index: 2; }

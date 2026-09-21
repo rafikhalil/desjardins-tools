@@ -16,6 +16,6 @@
 #tcName, #tcUser { height: 27px; }
 #tcName { width: 170px; }
 
-/* Reserved hook, same convention as .ins-tab-table/.cov-tab-table/
-   .bd-tab-table — no rule needed yet, kept for consistency. */
-.hist-tab-table {}
+/* The filter row under the column names. */
+.hist-filter th { padding: 3px 6px; text-transform: none; }
+.hist-filter .fi { width: 100%; }

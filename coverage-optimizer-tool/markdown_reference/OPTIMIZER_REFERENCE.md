@@ -1256,8 +1256,18 @@ clears the name box and writes the file (below).
 ### Persistence — History list AND a real file
 
 - **History** = the browser's `localStorage` (`coverage-optimizer-testcases`) —
-  instant listing and one-click **Load**. Read/write are wrapped in `try/catch`
-  and **failures are reported** (§13 F-3), never silent.
+  instant listing and one-click **Load**, **merged at every launch with everything in
+  `history_data/`** (below), so a case saved by any of the three users is there when the
+  tool opens. Read/write are wrapped in `try/catch` and **failures are reported**
+  (§13 F-3), never silent.
+- **Loaded from the folder on every start** (`loadFromFolder`): `GET /history_data/` (a
+  `server.py` route) returns every `.json` in the folder in one reply. Merged with this
+  browser's list **by `id`** (the id is inside the file, so a case is never listed
+  twice); a case this browser saved as a file that is no longer in the folder (someone
+  deleted it) is dropped; a case that only ever reached Downloads (no `file`) stays.
+  Files that are not test cases (no `name` / `snapshot` lists, or not valid JSON) are
+  skipped and named in a message (§13 F-6); if the folder cannot be read the list falls
+  back to this browser's own cases and says so.
 - **The file**: `saveToDataFolder(filename, entry)` POSTs to `server.py`
   (`_start-coverage-optimizer.bat`), which writes `history_data/<initials>_<name>.json` and never
   overwrites (§14.2). It resolves `{ name }` (what was written) or `{ why }`
@@ -1267,11 +1277,13 @@ clears the name box and writes the file (below).
 - **Import Test Case** reads a `.json` back through a file picker and adds it to
   this browser's list — the only way a colleague's file reaches your History.
   Validated: parseable JSON, a `name`, and a `snapshot` with `insureds` and
-  `coverages` arrays (§13 F-4); it always gets a **fresh id**.
+  `coverages` arrays (§13 F-4); it **keeps the case's own id** (a new one would list a
+  file that also sits in `history_data/` twice) and refuses a case already listed.
 
 ### The catalog entry
 
-`{ id, name, user, savedAt, insuredCount, coverageCount, snapshot }` where
+`{ id, name, user, savedAt, insuredCount, coverageCount, snapshot }` (+ `file`, the
+`history_data/` file name, added in memory once written or loaded from the folder) where
 `snapshot` = `core.snapshotState()` (Settings, Insureds, Coverages — deep-cloned
 JSON) **plus** `unitValues` (the Coverages tab's own field, folded in by
 `buildSnapshot`). `savedAt` is local wall-clock (`nowStamp()`). **Rate files are
@@ -1285,7 +1297,18 @@ Test Case Name · Username · Date Saved · Number of Insureds · Number of
 Coverages · Total Modal Premium (muted `—`; could now be the sum of each
 coverage's Modal Prem., but a saved case stores inputs, not figures — *TO_DO C-4*)
 · **Load** (`data-act="load-tc"`) · **Delete** (`data-act="del-tc"`, immediate, no
-confirmation — same convention as Remove elsewhere).
+confirmation — same convention as Remove elsewhere). **Newest first** (the id starts with
+the save time in ms). **Delete also moves the case's file** to `history_data/_deleted/`
+(`DELETE /history_data/<name>.json` — moved with a timestamp, **never erased**, so a
+mistaken delete is recoverable by moving it back); otherwise the file would reappear at the
+next start. If the move fails the case is gone from the list and the bar says the file will
+come back (§13 F-7).
+
+**Filter row** (a second header row): **Test Case Name** and **Date Saved** are text boxes
+matching *contains*, case-insensitive (`21-SEP-2026`, `SEP`, a word from the name);
+**Username** is a dropdown of the people who have saved (*All* by default). The filters
+combine (AND); **Clear filters** resets them; the count reads `n of m test cases` while
+filtered. Only the table body re-renders, so what you typed keeps focus.
 
 **Load — order matters, and it is guarded.** `buildSnapshot()` takes a backup of
 what is on screen, then `core.restoreState(entry.snapshot)` runs **first**, then
@@ -2196,6 +2219,10 @@ Use these before trusting any change to §12.
       to amber headers with a single placeholder row.
 - [ ] **History**: Save Test with no name is refused (message in the bar); with a name
       it saves, clears the box, adds a row (initials-prefixed) **and writes `history_data/`**;
+      **restart the tool: every case in the folder is listed** (drop a case saved by someone else
+      into the folder and restart — it appears); the **filter row** narrows by name / user / date
+      (`n of m test cases`), Clear filters resets; **Delete** removes the row and moves the file to
+      `history_data/_deleted/`;
       change inputs (including Unit Value), **Load** the earlier save → everything
       reverts including Unit Value, and the view returns to Input & Results; Delete
       is immediate; **Import Test Case** adds a row with a fresh id.
@@ -2815,6 +2842,8 @@ that file next loads cleanly. The pre-load page also shows the fetch failure tex
 | F-3 | this browser would not keep the History list (`localStorage` full/blocked) — or the stored list is unreadable and History starts empty (`h:store`) |
 | F-4 | *Import Test Case*: not valid JSON · no `name` · `snapshot` has no `insureds`/`coverages` lists · file unreadable (`h:import`) |
 | F-5 | *Load* of a damaged/hand-edited case threw — **the previous state is put back** (`h:load`) |
+| F-6 | the `history_data/` folder could not be read at start (server not running / HTTP status) — only this browser's cases are listed; or files there aren't test cases and were skipped (named) (`h:folder`) |
+| F-7 | *Delete*: the case left the list but its file could not be moved to `_deleted/` — it will reappear next start (`h:delete`) |
 
 **G. Unexpected** — `js:…` (see above).
 
@@ -2890,6 +2919,9 @@ reaches `../rates/` and `../history_data/`. It is `http.server` plus:
 
 - **`Cache-Control: no-cache`** on every response — without it a browser reuses
   a stale `.js` after an edit and shows the *old* tool.
+- **`GET /history_data/`** — every saved test case, one JSON reply `[{file, entry}]`
+  (History reads it at each start; files must be named `[A-Za-z0-9_-]{1,100}.json`, others are ignored).
+- **`DELETE /history_data/<name>.json`** — moves a case to `history_data/_deleted/` (never erases).
 - **`POST /history_data/<name>.json`** — writes a saved test case into `history_data/`.
   Accepts only `application/json`, a bare file name `[A-Za-z0-9_-]{1,100}.json`
   (nothing can land outside `history_data/`), 1 byte–5 MB, valid JSON; **never
@@ -2929,7 +2961,8 @@ development bypass to delete when coding is finished* (button in
 
 ### 14.4 Saving and loading a test case
 
-*Save Test* (top bar) needs a Test Case Name. It does **both**: adds the case to
+*Every start* reads all of `history_data/` into the History tab (three people, one folder —
+§2h). *Save Test* (top bar) needs a Test Case Name. It does **both**: adds the case to
 **History** (this browser's `localStorage`, key `coverage-optimizer-testcases`)
 and writes `history_data/<initials>_<name>.json` through `server.py` — e.g.
 `rk_MyCase.json` (the saver's initials prefix every file so two people never
@@ -2937,8 +2970,8 @@ collide; the name is stripped to `A-Z a-z 0-9 - _ space`, spaces → `_`, ≤ 60
 characters). If `history_data/` cannot be written the file is **downloaded instead** and
 the bar says why. A test case = `{ id, name, user, savedAt, insuredCount,
 coverageCount, snapshot }`, `snapshot` = Settings + Insureds + Coverages + the
-Coverages tab's Unit Values (§2h). **Import Test Case** adds a `.json` someone
-sent you; **Load** restores it (and puts the previous state back if the file is
+Coverages tab's Unit Values (§2h). **Import Test Case** adds a `.json` that is not in the
+folder; **Load** restores it (and puts the previous state back if the file is
 damaged, §13 F-5). Rate files are *not* part of a test case: a loaded case
 re-resolves against whatever rates are loaded.
 

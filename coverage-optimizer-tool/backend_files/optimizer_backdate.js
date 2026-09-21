@@ -53,6 +53,10 @@
     'Date', 'Premium Current', 'Cumul. Prem. Current',
     'Premium Backdated', 'Cumul. Prem. Backdated', 'Difference'
   ];
+  // Column separators: hard before Premium Current / Premium Backdated / Difference (the three groups), a lighter
+  // one between each premium and its cumulative (2, 4).
+  var HARD = 'col-hard-sep', SOFT = 'col-soft-sep';
+  var PROJECTION_SEP = { 1: HARD, 2: SOFT, 3: HARD, 4: SOFT, 5: HARD };
 
   /* Show Projection — this container's own on/off switch (§ file header).
      Not specified either way; OFF by default mirrors the same conservative
@@ -223,14 +227,14 @@
     return { date: rows[lastNonPositive + 1].date };
   }
 
-  function moneyCell(v, sep) { return '<td class="r' + (sep ? ' col-hard-sep' : '') + '">' + core.group(v, 2) + '</td>'; }
+  function moneyCell(v, sep) { return '<td class="r' + (sep ? ' ' + sep : '') + '">' + core.group(v, 2) + '</td>'; }
 
   /** The whole row wears .cell-pos once its Difference turns positive —
       cumulative Current has overtaken cumulative Backdated. */
   function projectionRow(r) {
     return '<tr' + (r.diff > 0 ? ' class="cell-pos"' : '') + '>' +
         '<td class="r">' + core.esc(core.fmtDate(r.date)) + '</td>' +
-        moneyCell(r.payC, 1) + moneyCell(r.cumC) + moneyCell(r.payB, 1) + moneyCell(r.cumB) + moneyCell(r.diff, 1) +
+        moneyCell(r.payC, HARD) + moneyCell(r.cumC, SOFT) + moneyCell(r.payB, HARD) + moneyCell(r.cumB, SOFT) + moneyCell(r.diff, HARD) +
       '</tr>';
   }
 
@@ -497,7 +501,7 @@
       the band itself always visible, per the request. */
   function backdateProjectionShell() {
     var headCells = PROJECTION_COLUMNS.map(function (l, i) {
-      return '<th class="r' + (i === 1 || i === 3 || i === 5 ? ' col-hard-sep' : '') + '">' + core.esc(l) + '</th>';   // hard separators before Premium Current, Premium Backdated and Difference
+      return '<th class="r' + (PROJECTION_SEP[i] ? ' ' + PROJECTION_SEP[i] : '') + '">' + core.esc(l) + '</th>';
     }).join('');
     return '<div class="card card--out">' +
         '<div class="card-head card-head--band">' +

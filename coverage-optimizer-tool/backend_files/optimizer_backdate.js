@@ -199,7 +199,9 @@
       else payB = 0;                          // subsequent Backdated-only anniversaries — checkpoint
       return { date: u.date, payC: payC, payB: payB };
     });
-    return cumulate(rows);
+    // saved: the same test annualSavingsDate() uses (identical formula, same inputs) — so the
+    // first highlighted row is always exactly that pill's own date, never a plain diff > 0 guess.
+    return cumulate(rows).map(function (r) { r.saved = r.diff >= proratedBackdated; return r; });
   }
 
   /** Monthly branch — union of monthly anniversaries on each side, full
@@ -229,7 +231,9 @@
       var payB = u.inB ? series.backdated[Math.floor(monthOfBackdated[t] / 12)] : 0;
       return { date: u.date, payC: payC, payB: payB };
     });
-    return cumulate(rows);
+    // saved: plain diff > 0 (cumulative Current has overtaken cumulative Backdated) — unchanged,
+    // matches monthlySavingsDate()'s own crossing once the series is monotonic past it.
+    return cumulate(rows).map(function (r) { r.saved = r.diff > 0; return r; });
   }
 
   /** { rows } or { error/pending/blocked } — the same three non-value states
@@ -297,10 +301,12 @@
 
   function moneyCell(v, sep) { return '<td class="r' + (sep ? ' ' + sep : '') + '">' + core.group(v, 2) + '</td>'; }
 
-  /** The whole row wears .cell-pos once its Difference turns positive —
-      cumulative Current has overtaken cumulative Backdated. */
+  /** The whole row wears .cell-pos once r.saved is true — Annual: cumulative Difference has
+      reached the prorated first-year Backdated premium (same test as annualSavingsDate(), so the
+      highlighting can never disagree with the header pill); Monthly: cumulative Current has
+      overtaken cumulative Backdated (diff > 0). Set by projectionAnnual/projectionMonthly. */
   function projectionRow(r) {
-    return '<tr' + (r.diff > 0 ? ' class="cell-pos"' : '') + '>' +
+    return '<tr' + (r.saved ? ' class="cell-pos"' : '') + '>' +
         '<td class="r">' + core.esc(core.fmtDate(r.date)) + '</td>' +
         moneyCell(r.payC, HARD) + moneyCell(r.cumC, SOFT) + moneyCell(r.payB, HARD) + moneyCell(r.cumB, SOFT) + moneyCell(r.diff, HARD) +
       '</tr>';

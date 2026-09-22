@@ -652,7 +652,7 @@
           on the coverage shows the same figure.
       Returns { pending: true }, { error: true }, or { value: <rate> } —
       never a guessed number. */
-  function baseRateResult(c, ins, slot, band, ageOffset) {
+  function baseRateResult(c, ins, slot, band, ageOffset, elapsedYears) {
     var age = lookupAge(c, ins, ageOffset);
     if (age === null) return fail(ageWhy(c, ins, ageOffset));
     var prefix = core.axisKeyPrefix(c, slot);
@@ -662,9 +662,9 @@
     if (c.category === 'termLife') {
       var suffix = TERM_LIFE_COVERAGE_SUFFIX[c.coverage];
       if (!suffix) return fail('"' + c.coverage + '" has no Term Life rate sheet');
-      rate = lookupTermLifeRate(suffix, axisKey, age, 1);
+      rate = lookupTermLifeRate(suffix, axisKey, age, (elapsedYears || 0) + 1);   // Duration = elapsed policy years + 1 (§12.2's shift)
     } else {
-      rate = lookupPermLifeRate(axisKey, age);
+      rate = lookupPermLifeRate(axisKey, age);   // no duration axis for Permanent Life — only the pay period (permStillPaying) varies by year
     }
     if (rate === null) return fail(missingRow(c, axisKey, age));
     return { value: rate };
@@ -689,8 +689,8 @@
   /* PR key -> EPR key: 'DT_…' -> 'DTS…' (3rd character), and for the 2017 products 'T_…' -> 'TS…' (2nd). */
   function substandardKey(k) { return k.charAt(0) === 'T' ? 'TS' + k.slice(2) : 'DTS' + k.slice(3); }
 
-  function extraRateResult(c, ins, slot, band, ageOffset) {
-    if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset);
+  function extraRateResult(c, ins, slot, band, ageOffset, elapsedYears) {
+    if (c.category === 'termLife') return baseRateResult(c, ins, slot, band, ageOffset, elapsedYears);
     var age = lookupAge(c, ins, ageOffset);
     if (age === null) return fail(ageWhy(c, ins, ageOffset));
     var prefix = core.axisKeyPrefix(c, slot);
@@ -706,8 +706,8 @@
       Life coverage, the Joint container's Equiv. Substd. % (c.joint.extraPct;
       still blank → Error, like any other missing input). Pending or error
       exactly when the EPR it's built on is. */
-  function pepResult(c, ins, slot, band, ageOffset) {
-    var epr = extraRateResult(c, ins, slot, band, ageOffset);
+  function pepResult(c, ins, slot, band, ageOffset, elapsedYears) {
+    var epr = extraRateResult(c, ins, slot, band, ageOffset, elapsedYears);
     if (epr.pending || epr.error) return epr;
     var pct = core.isJointPerm(c) ? c.joint.extraPct : slot.extraPct;
     if (pct === null || pct === undefined) {
@@ -721,11 +721,11 @@
       an insured's group — PR, EPR, PEP, then the same three at age - 1 — the
       index insuredRatesTable() and totalResult() both walk, so the two
       tables can't disagree on which lookup a column means. */
-  function cellResult(c, ins, slot, band, j) {
+  function cellResult(c, ins, slot, band, j, elapsedYears) {
     var ageOffset = j >= 3 ? -1 : 0;                                   // the backdated trio uses age - 1
-    return j % 3 === 0 ? baseRateResult(c, ins, slot, band, ageOffset)     // PR_i / PR_BD_i
-      : j % 3 === 1 ? extraRateResult(c, ins, slot, band, ageOffset)       // EPR_i / EPR_BD_i
-      : pepResult(c, ins, slot, band, ageOffset);                          // PEP_i / PEP_BD_i
+    return j % 3 === 0 ? baseRateResult(c, ins, slot, band, ageOffset, elapsedYears)     // PR_i / PR_BD_i
+      : j % 3 === 1 ? extraRateResult(c, ins, slot, band, ageOffset, elapsedYears)       // EPR_i / EPR_BD_i
+      : pepResult(c, ins, slot, band, ageOffset, elapsedYears);                          // PEP_i / PEP_BD_i
   }
 
   /** BD_Final's per-insured pick for column `j` (0 PR, 1 EPR, 2 PEP): the
@@ -756,14 +756,14 @@
       insured to sum yet; an Error anywhere in the sum is an Error, else a
       pending anywhere is pending — never a partial sum. The raw rates are
       summed, only the display rounds. */
-  function totalResult(c, slots, band, j, final) {
+  function totalResult(c, slots, band, j, final, elapsedYears) {
     var counted = c.category === 'permLife' && c.covType !== 'Individual' ? slots.slice(0, 1) : slots;
     if (!counted.length) return null;
     var sum = 0, pending = false;
     // ponytail: re-runs the lookups the left table already did — a handful of
     // property reads per cell; cache per render if a lookup ever gets costly.
     for (var i = 0; i < counted.length; i++) {
-      var res = (final ? finalResult : cellResult)(c, core.findInsured(counted[i].insuredId), counted[i], band, j);
+      var res = (final ? finalResult : cellResult)(c, core.findInsured(counted[i].insuredId), counted[i], band, j, elapsedYears);
       if (res.error) return res;
       if (res.pending) pending = true;
       else sum += res.value;
@@ -865,6 +865,74 @@
       cannot decide (an insured with no birthdate, § finalResult) never takes
       Modal Prem. itself down with it. */
   function bandFinalTotals(c) { return bandTotalsOn(c, FINAL_COLS); }
+
+  /** Whether a Permanent Life coverage still charges anything at elapsed policy YEAR `elapsedYears`
+      (0 = issue year): WL 10/15/20 Pay stop after their own N years; WL to 65 / WL to 100 / Term to
+      100 stop once the issue age reaches 65 / 100 / 100 — the SAME age lookupAge() already resolves
+      for the rate itself (the Joint Age on a joint coverage, the one insured's own age otherwise),
+      so this can never disagree with which age the coverage is actually rated on. No cap known for
+      a product -> pays indefinitely (defensive; every Permanent product today has one). Term Life's
+      own end (its rate table running dry past age 85, confirmed by the requester) is detected from
+      the lookup itself (isRowGoneAtYear, below), not here — there's no separate "still paying" rule
+      to encode for it. */
+  var PERM_PAY_YEARS = { 'WL 10 Pay': 10, 'WL 15 Pay': 15, 'WL 20 Pay': 20 };
+  var PERM_AGE_CAP = { 'WL to 65': 65, 'WL to 100': 100, 'Term to 100': 100 };
+  function permStillPaying(c, ins, backdated, elapsedYears) {
+    if (PERM_PAY_YEARS[c.coverage] !== undefined) return elapsedYears < PERM_PAY_YEARS[c.coverage];
+    var cap = PERM_AGE_CAP[c.coverage];
+    if (cap === undefined) return true;
+    var age = lookupAge(c, ins, backdated ? -1 : 0);
+    return age === null ? true : (age + elapsedYears) < cap;
+  }
+
+  /** A Term Life row simply not existing past this duration is the table's own "ends at age 85"
+      shape (confirmed by the requester — not a hole to fix) — distinct from every OTHER reason a
+      lookup can fail (no Axis Key, no age, file not loaded, …), which stays a real Error regardless
+      of the year. Only kicks in once `elapsedYears > 0` — a missing row at year 0 is today's
+      ordinary Error (the coverage was never ratable in the first place). */
+  function isRowGoneAtYear(why, elapsedYears) {
+    return elapsedYears > 0 && /has no row for Axis Key/.test(why);
+  }
+
+  /** PR_Total / PEP_Total at a specific elapsed policy YEAR (0 = today/issue year), on the
+      coverage's own band, current side (backdated=false) or backdated side (backdated=true — age
+      - 1, the same convention as every other _BD figure on this page, confirmed §12.5/TO_DO C-2).
+      Built for the Backdate Projection's per-year premium (optimizer_coverages.js's premiumAtYear);
+      reuses bandFor()/totalResult() so it can never disagree with the Rates tab's own cells at
+      elapsedYears=0.
+        { pr, pep }, { ended: true } (this coverage charges nothing from here on — Term Life's rate
+      table ran out, or a limited-pay/age-capped Permanent product's pay period is over), { blocked }
+      or { error }. */
+  /** A "no row" failure at elapsedYears>0 is only really "ended" (the table's own confirmed
+      shape, § isRowGoneAtYear) if the SAME lookup succeeded at year 0 — otherwise the coverage was
+      never ratable at all (a bad Axis Key, a file that's missing this product entirely, …), and
+      every year should show that same real error, not a silently-invented "ended" the moment the
+      "no row" wording happens to match. One extra year-0 check, only when a later year fails. */
+  function endedOrError(c, band, slots, j, elapsedYears, why) {
+    if (!isRowGoneAtYear(why, elapsedYears)) return { error: why };
+    var year0 = totalResult(c, slots, band, j, false, 0);
+    return (year0 && !year0.error && !year0.pending) ? { ended: true } : { error: why };
+  }
+
+  function bandTotalsAtYear(c, elapsedYears, backdated) {
+    var b = bandFor(c);
+    if (!b.band) return { blocked: b.why };
+    var slots = c.insureds.filter(function (s) { return s.insuredId; });
+    if (!slots.length) return { blocked: 'no insured chosen on this coverage' };
+    if (c.category === 'permLife') {
+      var repIns = core.findInsured(slots[0].insuredId);   // joint: ignored by lookupAge (Joint Age covers both); individual: the one insured
+      if (repIns && !permStillPaying(c, repIns, backdated, elapsedYears)) return { ended: true };
+    }
+    var jPr = backdated ? 3 : 0, jPep = backdated ? 5 : 2;
+    var pr = totalResult(c, slots, b.band, jPr, false, elapsedYears);
+    if (!pr) return { blocked: 'no insured chosen on this coverage' };
+    if (pr.error) return endedOrError(c, b.band, slots, jPr, elapsedYears, pr.why);
+    if (pr.pending) return { blocked: 'PR is pending' };
+    var pep = totalResult(c, slots, b.band, jPep, false, elapsedYears);
+    if (pep.error) return endedOrError(c, b.band, slots, jPep, elapsedYears, pep.why);
+    if (pep.pending) return { blocked: 'PEP is pending' };
+    return { pr: pr.value, pep: pep.value };
+  }
 
   /** Results' Highest Amt (§ optimizer_coverages.js): the same two figures for
       EVERY band of the coverage's Category, in BAND_TABLES order — the whole
@@ -1075,6 +1143,7 @@
     core.bandFinalTotals = bandFinalTotals;   // … the same two from BD_Final, for Modal Prem. Backdated …
     core.bandAt = bandAt;           // … and, for Results' Highest Amt, the band an amount falls in
     core.bandTotalsAll = bandTotalsAll;
+    core.bandTotalsAtYear = bandTotalsAtYear;   // … and the Backdate Projection's per-year premium (optimizer_coverages.js)
     core.diagnostics(ratesIssues);   // the top-bar messages: why a cell here is an Error
     $('plSheets').innerHTML = TERM_LIFE_DURATIONS.map(function (s) {   // "Term 10" … "Term 65" (t10 → Term 10)
       return '<div class="pl-sheet" id="plSheet_' + s + '" data-state="notloaded"><span class="dot"></span>' +

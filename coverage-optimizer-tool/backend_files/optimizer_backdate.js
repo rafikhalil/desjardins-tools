@@ -23,15 +23,24 @@
  * local UI state — not part of `coverages`/`insureds`/`settings`, so it
  * lives here rather than being added to the core model for a toggle only
  * this container reads, the same reasoning the Coverages tab's own Unit
- * Value follows) and a 6-column table, ported line-for-line from the
- * operator's own Excel Python-in-Excel projection script (chat, 2026-09-20):
- * two branches (Annual / everything else = Monthly) on settings.freq, each
- * building a union of Current-anniversary and Backdated-anniversary dates
- * and cumulating both sides' premiums. Needs a Final Backdate Date (there is
- * nothing to project against otherwise) and both Modal Premium totals
- * resolved — the same blocked/pending/error states as everywhere else on
- * this page, never an invented row. The Monthly/Annual Savings Date figures
- * in the header are a separate, later task (TO_DO C-3) and stay pending.
+ * Value follows) and a 6-column table, originally ported line-for-line from
+ * the operator's own Excel Python-in-Excel projection script (chat,
+ * 2026-09-20) as two constant-premium branches (Annual / everything else =
+ * Monthly). Since 2026-09-2x the premium on BOTH sides varies by elapsed
+ * policy YEAR — Term Life's rate steps up on schedule (T10/15/20/25/30 every
+ * 5 years after their own level period, T65 the same after age 65, both
+ * ending once the rate table itself runs dry around real age 85) and a
+ * limited-pay/age-capped Permanent product (WL 10/15/20 Pay, WL to 65, WL to
+ * 100, Term to 100) simply stops charging once its own pay period is over —
+ * confirmed by the requester, § OPTIMIZER_REFERENCE.md §12.13. `buildYearSeries()`
+ * computes both sides' whole premium-by-year series ONCE per render
+ * (core.premiumAtYear per coverage, summed — optimizer_coverages.js), and
+ * `projectionAnnual()`/`projectionMonthly()` place those years onto the
+ * actual calendar the same way they always did — a union of Current- and
+ * Backdated-anniversary dates, cumulating both sides. Needs a Final Backdate
+ * Date (there is nothing to project against otherwise) and the year series
+ * fully resolved — the same blocked/pending/error states as everywhere else
+ * on this page, never an invented row.
  */
 (function () {
   'use strict';
@@ -99,6 +108,57 @@
     });
   }
 
+  // ------------------------------------------------- premium-by-year engine
+  /** Every Term/Permanent Life coverage's premiumAtYear(elapsedYears, backdated), summed — a
+      coverage that has ended (Term past its rate table, or a limited-pay/age-capped Permanent one
+      past its pay period) contributes 0, not an error, and is flagged via `allEnded` so
+      buildYearSeries() below knows when every coverage has nothing left to charge on this side. An
+      Error or a genuine blocked/pending input anywhere still blocks the WHOLE total (never a
+      partial sum) — the same convention core.premiumTotal() (optimizer.js) already follows for
+      today's single-point Modal Premium. */
+  function premiumSumAtYear(elapsedYears, backdated) {
+    var list = core.coverages();
+    if (!list.length) return { blocked: 'no coverages yet', allEnded: true };
+    var sum = 0, error = null, pending = false, blocked = null, allEnded = true;
+    list.forEach(function (c) {
+      var r = core.premiumAtYear(c, elapsedYears, backdated);
+      if (r.ended) return;                        // contributes 0; allEnded stays true
+      allEnded = false;
+      if (r.error) error = error || r.error;
+      else if (r.pending) pending = true;
+      else if (r.blocked) blocked = blocked || r.blocked;
+      else sum += r.value;
+    });
+    if (error) return { error: error };
+    if (pending) return { pending: true };
+    if (blocked) return { blocked: blocked };
+    return { value: sum, allEnded: allEnded };
+  }
+
+  /* Every real product ends by attained age 100 at the very latest (Term by 85, every Permanent
+     product's own pay period by 100 — confirmed by the requester), so this is purely a runaway
+     guard, not a business limit — the loop below almost always stops itself first via `allEnded`. */
+  var HORIZON_YEARS = 110;
+
+  /** Both sides' whole premium-by-year series, from year 0 up to the year BOTH have nothing left
+      to charge — a real, computed cap now that a coverage's own end is directly knowable, not the
+      old fixed 60-year loop / search-window guess.
+        { current: [...], backdated: [...] } (index = elapsed policy year, current.length ===
+      backdated.length always — they stop together) or the first { error } / { pending } / {
+      blocked } hit along the way — never a partial series. */
+  function buildYearSeries() {
+    var current = [], backdated = [], y;
+    for (y = 0; y <= HORIZON_YEARS; y++) {
+      var rc = premiumSumAtYear(y, false), rb = premiumSumAtYear(y, true);
+      if (rc.error || rb.error) return { error: rc.error || rb.error };
+      if (rc.pending || rb.pending) return { pending: true };
+      if (rc.blocked || rb.blocked) return { blocked: rc.blocked || rb.blocked };
+      current.push(rc.value); backdated.push(rb.value);
+      if (rc.allEnded && rb.allEnded) break;
+    }
+    return { current: current, backdated: backdated };
+  }
+
   /** Annual branch — union of yearly anniversaries on each side. The first
       Backdated anniversary (the Backdate Date itself) pays only the prorated
       partial-year amount; the first CURRENT anniversary after it pays the
@@ -107,24 +167,35 @@
       anniversaries are checkpoints only (0) — ported exactly as the script's
       own np.where chain has it, including using isCurrent (not isBackdated)
       for that third branch. */
-  function projectionAnnual(dateCurrent, dateBackdated, premCurrent, premBackdated) {
-    var HORIZON_YEARS = 60;   // no Excel array-size limit here, but no reason to outgrow the original horizon either
+  /** `series` is buildYearSeries()'s own { current, backdated } arrays (index = elapsed policy
+      year). At each of CURRENT's own anniversaries (year N), BOTH sides bill at year-N's rate —
+      confirmed by the requester's own worked example: by the time Current reaches its Nth
+      anniversary, Backdated (which started earlier) has ALREADY had its own Nth anniversary, so
+      whatever it would currently be charging is also year N's rate; there is no separate Backdated-
+      side clock to track here (unlike Monthly, below). Year 0's prorated + remainder pieces both use
+      year 0's Backdated rate, so together they still total exactly one year-0 premium. */
+  function projectionAnnual(dateCurrent, dateBackdated, series) {
+    var maxY = series.current.length - 1;
     var daysProrated = Math.max(0, Math.round((dateCurrent.getTime() - dateBackdated.getTime()) / MS_PER_DAY));
-    var proratedBackdated = premBackdated * (daysProrated / 365);
-    var annualBackdated = premBackdated - proratedBackdated;
+    var premBackdated0 = series.backdated[0];
+    var proratedBackdated = premBackdated0 * (daysProrated / 365);
+    var annualBackdated = premBackdated0 - proratedBackdated;
 
-    var datesCurrent = [], datesBackdated = [];
-    for (var y = 0; y <= HORIZON_YEARS; y++) {
-      datesCurrent.push(addMonths(dateCurrent, y * 12));
+    var datesCurrent = [], datesBackdated = [], yearOfCurrent = {};
+    for (var y = 0; y <= maxY; y++) {
+      var dc = addMonths(dateCurrent, y * 12);
+      datesCurrent.push(dc);
       datesBackdated.push(addMonths(dateBackdated, y * 12));
+      yearOfCurrent[dc.getTime()] = y;
     }
     var firstCurrent = datesCurrent[0].getTime(), firstBackdated = datesBackdated[0].getTime();
 
     var rows = unionDates(datesCurrent, datesBackdated).map(function (u) {
-      var payC = u.inA ? premCurrent : 0, payB;
-      if (u.date.getTime() === firstBackdated) payB = proratedBackdated;
-      else if (u.date.getTime() === firstCurrent) payB = annualBackdated;
-      else if (u.inA) payB = premBackdated;   // subsequent CURRENT anniversaries, per the script
+      var t = u.date.getTime();
+      var payC = u.inA ? series.current[yearOfCurrent[t]] : 0, payB;
+      if (t === firstBackdated) payB = proratedBackdated;
+      else if (t === firstCurrent) payB = annualBackdated;
+      else if (u.inA) payB = series.backdated[yearOfCurrent[t]];   // same year-index as Current — see the doc comment above
       else payB = 0;                          // subsequent Backdated-only anniversaries — checkpoint
       return { date: u.date, payC: payC, payB: payB };
     });
@@ -136,29 +207,27 @@
       script's own horizon-sizing heuristic (how far out a stable crossing
       could plausibly need); ported as-is since it costs nothing here and the
       eventual Savings Date logic (TO_DO C-3) will want the same horizon. */
-  function projectionMonthly(dateCurrent, dateBackdated, premCurrent, premBackdated) {
-    var datedifM = (dateCurrent.getUTCFullYear() - dateBackdated.getUTCFullYear()) * 12
-      + (dateCurrent.getUTCMonth() - dateBackdated.getUTCMonth())
-      - (dateCurrent.getUTCDate() < dateBackdated.getUTCDate() ? 1 : 0);
-    var backBeforeCurrent = dateBackdated.getTime() < dateCurrent.getTime()
-      ? datedifM + 1 - (dateCurrent.getUTCDate() === dateBackdated.getUTCDate() ? 1 : 0)
-      : 0;
+  /** `series` is buildYearSeries()'s own { current, backdated } arrays. Independent per-side
+      clocks — confirmed by the requester's own worked example (each side keeps its OWN monthly
+      schedule and its OWN renewal date, whichever comes first): month i on a side belongs to
+      elapsed policy year floor(i/12) on THAT side's own schedule, unrelated to what the other side
+      is doing that same calendar month. current/backdated always end together (buildYearSeries),
+      so one shared month count covers both. */
+  function projectionMonthly(dateCurrent, dateBackdated, series) {
+    var months = series.current.length * 12;
 
-    var REQUIRED_STREAK = 5;
-    var delta = premCurrent - premBackdated;
-    var denomForSizing = delta > 0 ? delta : 1;
-    var initialGap = backBeforeCurrent * premBackdated;
-    var approxMonths = Math.max(12, Math.ceil(initialGap / denomForSizing));
-    var searchMonths = approxMonths + REQUIRED_STREAK + 24;
-
-    var datesCurrent = [], datesBackdated = [];
-    for (var i = 0; i < searchMonths; i++) {
-      datesCurrent.push(addMonths(dateCurrent, i));
-      datesBackdated.push(addMonths(dateBackdated, i));
+    var datesCurrent = [], datesBackdated = [], monthOfCurrent = {}, monthOfBackdated = {};
+    for (var i = 0; i < months; i++) {
+      var dc = addMonths(dateCurrent, i), db = addMonths(dateBackdated, i);
+      datesCurrent.push(dc); monthOfCurrent[dc.getTime()] = i;
+      datesBackdated.push(db); monthOfBackdated[db.getTime()] = i;
     }
 
     var rows = unionDates(datesCurrent, datesBackdated).map(function (u) {
-      return { date: u.date, payC: u.inA ? premCurrent : 0, payB: u.inB ? premBackdated : 0 };
+      var t = u.date.getTime();
+      var payC = u.inA ? series.current[Math.floor(monthOfCurrent[t] / 12)] : 0;
+      var payB = u.inB ? series.backdated[Math.floor(monthOfBackdated[t] / 12)] : 0;
+      return { date: u.date, payC: payC, payB: payB };
     });
     return cumulate(rows);
   }
@@ -170,22 +239,17 @@
     var fin = finalBackdateDate();
     if (fin.error) return { error: fin.error };
     if (!fin.date) return { blocked: fin.blocked };
-    var curTotal = core.premiumTotal('modalPrem'), bdTotal = core.premiumTotal('modalPremBackdated');
-    if (curTotal.error || bdTotal.error) return { error: curTotal.error || bdTotal.error };
-    if (curTotal.pending || bdTotal.pending) return { pending: true };
-    if (curTotal.blocked || bdTotal.blocked) return { blocked: curTotal.blocked || bdTotal.blocked };
-    return {
-      dateCurrent: core.parseDate(core.settings.refDate), dateBackdated: fin.date,
-      premCurrent: curTotal.value, premBackdated: bdTotal.value
-    };
+    return { dateCurrent: core.parseDate(core.settings.refDate), dateBackdated: fin.date };
   }
 
   function buildProjection() {
     var x = projectionInputs();
     if (x.error || x.pending || x.blocked) return x;
+    var series = buildYearSeries();
+    if (series.error || series.pending || series.blocked) return series;
     var rows = core.settings.freq === 'annually'
-      ? projectionAnnual(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated)
-      : projectionMonthly(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+      ? projectionAnnual(x.dateCurrent, x.dateBackdated, series)
+      : projectionMonthly(x.dateCurrent, x.dateBackdated, series);
     return { rows: rows };
   }
 
@@ -197,9 +261,11 @@
   function annualSavingsDate() {
     var x = projectionInputs();
     if (x.error || x.pending || x.blocked) return x;
+    var series = buildYearSeries();
+    if (series.error || series.pending || series.blocked) return series;
     var daysProrated = Math.max(0, Math.round((x.dateCurrent.getTime() - x.dateBackdated.getTime()) / MS_PER_DAY));
-    var proratedBackdated = x.premBackdated * (daysProrated / 365);
-    var rows = projectionAnnual(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+    var proratedBackdated = series.backdated[0] * (daysProrated / 365);
+    var rows = projectionAnnual(x.dateCurrent, x.dateBackdated, series);
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].diff >= proratedBackdated) return { date: rows[i].date };
     }
@@ -214,10 +280,12 @@
   function monthlySavingsDate() {
     var x = projectionInputs();
     if (x.error || x.pending || x.blocked) return x;
-    if (x.premCurrent - x.premBackdated <= 0) {
+    var series = buildYearSeries();
+    if (series.error || series.pending || series.blocked) return series;
+    if (series.current[0] - series.backdated[0] <= 0) {
       return { blocked: 'no stabilization — the Backdated premium is not lower than Current' };
     }
-    var rows = projectionMonthly(x.dateCurrent, x.dateBackdated, x.premCurrent, x.premBackdated);
+    var rows = projectionMonthly(x.dateCurrent, x.dateBackdated, series);
     var lastNonPositive = -1;
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].diff <= 0) lastNonPositive = i;

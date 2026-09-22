@@ -2,20 +2,18 @@
 
 Things parked for later, and things to review. **One item = one short block** (what · where it stands · waiting on · where in the code). Ask Claude to "add it to the TO-DO" whenever you park something; it also gets added when you say "later" / "come back to it".
 
-*Last updated: 2026-09-20*
+*Last updated: 2026-09-21*
 
 ## At a glance
 
 | ID | Area | Item | Waiting on |
 |---|---|---|---|
-| C-2 | Rates ↔ Backdate | Real backdated age in the Rates `_BD` columns (age − 1 today) | Your rule |
 | C-4 | History tab | "Total Modal Premium" column could now sum the per-coverage Modal Prem. | Your go-ahead |
 | C-5 | Insureds + Coverages tabs | "Perm Joint Extra Prem. % / $ Backdated" columns | Your formulas |
 | C-6 | Critical Illness | Coverage Type, Fee, Axis Key, rates (all 3 categories) | Your spec |
-| C-7 | Rates | Term Life: use durations beyond Duration 1 | A feature that needs it |
 | C-8 | Joint container | Equiv. Substd. % (the "Substd Prem." half of the old Eq. Age sheet) stays a typed input | Your formula |
 | C-9 | Pre-load page | Remove the "Skip (dev)" bypass | End of coding |
-| R-1 | Review | Joint Age Backdated = equivalent age re-run on backdated ages (age − 1 stand-in) | Real backdated age (C-2) |
+| R-1 | Review | Joint Age Backdated = equivalent age re-run on backdated ages (age − 1, confirmed) | JLTDPU-under-18 edge only |
 | R-2 | Review | Joint Perm lookups (EPR reading, JLTDPU change) vs Excel | Real rate files |
 | R-3 | Review | "Extra Prem. Term $" adds Perm $ + Term $ | Your OK |
 | R-4 | Review | Backdate date edge cases (month-end, midpoint rounding) | Your OK |
@@ -24,19 +22,16 @@ Things parked for later, and things to review. **One item = one short block** (w
 | R-8 | Review | BD_Final when an insured's eligibility is unknown (blank birthdate) → Error | Your OK |
 | R-9 | Review | **Modal Prem. formula**: Prem. Adj. % as %/100, joint uses Flat Perm only, Input Premium as-is | Your OK |
 | R-10 | Review | Highest Amt: the $1 walk stops at the first amount over the premium (local) | Your OK |
-| R-12 | Review | **WL to 100 / Term to 100** (2017 keys): assumptions I made | Your OK |
 | R-11 | Review | **Message bar scope**: what raises a message and what deliberately doesn't | Your OK |
+| R-12 | Review | **WL to 100 / Term to 100** (2017 keys): assumptions I made | Your OK |
+| R-13 | Review | **Backdate Projection year-0 split**: prorated + remainder both priced at year-0's Backdated rate | Your OK |
+| R-14 | Review | **Modal Prem. vs year-0 of the new engine**: the new engine applies Prem Adj Dur, today's Modal Prem. still doesn't | Your OK |
+| R-15 | Review | **Backdate Projection's "Backdated" track**: a straight age−1 track for every insured, not the BD_Final per-insured-optimal mix | Your OK |
 | S-2…S-5 | Suggestions | .gitignore for rates/, lock Remove on joint, brighter yellow, one source for the rate-version stamps | Your yes/no |
 
 ---
 
 ## 1 · To code later (you parked these)
-
-### C-2 · Real backdated age in the Rates `_BD` columns
-- **What:** PR_BD / EPR_BD / PEP_BD (and so the Backdate tab's Rate Backdated) should use the insured's real backdated age from the Backdate tab.
-- **Now:** age − 1 stand-in (on joint coverages: the equivalent age re-run with each Backdate-Eligible insured a year younger — R-1). The Backdate tab already computes "Backdated Age Nearest/Last".
-- **Waiting on:** your rule for how the two tabs connect.
-- **Where:** `optimizer_rates.js` → `cellResult` / `lookupAge`; `optimizer.js` → `equivAge` (its `backdated` branch).
 
 ### C-4 · History's "Total Modal Premium"
 - **What:** the History tab lists each saved test case with a "Total Modal Premium" column, still a muted dash. It could now be the same sum the Results Summary shows — except that a saved case stores the inputs, not the figures, so it would have to be computed at save time and stored with the snapshot.
@@ -57,12 +52,6 @@ Things parked for later, and things to review. **One item = one short block** (w
 - **Waiting on:** your spec.
 - **Where:** `optimizer.js` (`covTypeOptions`, `recalcFees`, axis key), `optimizer_rates.js` (`BAND_TABLES`), `optimizer_coverages.js` (`extraTermCell`).
 
-### C-7 · Term Life rates · durations beyond Duration 1
-- **What:** look up other policy-year durations.
-- **Now:** every duration is imported, only Duration 1 is read ("for now we only need the first duration… later we will need all").
-- **Waiting on:** the feature that needs it.
-- **Where:** `optimizer_rates.js` → `lookupTermLifeRate` (`duration` argument).
-
 ### C-8 · Equiv. Substd. % stays a typed input
 - **What:** the old "Eq. Age / Substd. Prem." sheet also derived a substandard equivalent for the joint coverage; the Equivalent Age half is built (see Done), this half is not.
 - **Now:** the Joint container's "Equiv. Substd. %" is typed by the operator ("leave Substd. Prem. as an input for now").
@@ -78,10 +67,9 @@ Things parked for later, and things to review. **One item = one short block** (w
 
 ## 2 · To review / validate
 
-### R-1 · Joint Age Backdated  *(your rule, one stand-in and one edge of mine)*
-- **Rule (yours):** re-run the whole equivalent-age calculation with each insured who is Backdate Eligible (the Backdate tab's eligibility, not Confirm Backdate — that one reads the rates, which read this) one year younger. The joint age can stay the same.
-- **Stand-in:** "one year younger" is age − 1 for now, like the insured `_BD` columns (C-2).
-- **My edge:** a JLTDPU whose backdated age would fall under 18 has no answer in the spec → Error (so its BD_Final is an Error too).
+### R-1 · Joint Age Backdated  *(your rule, confirmed; one edge of mine still open)*
+- **Rule (yours, confirmed 2026-09-21):** re-run the whole equivalent-age calculation with each insured who is Backdate Eligible (the Backdate tab's eligibility, not Confirm Backdate — that one reads the rates, which read this) one year younger — a flat age − 1, permanent production logic, not a stand-in. Same rule the insured `_BD` columns use (was C-2, now closed — see Done).
+- **My edge (still open):** a JLTDPU whose backdated age would fall under 18 has no answer in the spec → Error (so its BD_Final is an Error too).
 - **Check:** confirm the edge, or tell me what a backdate under 18 should do.
 - **Where:** `optimizer.js` → `equivAge` / `jointAge`.
 
@@ -138,6 +126,21 @@ Things parked for later, and things to review. **One item = one short block** (w
 - **Check:** one WL to 100 and one Term to 100 case against Excel, incl. a coverage amount between 250,000 and 499,999 (falls to B00100 with these lists).
 - **Where:** `optimizer.js` → `axisKeyPermLife`; `optimizer_rates.js` → `LEGACY_BANDS`, `bandsFor`, `substandardKey`.
 
+### R-13 · Backdate Projection year-0 split  *(an assumption I stated, not explicitly re-confirmed)*
+- **Why:** the first projection row splits year 0 into a prorated piece (the days before the first Current anniversary) and a remainder piece (the rest of year 0, paid on the first Current anniversary). Both pieces are priced at year 0's Backdated rate — I stated this before coding started; your final "All good?" round answered points A–E but didn't re-confirm this specific sub-detail.
+- **Check:** confirm the remainder piece should use year 0's rate too (not year 1's, since by the time it's paid the policy may already be into year 1 on the calendar).
+- **Where:** `optimizer_backdate.js` → `projectionAnnual`.
+
+### R-14 · Modal Prem. vs the new engine's year 0  *(a deliberate, but unconfirmed, divergence)*
+- **Why:** today's Modal Prem. / Modal Prem. Backdated (`modalPrem`/`modalPremBackdated`) ignore Prem. Adj. %/$ Dur. entirely (always apply, never gated) — unchanged, so an already-shipped figure can't silently move. The new per-year engine (`premiumAtYear`, used only by the Backdate Projection) DOES gate them by duration, per your rule B. Result: `premiumAtYear(c, 0, false)` will not always equal `modalPrem(c).value` when a Dur field is left at 0 (never applies) while its %/$ counterpart is non-default — the projection's own year-0 row can then read differently than the Coverages tab's Modal Prem. for the same coverage.
+- **Check:** is that acceptable, or should Modal Prem. also start gating by duration (which would change today's shipped figure whenever a Dur field is in play)?
+- **Where:** `optimizer_coverages.js` → `premContext` vs `premContextAtYear`.
+
+### R-15 · Backdate Projection's "Backdated" track  *(a design choice I made)*
+- **Why:** the projection's Backdated side is a straight, unconditional age − 1 track for every summed insured (via `core.premiumAtYear(c, y, true)`), modelling "what if this were fully backdated" as a scenario. This is NOT the same figure as today's Modal Prem. Backdated (`modalPremBackdated`), which mixes each insured's own BD_Final (current rate for a non-eligible insured, age − 1 for an eligible one). The old (pre-duration-varying) projection used `core.premiumTotal('modalPremBackdated')` as its backdated constant, so this is a behavior change from what shipped before.
+- **Check:** should the projection's Backdated track follow BD_Final's per-insured mix instead (matching Modal Prem. Backdated exactly at year 0), or is the all-backdated scenario the one you actually want to see projected?
+- **Where:** `optimizer_backdate.js` → `premiumSumAtYear` (the `backdated` arg passed straight to `core.premiumAtYear`).
+
 ### R-11 · Message bar scope  *(my design choices — first version)*
 - **Raised:** rejected inputs; state problems (Reference Date, out-of-range age after a Reference Date change, too many insureds); every rate-lookup failure with its cause; the actionable Modal Prem. blockers (Payment Frequency, Coverage Fee, joint Flat Perm $ blank, amount / premium below the lowest band, search that never settles); rate-file load problems; History save / import / load / storage problems; any uncaught error.
 - **Deliberately NOT raised:** amber "no formula yet" cells (Critical Illness, Backdate Projection, the two Joint Extra Prem. Backdated columns); plain blank required inputs (already yellow); "no higher rate band is within this premium" and "no insured is backdatable" (information); anything on a brand-new blank coverage.
@@ -164,6 +167,7 @@ Things parked for later, and things to review. **One item = one short block** (w
 
 ## 5 · Done (moved here from the lists above)
 
+- 2026-09-21 · **Backdate Projection: duration-varying premiums** (also closes old C-7) — both the Current and Backdated tracks now use a real per-policy-year premium instead of two constants. New engine: `optimizer_rates.js`'s `bandTotalsAtYear(c, elapsedYears, backdated)` (Term Life duration = `elapsedYears + 1`, confirmed §-shift; Permanent Life has no duration axis, only `permStillPaying` gates it) → `optimizer_coverages.js`'s `premiumAtYear(c, elapsedYears, backdated)` (same `modalPremAt` LET(), a per-year `premContextAtYear` that now gates Prem. Adj. %/$ Dur., a slot's Term $ Dur. and the Joint's Flat Term $ Dur. by `elapsedYears` — see R-14 for the resulting divergence from today's Modal Prem.) → `optimizer_backdate.js`'s `premiumSumAtYear`/`buildYearSeries` (sums every coverage per year, stops once both sides report `allEnded`, `HORIZON_YEARS=110` is a runaway guard only). `projectionAnnual`/`projectionMonthly` rewritten to place that series onto the calendar: Annual bills both sides at the SAME year-index at every Current anniversary (confirmed — Backdated, starting earlier, has already had its own Nth anniversary by then); Monthly runs fully independent per-side clocks. Permanent pay-period rules (WL 10/15/20 Pay stop at 10/15/20 years; WL to 65 / WL to 100 / Term to 100 stop at issue age + elapsed = 65/100/100, using the Joint Age for joint coverages) and the JFTD "ends when the oldest insured reaches 85" rule (free via `totalResult`'s existing sum-short-circuit) both confirmed by the requester. Bug found and fixed along the way: a coverage whose rate row was missing even at year 0 (a real Error, e.g. a bad Axis Key) was briefly misclassified as "ended" for every year after 0 — fixed by `endedOrError`, which only declares "ended" once a year-0 lookup is confirmed to have actually succeeded. Verified against hand-calculated values built from every confirmed rule and worked example (T15 block schedule, WL 10 Pay cutoff, JFTD oldest-insured-ends-it, Annual same-year alignment, Monthly independent clocks). Today's single-point Modal Prem. / Modal Prem. Backdated are unchanged. See R-13, R-14, R-15 for the three assumptions still open for confirmation. Real backdated age in the Rates `_BD` columns (old C-2) is confirmed final as part of this work: age − 1 is deliberate production logic, not a stand-in (R-1 updated accordingly).
 - 2026-09-21 · **WL to 100 / Term to 100 Axis Key + rates** (old Q-1) — the 2017-style 33-character key (`T_VEG100_______17-01_MS____B00500`, `T_T100_________17-01_FN____B00010`), its Substandard key (`TS…`), and their own band lists (WL to 100 adds B00001, Term to 100 adds B01000, neither has B00250). Lookup unchanged (Axis Key + age → rate). Every band lookup now goes through `bandsFor(coverage)`. Verified with synthetic rows built from your example keys (PR/EPR at age 40, keys 33 characters, bands, 250,000 → B00100). Assumptions in R-12.
 - 2026-09-20 · **Backdate Projection: Monthly/Annual Savings Date** (completes old C-3) — two independent calculations, ported from your `annual.md`/`monthly.md` scripts, always computed regardless of `settings.freq`: Annual is the first date the cumulative Difference reaches or passes the prorated first-year Backdated premium; Monthly is the first date after which the cumulative Difference stays positive through the rest of the search window (blocked with a reason if the Backdated premium isn't actually lower, or if it never stabilizes). Fill the two header pills (`bdMonthlySavingsDate`/`bdAnnualSavingsDate`) and the Results Summary's "Backdate Savings Date" (whichever one matches the current Payment Frequency). Verified live: Monthly gave 20-JUN-2028, Annual gave 20-SEP-2027 on the same scenario; switching Payment Frequency correctly swapped which one the Summary mirrors.
 - 2026-09-20 · **Backdate Projection table** (part of old C-3) — the 6-column table (Date, Premium Current, Cumul. Prem. Current, Premium Backdated, Cumul. Prem. Backdated, Difference), ported line-for-line from the operator's own Excel Python-in-Excel script: Annual branch (prorated first Backdated payment, remainder on the first Current anniversary, full Backdated premium on every later Current anniversary, later Backdated anniversaries are 0-payment checkpoints) and Monthly branch (full premium on each side's own anniversaries), both driven by `settings.freq`. Needs a Final Backdate Date and both Modal Premium totals resolved — reuses the exact same blocked/pending/error states as everywhere else (`core.premiumTotal`, newly lent onto the bridge). Verified live: Monthly gave 102 rows, Annual gave 122, both with cumulative sums and the prorated/remainder/checkpoint split matching the script exactly; a coverage with no rate resolved correctly propagates "not on any coverage yet" into the table instead of crashing.

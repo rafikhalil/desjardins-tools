@@ -2463,7 +2463,7 @@ backdated (`_BD`):
 
 | Value | Formula |
 |---|---|
-| **PR** | Rate at (Axis Key = prefix + band, **age**). Term Life: always the *insured's own* age, Duration 1. Perm Individual: the insured's own age. **Perm joint (JFTD/JLTD/JLTDPU): the Joint Age** (§12.6) on the joint key (`MN`) — every insured on the coverage shows the same figure |
+| **PR** | Rate at (Axis Key = prefix + band, **age**). Term Life: the *insured's own* age, at **Duration 1** on this tab (the Rates tab always reads elapsed policy year 0; the Backdate Projection's own per-year engine reads other durations the same way — §12.12). Perm Individual: the insured's own age. **Perm joint (JFTD/JLTD/JLTDPU): the Joint Age** (§12.6) on the joint key (`MN`) — every insured on the coverage shows the same figure |
 | **EPR** | *Term Life:* identical to PR. *Perm:* the Substandard rate — same key with `DT_` → `DTS`, same age |
 | **PEP** | `EPR × pct / 100`, where `pct` is the slot's *Perm Extra Prem. %* — or, on a joint Perm coverage, the Joint container's *Equiv. Substd. %*. A blank `pct` is an Error (type `0` for none) |
 | **`_BD`** | the same three at `age − 1` (Joint Age Backdated on a joint coverage, §12.6) |
@@ -2585,7 +2585,7 @@ calendar dates.
 | Past / Next Birthday | most recent birthday **on or before** the Illustration Date (a birthday exactly on it counts as past) / the next one after it. 29-FEB in a non-leap year → 28-FEB |
 | Midpoint (Possible Backdate) | the midpoint, in whole days, between Past and Next Birthday, **rounded half up**; a day of 29/30/31 → **28** |
 | **Backdate Eligible** | `Midpoint ≥ Max. Backdate Date AND Midpoint ≤ Illustration Date` |
-| Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` — informational; **not** yet what the Rates `_BD` columns use (*C-2*) |
+| Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` — informational, distinct from the Rates `_BD` columns, which use a flat **age − 1** (confirmed production rule, not derived from this Midpoint age — §12.5) |
 | Rate Current (All Cov.) | Σ over every coverage the insured is on of that coverage's **PR_N** at its band (§12.4) |
 | Rate Backdated (All Cov.) | the same Σ of **PR_BD_N** |
 | **Confirm Backdate** | `Eligible AND (Rate Backdated < Rate Current)` — strict `<`, tolerant of float noise (1e-9). Not eligible ⇒ a real `FALSE` (`AND(FALSE; anything)`); eligible with a rate that could not be resolved ⇒ that rate's own state |
@@ -2593,8 +2593,7 @@ calendar dates.
 | **Final Backdate Date** (band) | the **earliest** Backdate Date among insureds, blanks ignored (13-JUL-2026 / blank / 24-MAY-2026 → 24-MAY-2026). None ⇒ muted "no insured is backdatable"; an unresolved insured makes the MIN unknowable, so that state wins |
 
 Feeds the Results Summary's *Possible Backdate Date*. The **Backdate
-Projection** container (savings dates + 6-column table) has no formulas yet
-(amber; *TO_DO C-3*).
+Projection** container (savings dates + 6-column table) is built — §12.12.
 
 ### 12.8 Modal Prem. (Coverages tab, mirrored in Results)
 
@@ -2691,11 +2690,104 @@ function, so they cannot disagree). Cell states per §12.0.
 **Modal Premium Backdated** = Σ of their Modal Prem. Backdated (Error anywhere
 ⇒ Error; pending ⇒ pending; blocked ⇒ blocked — never a partial total);
 **Possible Backdate Date** = the Backdate tab's Final Backdate Date;
-**Backdate Savings Date** = still amber (waits on the Backdate Projection,
-*TO_DO C-3*). Results re-renders on any input change, on `ratesstatus` and on
-`unitvaluechange`.
+**Backdate Savings Date** = whichever of the Backdate Projection's Monthly /
+Annual Savings Date matches the current Payment Frequency (§12.12). Results
+re-renders on any input change, on `ratesstatus` and on `unitvaluechange`.
 
-### 12.12 Where each piece of logic lives
+### 12.12 The Backdate Projection — duration-varying premiums
+
+Everything in §12.5–§12.9 above is a **single point**: today's rate, today's
+Modal Prem. The Backdate Projection needs a whole **series** — what each side
+would actually charge in policy year 1, 2, 3, … — because Term Life premiums
+step up on schedule and Permanent Life products stop charging once their pay
+period ends. Confirmed by the requester (2026-09-21): Term Life is fixed for a
+level period then steps every 5 years until the rate table runs dry around
+real age 85; a limited-pay/age-capped Permanent product simply stops. This
+section is the per-year engine that replaces the old two-constant projection.
+
+**The Duration shift.** The rate table's own `Duration` column is the elapsed
+policy year **+ 1** (Duration 1 = year 0/issue, Duration 16 = year 15 — where
+a T15 steps for the first time). `lookupTermLifeRate` is unchanged; every
+caller now passes `(elapsedYears || 0) + 1` instead of a hardcoded `1`.
+Permanent Life rates have **no** duration axis — only age matters for the
+rate itself; duration only decides whether the coverage is still paying.
+
+**Coverage-ended detection.**
+
+- *Term Life:* a rate lookup failing with "no row for Axis Key" at
+  `elapsedYears > 0` means the table ran dry (confirmed shape, not a hole) —
+  **unless** the same lookup also fails at `elapsedYears = 0`, which means the
+  coverage was never ratable and is a real Error. `isRowGoneAtYear` +
+  `endedOrError` (`optimizer_rates.js`) make that distinction; without the
+  year-0 check, a genuinely broken Axis Key was briefly misreported as
+  "ended" for every year after 0 (fixed during this build).
+- *Permanent Life:* `permStillPaying(c, ins, backdated, elapsedYears)` —
+  `PERM_PAY_YEARS` (`WL 10/15/20 Pay` → 10/15/20 years) or `PERM_AGE_CAP`
+  (`WL to 65` → 65, `WL to 100`/`Term to 100` → 100, checked as
+  `issue age + elapsedYears < cap`, using the **Joint Age** for a joint
+  coverage — same age `lookupAge` already resolves for the rate itself, so it
+  can never disagree with which age the coverage is rated on).
+- *JFTD (Joint First-to-Die), multiple different-aged insureds:* "ends when
+  the oldest insured reaches 85" falls out for free from `totalResult`'s
+  existing behavior — any one insured's row running dry fails the whole sum,
+  and the oldest insured's row is naturally the first to run dry.
+
+**`bandTotalsAtYear(c, elapsedYears, backdated)`** (`optimizer_rates.js`) —
+the per-year PR_Total/PEP_Total, reusing `bandFor`/`totalResult` so it can
+never disagree with the Rates tab's own cells at `elapsedYears = 0`. Returns
+`{ pr, pep }`, `{ ended: true }`, `{ blocked }` or `{ error }`.
+
+**`premiumAtYear(c, elapsedYears, backdated)`** (`optimizer_coverages.js`) —
+the per-year Modal Prem., the *same* `modalPremAt` LET() §12.8 uses, fed a
+per-year rate (above) and a per-year context, `premContextAtYear`. Unlike
+`premContext` (§12.8, unchanged — an already-shipped figure), this one gates
+the 4 duration-limited inputs by `elapsedYears < …Dur` (0 = never applies,
+confirmed): Settings' *Prem. Adj. %/$ Dur.*, a slot's own *Term $ Dur.*
+(`termExtraPremAtYear`), and the Joint container's *Flat Term $ Dur.* — see
+*TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
+Dur field is in play. An Input Premium coverage's insurance amount is
+resolved **once**, at today's rates (`premBasis`, the same figure Coverages/
+Results already show), then re-priced at each year's own rate — not re-solved
+for a new amount every year (confirmed: "in theory it shouldn't differ").
+
+**`premiumSumAtYear(elapsedYears, backdated)` / `buildYearSeries()`**
+(`optimizer_backdate.js`) — sum every coverage's `premiumAtYear` for one year;
+a coverage that has ended contributes 0 (not an error) and is flagged via
+`allEnded`. `buildYearSeries()` loops from year 0 until **both** sides report
+`allEnded`, returning `{ current: [...], backdated: [...] }` (same length,
+index = elapsed policy year) or the first `{ error }`/`{ pending }`/
+`{ blocked }` — never a partial series. `HORIZON_YEARS = 110` is a runaway
+guard only (every real product ends by attained age 100 at the latest); the
+loop almost always stops itself first.
+
+The **Backdated** track is a straight, unconditional `age − 1` for every
+insured on the coverage (`core.premiumAtYear(c, y, true)`), modelling "what if
+this were fully backdated" — **not** the same mix as `modalPremBackdated`
+(§12.9), which uses each insured's own BD_Final (current rate for a
+non-eligible insured, age − 1 only for an eligible one). The two will not
+generally agree even at year 0. See *TO_DO R-15*.
+
+**Placing the series onto the calendar** — `projectionAnnual`/
+`projectionMonthly` are unchanged in *shape* from the original port (§12.7's
+old two-constant version), just fed a year index instead of a constant:
+
+- **Annual:** at each of *Current's own* anniversaries (year N), **both**
+  sides bill at year N's rate. Confirmed correct — by the time Current reaches
+  its Nth anniversary, Backdated (which started earlier) has *already* had
+  its own Nth anniversary, so it would currently be charging year N's rate
+  too; there is no separate Backdated-side clock to track here. Year 0 is
+  still split into a prorated piece + a remainder piece (paid on Current's
+  first anniversary), both priced at year 0's Backdated rate (*TO_DO R-13*).
+- **Monthly:** fully **independent** per-side clocks — each side bills
+  monthly on its own schedule, at whatever elapsed-year rate applies to *it*,
+  with no cross-side alignment (confirmed via a worked example: Backdated
+  renews on its own date regardless of when Current renews).
+
+`annualSavingsDate`/`monthlySavingsDate` (header pills) and `buildProjection`
+(the 6-column table) all call `buildYearSeries()` once and reuse it — same
+blocked/pending/error states as everywhere else on this page.
+
+### 12.13 Where each piece of logic lives
 
 | Logic | Function | File |
 |---|---|---|
@@ -2710,6 +2802,9 @@ function, so they cannot disagree). Cell states per §12.0.
 | Modal Prem. (+ Backdated) | `premContext`, `modalPremAt`, `modalPrem`, `modalPremBackdated` | `optimizer_coverages.js` |
 | Highest Amt / Prem. Basis | `solveAmount`, `highestAmt`, `premBasis` | `optimizer_coverages.js` |
 | Backdate | `eligibility`, `insuredBackdate`, `finalBackdateDate` | `optimizer_backdate.js` |
+| Per-year premium (Backdate Projection) | `permStillPaying`, `isRowGoneAtYear`, `endedOrError`, `bandTotalsAtYear` | `optimizer_rates.js` |
+| Per-year premium (Backdate Projection) | `termExtraPremAtYear`, `premContextAtYear`, `premiumAtYear` | `optimizer_coverages.js` |
+| Backdate Projection | `premiumSumAtYear`, `buildYearSeries`, `projectionAnnual`, `projectionMonthly`, `annualSavingsDate`, `monthlySavingsDate` | `optimizer_backdate.js` |
 | Summary totals | `summaryFields`, `premiumTotal` | `optimizer.js` |
 
 ---

@@ -255,6 +255,85 @@
       ' · cost_of_insurance ' + p.coi + ' · pep_value ' + p.pep + ' · tep_value ' + p.tep };
   }
 
+  /** Extra Prem. Term $ at a specific elapsed policy YEAR — the SAME selection premContext() makes
+      (joint: Flat Extra Prem. $ Perm alone, per R-9 — Flat Term $ never reaches Modal Prem. either
+      way, so it needs no year gate at all; everything else: Σ Perm $ + Term $ per insured), except
+      the TEMPORARY piece (Term $) only counts while its own Term $ Dur. still covers this year (0 =
+      never, confirmed by the requester). The Permanent piece (Perm $ / the joint's Flat Perm $) has
+      no duration of its own and applies for as long as the coverage itself is still paying (gated
+      by the caller — premiumAtYear/bandTotalsAtYear — not here). */
+  function termExtraPremAtYear(c, elapsedYears) {
+    if (core.isJointPerm(c)) return c.joint.extraFlat;
+    if (!c.covType) return null;
+    var total = null;
+    c.insureds.forEach(function (s) {
+      if (!s.insuredId) return;
+      total = (total || 0) + (s.extraFlat || 0);
+      if (s.extraTempYears && elapsedYears < s.extraTempYears) total += (s.extraTempAmt || 0);
+    });
+    return total;
+  }
+
+  /** premContext(), generalised to a specific elapsed policy YEAR — everything the Modal Prem. LET()
+      needs, with the 4 duration-limited inputs (Prem. Adj. %/$ Dur., a slot's own Term $ Dur., the
+      Joint's own Flat Term $ Duration — folded into termExtraPremAtYear above) applied only while
+      their own duration still covers this year (0 = never, confirmed by the requester). Coverage
+      Fee, Unit Value and the Modal Factor stay constant — only the rate and these four vary by year.
+      Deliberately a SEPARATE function from premContext(), not a generalisation of it: today's single-
+      point Modal Prem. (elapsedYears always 0, shown on this tab and mirrored in Results/History)
+      keeps ignoring the two Prem. Adj. *Dur. fields exactly as it always has, so building this new,
+      year-0-and-beyond engine can't silently change an already-shipped, already-verified figure —
+      only the brand-new Backdate Projection (which has no such history) applies this rule. { ctx }
+      or { blocked }. */
+  function premContextAtYear(c, elapsedYears) {
+    var modal_factor = modalFactor();
+    if (modal_factor === null) return { blocked: 'needs a Payment Frequency (Settings)' };
+    var term_extra_prem = termExtraPremAtYear(c, elapsedYears);
+    if (term_extra_prem === null || term_extra_prem === undefined) {
+      return { blocked: core.isJointPerm(c) ? 'Flat Extra Prem. $ Perm is blank (Joint container)' : 'Extra Prem. Term $ isn\'t available yet' };
+    }
+    if (c.fee === null || c.fee === undefined) return { blocked: 'needs a Coverage Fee (Coverage Input)' };
+    var s = core.settings;
+    return { ctx: {
+      modal_factor: modal_factor, term_extra_prem: term_extra_prem, coverage_fee: c.fee,
+      unit_value: unitValueFor(c._id),
+      prem_adj_percentage: (s.premAdjPctDur && elapsedYears < s.premAdjPctDur) ? s.premAdjPct / 100 : 1,
+      prem_adj_dollar: (s.premAdjAmtDur && elapsedYears < s.premAdjAmtDur) ? s.premAdjAmt : 0
+    } };
+  }
+
+  /** A coverage's Modal Prem. (or Modal Prem. Backdated when `backdated`) at a specific elapsed
+      policy YEAR (0 = today/issue year) — the SAME LET() (modalPremAt) Modal Prem. itself uses, fed
+      a per-year rate (core.bandTotalsAtYear) and a per-year context (premContextAtYear above). An
+      Input Premium coverage's insurance amount is resolved ONCE, at today's rates (premBasis(c), the
+      same figure the Coverages/Results tabs already show) and then re-priced at each year's own
+      rate — not re-solved for a new amount every year (confirmed by the requester: "in theory it
+      shouldn't differ"). Only ever called for Term/Permanent Life (Critical Illness has no formula;
+      other categories are pending/blocked exactly like modalPrem() itself).
+        { value }, { ended: true } (this coverage charges nothing from this year on — a Term product
+      past its rate table, or a limited-pay/age-capped Permanent one past its pay period), { pending }
+      (Critical Illness), { blocked } or { error }. */
+  function premiumAtYear(c, elapsedYears, backdated) {
+    if (c.category !== 'termLife' && c.category !== 'permLife') {
+      return c.category ? { pending: true } : { blocked: 'choose a Coverage Category' };
+    }
+    var insurance_amount = c.amount;
+    if (c.calcType === 'premium') {
+      var pb = premBasis(c);                 // resolved once, at today's rates — the same amount every year
+      if (!pb.amount) return pb;
+      insurance_amount = pb.amount;
+    }
+    if (insurance_amount === null || insurance_amount === undefined) {
+      return { blocked: c.calcType === 'premium' ? 'needs the Input premium' : 'needs a Coverage Amount' };
+    }
+    var t = core.bandTotalsAtYear(c, elapsedYears, backdated);
+    if (t.ended) return t;
+    if (t.error || t.blocked) return t;
+    var x = premContextAtYear(c, elapsedYears);
+    if (x.blocked) return x;
+    return { value: modalPremAt(x.ctx, t.pr, t.pep, insurance_amount).modal };
+  }
+
   /** One premium result — Modal Prem. or Modal Prem. Backdated — as a cell. */
   function premCell(m) {
     if (m.pending) return core.pendingCell();
@@ -534,6 +613,7 @@
     core.modalPremBackdated = modalPremBackdated;
     core.highestAmt = highestAmt;   // … the same formula run backwards …
     core.premBasis = premBasis;     // … and the same search against the premium typed in (a premium coverage's band follows it)
+    core.premiumAtYear = premiumAtYear;   // … and the Backdate Projection's per-year premium (optimizer_backdate.js)
 
     core.diagnostics(coverageIssues);   // the top-bar messages (§ coverageIssues)
 

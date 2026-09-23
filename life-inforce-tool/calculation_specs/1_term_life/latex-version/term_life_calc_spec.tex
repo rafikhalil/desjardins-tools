@@ -1,0 +1,1580 @@
+\documentclass[10pt]{article}
+\usepackage[paperwidth=45cm,paperheight=30cm,margin=1.5cm]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amssymb}
+\usepackage[table,dvipsnames]{xcolor}
+\usepackage{array}
+
+\providecommand{\lt}{<}
+\providecommand{\gt}{>}
+
+\setcounter{secnumdepth}{5}
+\setcounter{tocdepth}{5}
+
+\title{Term Life \\ Calculation Specification}
+\author{}
+\date{}
+
+\begin{document}
+\maketitle
+\tableofcontents
+\clearpage
+
+\section*{INTRODUCTION}
+\addcontentsline{toc}{section}{INTRODUCTION}
+
+This document provides a comprehensive overview of the formulas for Inforce Term products. The business rules are not considered in this document.
+
+It is divided into 4 parts:
+
+\begin{enumerate}
+\item[1)] \textbf{Duration:} This section details the formulas of the various durations used in the calculations
+\item[2)] \textbf{Input Setup:} This section details the inputs we get from Capsil, and the various calculations related to those inputs.
+\item[3)] \textbf{Report:} This section details the formulas for each variable appearing in the Illustration Report (projection values). For report purposes, \underline{the projections are calculated as of the date of the next policy anniversary}.
+\end{enumerate}
+
+The coverages included in the calculations are all the term products and their additional guarantees. The following table summarizes which type of coverage must be considered for each type of calculation. (Green = Consider the coverage in the calculation; Grey = Don't consider the coverage in the calculation)
+
+\begin{table}[h]
+\centering
+\begin{tabular}{|c|l|c|c|}
+\hline
+\cellcolor{ForestGreen!70}\textcolor{white}{\textbf{\#}} & \cellcolor{ForestGreen!70}\textcolor{white}{\textbf{Calculation}} & \cellcolor{ForestGreen!70}\textcolor{white}{\textbf{Term Products}} & \cellcolor{ForestGreen!70}\textcolor{white}{\textbf{Additional Coverages}} \\
+\hline
+1 & Duration & \cellcolor{green!40} & \cellcolor{green!40} \\
+\hline
+2 & Age & \cellcolor{green!40} & \cellcolor{green!40} \\
+\hline
+3 & Total Premium & \cellcolor{green!40} & \cellcolor{green!40} \\
+\hline
+4 & Life Insurance Premium & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+5 & Cumulative Premiums & \cellcolor{green!40} & \cellcolor{green!40} \\
+\hline
+6 & Total Extra Premium & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+7 & Life Insurance Amount & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+8 & Additional Coverages Premium & \cellcolor{gray!35} & \cellcolor{green!40} \\
+\hline
+9 & Coverage Net Premium Reserve & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+10 & Net Amount at Risk (NAAR) & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+11 & Net Cost of Pure Insurance (NCPI) & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+12 & Cumulative NCPI & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+13 & ACB Coverage Cost & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+14 & Cumulative ACB Coverage Cost & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+15 & Adjusted Cost Basis (ACB) & \cellcolor{green!40} & \cellcolor{gray!35} \\
+\hline
+\end{tabular}
+\end{table}
+
+\section{Duration}
+
+$iDur = \text{Duration},\ iCov = \text{Coverage},\ iInsured = \text{Insured}$
+
+\subsection{End of Coverage Projection}
+
+\[
+{End\ of\ Coverage\ Projection}_{\left(iCov\right)} = {End\ of\ Coverage\ Projection\ Without\ Adjustment}_{\left(iCov\right)} + {Coverage\ Projection\ Adjustment}_{\left(iCov\right)}
+\]
+
+\subsubsection{End of Coverage Projection Without Adjustment}
+
+\[
+{End\ of\ Coverage\ Projection\ Without\ Adjustment}_{\left(iCov\right)} = YEAR\left({Coverage\ Expiration\ Date}_{\left(iCov\right)}\right) - YEAR\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right)
+\]
+
+\paragraph{Coverage Expiration Date}
+\textit{Refer to definition}
+
+\paragraph{Coverage Issue Date}
+\textit{Refer to definition}
+
+\subsubsection{Coverage Projection Adjustment}
+
+\[
+{Coverage\ Projection\ Adjustment}_{\left(iCov\right)} = \begin{cases}
+0 & \text{if } {Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)} = 0 \\
+1 & \text{otherwise}
+\end{cases}
+\]
+
+\paragraph{Policy vs Coverage Offset}
+\textit{Refer to definition}
+
+\subsection{End of Illustration Projection}
+
+\[
+End\ of\ Illustration\ Projection = \max_{1 \leq iCov \leq \text{Nb of Cov. on illustration}} \left\{ {End\ of\ Coverage\ Projection}_{\left(iCov\right)} \right\}
+\]
+
+\subsubsection{End of Coverage Projection}
+\textit{Refer to previous definition}
+
+\subsection{End of Premium Payment}
+
+\[
+{End\ of\ Premium\ Pmt}_{\left(iCov\right)} = {End\ of\ Premium\ Pmt\ Without\ Adjustment}_{\left(iCov\right)} + {Coverage\ Projection\ Adjustment}_{\left(iCov\right)}
+\]
+
+\subsubsection{End of Premium Pmt Without Adjustment}
+
+\textbf{If:} ${\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Type}}_{\left(\boldsymbol{iCov}\right)} = \boldsymbol{A}\ \boldsymbol{or}\ \boldsymbol{B}$, \textbf{then}
+
+\[
+{End\ of\ Premium\ Pmt\ Without\ Adjustment}_{\left(iCov\right)} = YEAR\left({Coverage\ Paid\ up\ Date}_{\left(iCov\right)}\right) - YEAR\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right)
+\]
+
+\paragraph{Coverage Paid-up Date}
+\textit{Refer to definition}
+
+\paragraph{Coverage Issue Date}
+\textit{Refer to definition}
+
+\textbf{If:} ${\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Type}}_{\left(\boldsymbol{iCov}\right)} = \boldsymbol{C}$, \textbf{then}
+
+\[
+{End\ of\ Premium\ Pmt\ Without\ Adjustment}_{\left(iCov\right)} = \begin{cases}
+{End\ of\ Premium\ Value}_{\left(iCov\right)} & \text{if } {Exipration\ Type}_{\left(iCov\right)} = A \\
+{End\ of\ Premium\ Value}_{\left(iCov\right)} - {Maximum\ Age}_{\left(iCov\right)} & \text{otherwise}
+\end{cases}
+\]
+
+\paragraph{Expiration Type}
+
+\[
+{Exipration\ Type}_{\left(iCov\right)} = \begin{cases}
+A & \text{: Coverage never ends} \\
+B & \text{: Coverage ends at a predetermined number of years} \\
+C & \text{: Coverage ends at a predetermined age}
+\end{cases}
+\]
+
+\textit{See Product Characteristics document to associate to the right product.}
+
+\paragraph{End of Premium Value}
+
+\[
+{End\ of\ Premium\ Value}_{\left(iCov\right)} = \begin{cases}
+MIN\left\{100\ ;\ {Expiration\ Value}_{\left(iCov\right)}\right\} & \text{if } {End\ of\ Premium\ Type}_{\left(iCov\right)} = C \\
+{End\ of\ Premium\ \left(Age\ or\ Duration\right)}_{\left(iCov\right)} & \text{otherwise}
+\end{cases}
+\]
+
+\subparagraph{End of Premium (Age or Duration)}
+
+\[
+{End\ of\ Premium\ \left(Age\ or\ Duration\right)}_{\left(iCov\right)} = \text{Age or number of years at which the premium ends}
+\]
+
+\subparagraph{Expiration Value}
+
+\[
+{Expiration\ Value}_{\left(iCov\right)} = \begin{cases}
+100 & \text{if } {Exipration\ Type}_{\left(iCov\right)} = A \\
+{End\ of\ Coverage\ \left(Age\ or\ Duration\right)}_{\left(iCov\right)} & \text{otherwise}
+\end{cases}
+\]
+
+\subparagraph{End of Coverage (Age or Duration)}
+
+\[
+{End\ of\ Coverage\ \left(Age\ or\ Duration\right)}_{\left(iCov\right)} = \text{Age or number of years at which the coverage ends}
+\]
+
+\textit{See Product Characteristics document to associate to the right product.}
+
+\subparagraph{End of Premium Type}
+
+\[
+{End\ of\ Premium\ Type}_{\left(iCov\right)} = \begin{cases}
+A & \text{: Premiums end in a predetermined number of years} \\
+B & \text{: Premiums end at a predetermined age} \\
+C & \text{: Premium never ends}
+\end{cases}
+\]
+
+\textit{See Product Characteristics document to associate to the right product.}
+
+\paragraph{Expiration Value}
+\textit{Refer to previous definition}
+
+\paragraph{Maximum Age}
+
+\[
+{Maximum\ Age}_{\left(iCov\right)} = \begin{cases}
+\text{Age of the insured (from Capsil)} & \text{for Individual Coverage} \\
+\text{Equivalent age (from Capsil)} & \text{for Joint Coverage of the equivalent age type (ex: Permanent life products)} \\
+\text{Age of the oldest insured on the coverage (from Capsil)} & \text{for Joint Coverage with no equivalent age (ex: Term life products)}
+\end{cases}
+\]
+
+\subsubsection{Coverage Projection Adjustment}
+\textit{Refer to previous definition}
+
+\subsection{End of Fiscal Projection}
+
+\[
+{End\ of\ Fiscal\ Projection}_{\left(iCov,iInsured\right)} = \begin{cases}
+{Omega}_{\left(iCov\right)} - {Age}_{\left(iCov,iInsured\right)} & \text{if } {Exipration\ Type}_{\left(iCov\right)} = A\ \text{or}\ C \\
+{Omega}_{\left(iCov\right)} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ \textit{Additional coverages are not included in the coverages calculated}
+
+\subsubsection{Expiration Type}
+\textit{Refer to previous definition}
+
+\subsubsection{Omega}
+
+\[
+{Omega}_{\left(iCov\right)} = \begin{cases}
+106 & \text{for Permanent products} \\
+{Expiration\ Value}_{\left(iCov\right)} & \text{for Term products}
+\end{cases}
+\]
+
+\paragraph{Expiration Value}
+\textit{Refer to previous definition}
+
+\subsubsection{Age}
+
+\[
+{Age}_{\left(iCov,iInsured\right)} = \text{Age for each of the insured on the coverage (from Capsil)}
+\]
+
+\section{INPUT SETUP: For the Policy}
+
+\subsection{Data from CAPSIL}
+
+\subsubsection{Policy Issue Date}
+
+\[
+{Policy\ Issue\ Date} = \text{Issue date of the policy (from CAPSIL)}
+\]
+
+$\rightarrow$ $YEAR\left({Policy\ Issue\ Date}\right) = \text{Year of the Policy Issue Date}$
+
+% NOTE: This fragment begins mid-content (continuation from a subsection
+% whose heading appeared on an earlier page not provided to this pass).
+% The two lines below are the tail of a YEAR/MONTH/DAY breakdown of
+% "Policy Issue Date" (the YEAR line was on the prior, unseen page).
+\[
+\rightarrow\ MONTH\left(Policy\ Issue\ Date\right) = Month\ of\ the\ Policy\ Issue\ Date
+\]
+\[
+\rightarrow\ DAY\left(Policy\ Issue\ Date\right) = Day\ of\ the\ Policy\ Issue\ Date
+\]
+
+\subsubsection{Value As of Date}
+
+\[
+{Value\ As\ of\ Date} = \text{Date on which the data is retrieved from capsil} \left(\text{from CAPSIL}\right)
+\]
+\[
+\rightarrow\ YEAR\left(Value\ As\ of\ Date\right) = Year\ of\ the\ Value\ As\ of\ Date
+\]
+\[
+\rightarrow\ MONTH\left(Value\ As\ of\ Date\right) = Month\ of\ the\ Value\ As\ of\ Date
+\]
+\[
+\rightarrow\ DAY\left(Value\ As\ of\ Date\right) = Day\ of\ the\ Value\ As\ of\ Date
+\]
+
+\subsubsection{Premiums Paid to Date}
+
+\[
+{Premiums\ Paid\ to\ Date} = \text{Premiums have been paid up to this date} \left(\text{from CAPSIL}\right)
+\]
+\[
+\rightarrow\ YEAR\left(Premiums\ Paid\ to\ Date\right) = Year\ of\ the\ Premiums\ Paid\ to\ Date
+\]
+\[
+\rightarrow\ MONTH\left(Premiums\ Paid\ to\ Date\right) = Month\ of\ the\ Premiums\ Paid\ to\ Date
+\]
+\[
+\rightarrow\ DAY\left(Premiums\ Paid\ to\ Date\right) = Day\ of\ the\ Premiums\ Paid\ to\ Date
+\]
+
+\subsubsection{Total Premiums Paid}
+
+\[
+{Total\ Premiums\ Paid} = \text{Total cumulative premiums already paid for the policy} \left(\text{from CAPSIL}\right)
+\]
+
+\subsubsection{Policy Cumulative NCPI}
+
+\[
+{Policy\ Cumulative\ NCPI} = \text{Total cumulative Net Cost of pure Insurance to date for the policy} \left(\text{from CAPSIL, the value is as of last December 31}\right)
+\]
+
+\subsubsection{Policy ACB}
+
+\[
+{Policy\ ACB} = \text{Adjusted Cost Basis to date for the policy} \left(\text{from CAPSIL}\right)
+\]
+
+\subsection{Next Policy Anniversary}
+
+\[
+Next\ Policy\ Anniversary = DATE\left\{YEAR\left(Next\ Policy\ Anniversary\right)\ ;\ MONTH\left(Policy\ Issue\ Date\right)\ ;\ DAY\left(Policy\ Issue\ Date\right)\right\}
+\]
+
+\subsubsection{Policy Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{YEAR (Next Policy Anniversary)}
+
+\[
+YEAR\left(Next\ Policy\ Anniversary\right) = \begin{cases}
+YEAR\left(Value\ As\ of\ Date\right) + 1 & \text{if } MONTH\left(Policy\ Issue\ Date\right) \lt MONTH\left(Value\ As\ of\ Date\right) \\
+YEAR\left(Value\ As\ of\ Date\right) + 1 & \text{if } MONTH\left(Policy\ Issue\ Date\right) = MONTH\left(Value\ As\ of\ Date\right) \text{ and } DAY\left(Policy\ Issue\ Date\right) \leq DAY\left(Value\ As\ of\ Date\right) \\
+YEAR\left(Value\ As\ of\ Date\right) & \text{otherwise}
+\end{cases}
+\]
+
+\paragraph{Value As of Date}
+
+\textit{Refer to previous definition}
+
+\subsection{Nbr Premiums Left Until Next Policy Anniversary}
+
+\textbf{If payment mode is Annual, then}
+
+\[
+Nbr\ Premiums\ Until\ Next\ Policy\ Anniv = MIN\left\{1\ ;\ \frac{Nbr\ of\ days\ between\ \left(Next\ Policy\ Anniversary\ AND\ Premiums\ Paid\ to\ Date\right)}{365}\right\}
+\]
+
+*For the number of days between 2 dates, we assume a 365-day year, with February considered to have 28 days.
+
+\textbf{If payment mode is Monthly, then}
+
+\[
+Nbr\ Premiums\ Until\ Next\ Policy\ Anniv = \begin{cases}
+MONTH\left(Next\ Policy\ Anniversary\right) - MONTH\left(Premiums\ Paid\ to\ Date\right) & \text{if } MONTH\left(Next\ Policy\ Anniversary\right) \geq MONTH\left(Premiums\ Paid\ to\ Date\right) \\
+MONTH\left(Next\ Policy\ Anniversary\right) - MONTH\left(Premiums\ Paid\ to\ Date\right) + 12 & \text{if } MONTH\left(Next\ Policy\ Anniversary\right) \lt MONTH\left(Premiums\ Paid\ to\ Date\right)
+\end{cases}
+\]
+
+\subsubsection{Next Policy Anniversary}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Premiums Paid to Date}
+
+\textit{Refer to previous definition}
+
+\subsection{Policy 1\textsuperscript{st} Duration}
+
+\[
+Policy\ 1st\ Duration = YEAR\left(Value\ As\ of\ Date\right) - YEAR\left(Policy\ Issue\ Date\right) + Policy\ Duration\ Adjustment
+\]
+
+\subsubsection{Value As of Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Policy Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Policy Duration Adjustment}
+
+\[
+Policy\ Duration\ Adjustment = \begin{cases}
+0 & \text{if } MONTH\left(Value\ As\ of\ Date\right) \lt MONTH\left(Policy\ Issue\ Date\right) \\
+0 & \text{if } MONTH\left(Value\ As\ of\ Date\right) = MONTH\left(Policy\ Issue\ Date\right) \text{ AND } DAY\left(Value\ As\ of\ Date\right) \lt DAY\left(Policy\ Issue\ Date\right) \\
+1 & \text{otherwise}
+\end{cases}
+\]
+
+\subsection{Policy Dec 31\textsuperscript{st} Indicator}
+
+The indicator is calculated to help determine whether the NCPI has already been deducted from the ACB or not.
+
+If the \textit{Value As of Date} is after December 31 and the \textit{Policy Annviersary} is before December 31, then the NCPI has already been deducted:
+
+\begin{center}
+\begin{tabular}{ccc}
+\textit{Policy Anniversary} & & \textit{Value As of Date} \\
+\multicolumn{3}{c}{$\bullet$\hrulefill$\bullet$\hrulefill$\bullet$\ $\rightarrow$} \\
+& \textit{December 31} &
+\end{tabular}
+\end{center}
+
+\[
+Policy\ Dec\ 31st\ Indicator = \begin{cases}
+1 & \text{if } MONTH\left(Value\ As\ of\ Date\right) \lt MONTH\left(Policy\ Issue\ Date\right) \\
+1 & \text{if } MONTH\left(Value\ As\ of\ Date\right) = MONTH\left(Policy\ Issue\ Date\right) \text{ AND } DAY\left(Value\ As\ of\ Date\right) \lt DAY\left(Policy\ Issue\ Date\right) \\
+0 & \text{otherwise}
+\end{cases}
+\]
+
+\subsubsection{Policy Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Value As of Date}
+
+\textit{Refer to previous definition}
+
+\section{INPUT SETUP: For the coverages}
+
+\subsection{Data from CAPSIL}
+
+\subsubsection{Coverage Issue Date}
+
+\[
+{Coverage\ Issue\ Date}_{\left(iCov\right)} = \text{Issue date of the coverage} \left(from\ CAPSIL\ for\ each\ coverages\ on\ the\ policy\right)
+\]
+\[
+\rightarrow\ YEAR\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) = Year\ of\ the\ Coverage\ Issue\ Date
+\]
+\[
+\rightarrow\ MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) = Month\ of\ the\ Coverage\ Issue\ Date
+\]
+\[
+\rightarrow\ DAY\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) = Day\ of\ the\ Coverage\ Issue\ Date
+\]
+
+\subsubsection{Coverage Expiration Date}
+
+\[
+{Coverage\ Expiration\ Date}_{\left(iCov\right)} = \text{Expiration date of the coverage} \left(from\ CAPSIL\ for\ each\ coverages\ on\ the\ policy\right)
+\]
+\[
+\rightarrow\ YEAR\left({Coverage\ Expiration\ Date}_{\left(iCov\right)}\right) = Year\ of\ the\ Coverage\ Expiration\ Date
+\]
+\[
+\rightarrow\ MONTH\left({Coverage\ Expiration\ Date}_{\left(iCov\right)}\right) = Month\ of\ the\ Coverage\ Expiration\ Date
+\]
+\[
+\rightarrow\ DAY\left({Coverage\ Expiration\ Date}_{\left(iCov\right)}\right) = Day\ of\ the\ Coverage\ Expiration\ Date
+\]
+
+\subsubsection{Coverage Paid-up Date}
+
+\[
+{Coverage\ Paid\ up\ Date}_{\left(iCov\right)} = \text{End of premium date of the coverage} \left(from\ CAPSIL\ for\ each\ coverages\ on\ the\ policy\right)
+\]
+\[
+\rightarrow\ YEAR\left({Coverage\ Paid\ up\ Date}_{\left(iCov\right)}\right) = Year\ of\ the\ Coverage\ Paid\ up\ Date
+\]
+\[
+\rightarrow\ MONTH\left({Coverage\ Paid\ up\ Date}_{\left(iCov\right)}\right) = Month\ of\ the\ Coverage\ Paid\ up\ Date
+\]
+\[
+\rightarrow\ DAY\left({Coverage\ Paid\ up\ Date}_{\left(iCov\right)}\right) = Day\ of\ the\ Coverage\ Paid\ up\ Date
+\]
+
+\subsection{Coverage 1\textsuperscript{st} Duration}
+
+\[
+{Coverage\ 1st\ Duration}_{\left(iCov\right)} = YEAR\left(Value\ As\ of\ Date\right) - YEAR\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) + {Coverage\ Duration\ Adjustment}_{\left(iCov\right)}
+\]
+
+\subsubsection{Value As of Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Coverage Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Coverage Duration Adjustment}
+
+\[
+{Coverage\ Duration\ Adjustment}_{\left(iCov\right)} = \begin{cases}
+0 & \text{if } MONTH\left(Value\ As\ of\ Date\right) \lt MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \\
+0 & \text{if } MONTH\left(Value\ As\ of\ Date\right) = MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \text{ and } DAY\left(Value\ As\ of\ Date\right) \lt DAY\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \\
+1 & \text{otherwise}
+\end{cases}
+\]
+
+\subsection{Premium Rate Duration}
+
+\[
+{Premium\ Rate\ Duration}_{\left(iCov\right)} = YEAR\left(Premiums\ Paid\ to\ Date\right) - YEAR\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) + {Premium\ Duration\ Adjustment}_{\left(iCov\right)}
+\]
+
+\subsubsection{Premiums Paid to Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Coverage Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Premium Duration Adjustment}
+
+\[
+{Premium\ Duration\ Adjustment}_{\left(iCov\right)} = \begin{cases}
+0 & \text{if } MONTH\left(Premiums\ Paid\ to\ Date\right) \lt MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \\
+0 & \text{if } MONTH\left(Premiums\ Paid\ to\ Date\right) = MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \text{ and } DAY\left(Premiums\ Paid\ to\ Date\right) \lt DAY\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \\
+1 & \text{otherwise}
+\end{cases}
+\]
+
+\subsection{Policy vs Coverage Anniversary Offset}
+
+\textbf{If payment mode is Annual, then}
+
+\[
+{\boldsymbol{Policy}\ \boldsymbol{vs}\ \boldsymbol{Coverage}\ \boldsymbol{Offset}}_{\left(\boldsymbol{iCov}\right)} = Nbrs\ of\ days\ between\ \left({Adjusted\ Coverage\ Issue\ Date}_{\left(iCov\right)}\ AND\ Policy\ Issue\ Date\right)
+\]
+
+*For the number of days between 2 dates, we assume a 365-day year, with February considered to have 28 days.
+
+\textbf{If payment mode is Monthly, then}
+
+\[
+{\boldsymbol{Policy}\ \boldsymbol{vs}\ \boldsymbol{Coverage}\ \boldsymbol{Offset}}_{\left(\boldsymbol{iCov}\right)} = \begin{cases}
+MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) - MONTH\left(Policy\ Issue\ Date\right) & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \geq MONTH\left(Policy\ Issue\ Date\right) \\
+MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) - MONTH\left(Policy\ Issue\ Date\right) + 12 & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \lt MONTH\left(Policy\ Issue\ Date\right)
+\end{cases}
+\]
+
+\subsubsection{Adjusted Coverage Issue Date}
+
+\[
+{Adjusted\ Coverage\ Issue\ Date}_{\left(iCov\right)} = DATE\left\{{Adjusted\ Coverage\ Issue\ Year}_{\left(iCov\right)}\ ;\ MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right)\ ;\ DAY\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right)\right\}
+\]
+
+\paragraph{Adjusted Coverage Issue Year}
+
+\[
+{Adjusted\ Coverage\ Issue\ Year}_{\left(iCov\right)} = \begin{cases}
+YEAR\left(Policy\ Issue\ Date\right) & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \geq MONTH\left(Policy\ Issue\ Date\right) \\
+YEAR\left(Policy\ Issue\ Date\right) + 1 & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \lt MONTH\left(Policy\ Issue\ Date\right)
+\end{cases}
+\]
+
+\subsubsection{Policy Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Coverage Issue Date}
+
+\textit{Refer to previous definition}
+
+\subsection{Coverage Dec 31\textsuperscript{st} Indicator}
+
+The indicator is calculated to help determine whether the calculation of the NCPI should be deferred because the \textit{Policy Anniversary} is before December 31 and the \textit{Coverage Anniversary} is after December 31.
+
+\begin{center}
+\begin{tabular}{ccc}
+\textit{Policy Anniversary} & & \textit{Coverage Anniversary} \\
+\multicolumn{3}{c}{$\bullet$\hrulefill$\bullet$\hrulefill$\bullet$\ $\rightarrow$} \\
+& \textit{December 31} &
+\end{tabular}
+\end{center}
+% Content continues past this page: the "Coverage Dec 31st Indicator" formula
+% itself (a \begin{cases}...\end{cases} block analogous to 2.5's, following the
+% same pattern seen for "Policy Dec 31st Indicator") was not visible on the
+% last provided screenshot (581) and should follow immediately here.
+
+% Continuation from previous page (no heading visible at top of page 582)
+\[
+{Coverage\ Dec\ 31st\ Indicator}_{\left(iCov\right)} = \begin{cases}
+-1 & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \lt MONTH\left(Policy\ Issue\ Date\right) \\
+-1 & \text{if } MONTH\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) = MONTH\left(Policy\ Issue\ Date\right) \text{ and } DAY\left({Coverage\ Issue\ Date}_{\left(iCov\right)}\right) \lt DAY\left(Policy\ Issue\ Date\right) \\
+0 & \text{otherwise}
+\end{cases}
+\]
+
+\subsubsection{Policy Issue Date}
+Refer to previous definition
+
+\subsubsection{Coverage Issue Date}
+Refer to previous definition
+
+\section{REPORT: Age}
+
+\underline{For the global illustration / policy:}
+
+\[
+{Age}_{\left(iDur\right)} = Illustration\ Minimum\ Age + iDur
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Policy 1st Duration}} and \underline{\textit{End of Illustration Projection}}
+
+\underline{For the coverages:}
+
+\[
+{Age}_{\left(iCov,iDur\right)} = {Coverage\ Minimum\ Age}_{\left(iCov\right)} + iDur
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsection{Illustration Minimum Age}
+
+\[
+Illustration\ Minimum\ Age = \operatorname{\underset{1\leq\ iCov\ \leq Nb\ of\ Cov.\ on\ illustration}{MIN}}{\left\{{Coverage\ Minimum\ Age}_{\left(iCov\right)}\right\}}
+\]
+
+\subsection{Coverage Minimum Age}
+
+\[
+{Coverage\ Minimum\ Age}_{\left(iCov\right)} = {Coverage\ Issue\ Age}_{\left(iCov\right)} + {Coverage\ 1st\ Duration}_{\left(iCov\right)}
+\]
+
+\subsubsection{Coverage Issue Age}
+
+\[
+{Coverage\ Issue\ Age}_{\left(iCov\right)} = \text{Issue age of the coverage} \left(\text{from CAPSIL for each coverages on the policy}\right)
+\]
+
+\subsubsection{Coverage 1st Duration}
+Refer to previous definition
+
+\section{REPORT: Total Premium}
+
+\[
+{Total\ Premium}_{\left(Policy\ 1st\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,{\ Cov\ 1st\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1st Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1st Duration}}
+
+\subsection{Total Interpolated Premium}
+
+$\rightarrow$ If Payment Frequency is \textbf{Annual}
+
+$\Rightarrow$ If $iDur = {Coverage\ 1st\ Duration}_{\left(iCov\right)}$, then
+
+\[
+\Rightarrow {\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \ast \left[\left(\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Premium}_{\left(iCov,iDur-1\right)}+\left(1-\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\Rightarrow$ If $iDur \gt {Coverage\ 1st\ Duration}_{\left(iCov\right)}$, then
+
+\[
+\Rightarrow {\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[\left(\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Premium}_{\left(iCov,iDur-1\right)}\right]+\left[\left(1-\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\rightarrow$ If Payment Frequency is \textbf{Monthly}
+
+$\Rightarrow$ If $iDur = {Coverage\ 1st\ Duration}_{\left(iCov\right)}$, then
+
+a) If $Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \leq 12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}$, then
+
+\[
+\Rightarrow {\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \ast {Modal\ Premium}_{\left(iCov,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+b) Otherwise
+
+\[
+\Rightarrow {\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\ast {Modal\ Premium}_{\left(iCov,iDur\right)}\right]+\left[\left(Nbr\ Premiums\ Until\ Next\ Policy\ Anniv-\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\right)\ast {Modal\ Premium}_{\left(iCov,iDur-1\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\Rightarrow$ If $iDur \gt {Coverage\ 1st\ Duration}_{\left(iCov\right)}$, then
+
+\[
+\Rightarrow {\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\ast {Modal\ Premium}_{\left(iCov,iDur-1\right)}\right]+\left[\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\ast {Modal\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{Nbr Premiums Left Until Next Policy Anniversary}
+Refer to previous definition
+
+\subsubsection{Policy vs Coverage Anniversary Offset}
+Refer to previous definition
+
+\subsection{Modal Premium}
+
+\[
+{Modal\ Premium}_{\left(iCov,iDur\right)} = ROUND\left\{\left({Cost\ of\ insurance}_{\left(iCov,iDur\right)}+{Percentage\ Extra\ Premium}_{\left(iCov,iDur\right)}+{Dollar\ Extra\ Premium}_{\left(iCov,iDur\right)}\right)\ast {Modal\ factor}_{\left(iCov,iDur\right)}\ ;2\right\} + ROUND\left\{{Coverage\ fee}_{\left(iCov,iDur\right)}\ast {Modal\ factor}_{\left(iCov,iDur\right)}\ ;2\right\}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{Cost of Insurance}
+
+\[
+{Cost\ of\ Insurance}_{\left(iCov,\ iDur\right)} = ROUND\left\{ROUND\left\{TRUNC\left\{{Coverage\ premium\ rate}_{\left(iCov,\ iDur\ \right)};6\right\}\ast ROUND\left\{\frac{{Insurance\ Amount}_{\left(iCov,\ iDur\right)}}{Unit\ value};5\right\}\ ;2\right\}\ast {PREM\_ADJ\%}_{\left(iCov,iDur\right)}+\ {PREM\_ADJ\$}_{\left(iCov,iDur\right)}\ ;2\right\}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\paragraph{Coverage Premium Rate}
+
+\[
+{Coverage\ premium\ rate}_{\left(iCov,iDur\right)} = \sum_{iInsured=1}^{NbInsuredOnCov} {Premium\ rate}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+\[
+{Premium\ rate}_{\left(iCov,iInsured,iDur\right)} = \text{Premium rate for each insured} \left(\text{rate per } 1000\right)
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and associated End of Premium rate table
+
+\textbf{For term products, there are 2 set of rates: Individual and JFTD}
+
+\begin{itemize}
+\item \textbf{If the coverage type is Individual: Use Individual rates}
+\item \textbf{If the coverage type is Joint: Use JFTD rates. The rates for each insured person must be added together to obtain the overall rate for the coverage}
+\item \textbf{If there is a discount (if MCD discount applies: a flag will be passed from Capsil): Use the next higher band of the Individual rates}
+\end{itemize}
+
+\paragraph{Insurance Amount}
+
+\[
+{Insurance\ Amount}_{\left(iCov,iDur\right)} = \begin{cases}
+\text{Sum of all annual premiums for all coverages except the DW coverages} & \text{if DW coverage} \\
+\text{Coverage Insurance Amount} \left(\text{from Capsil at first but can be modified}\right) & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where DW = Disability Waiver premium
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\paragraph{Unit value}
+
+\[
+Unit\ value = \begin{cases}
+100 & \text{if coverage is DW or Long Term Care Advance} \\
+1000 & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where DW = Disability Waiver premium
+
+\paragraph{PREM\_ADJ\%}
+
+\[
+{PREM\_ADJ\%}_{\left(iCov,iDur\right)} = \text{\% of Premium Adjustment} \left(\text{from CAPSIL}\right)
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and MIN ( \underline{\textit{End of Premium Payment}} ; PREM\_ADJ\% Remaining Duration)
+
+\subparagraph{PREM\_ADJ\% Remaining Duration}
+
+\[
+{PREM\_ADJ\%\ Remaining\ Duration}_{\left(iCov\right)} = {PREM\_ADJ\%\ Duration}_{\left(iCov\right)} - {Premium\ Rate\ Duration}_{\left(iCov\right)} + 1
+\]
+
+\subparagraph{PREM\_ADJ\% Duration}
+
+\[
+PREM_{ADJ}\%\ {Duration}_{\left(iCov\right)} = \text{Duration of the Premium Adjustment} \left(\text{from Capsil}\right)
+\]
+
+\subparagraph{Premium Rate Duration}
+Refer to previous definition
+
+\paragraph{PREM\_ADJ\$}
+
+\[
+{PREM\_ADJ\$}_{\left(iCov,iDur\right)} = \text{Premium Adjustment in \$} \left(\text{field available in Special Quotes, will not be passed from Capsil, presume } 0\right)
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{Percentage Extra Premium}
+
+\[
+{Percentage\ Extra\ Premium}_{\left(iCov,iDur\right)} = \sum_{iInsured=1}^{NbInsuredOnCov} {Insured\ Percentage\ Extra\ Premium}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\[
+{Insured\ Percentage\ Extra\ Premium}_{\left(iCov,\ \ iDur\right)} = ROUND\left\{ROUND\left\{TRUNC\left\{{Extra\ premium\ rate}_{\left(iCov,\ \ iInsured,iDur\ \right)};6\right\}\ast {Extra\ premium\ \%}_{\left(iCov,iInsured\right)}\ast ROUND\left\{\frac{{Insurance\ Amount}_{\left(iCov,iDur\right)}}{Unit\ value};5\right\}\ ;2\right\}\ast {PREM\_ADJ\%}_{\left(iCov,iDur\right)}\ ;2\right\}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\paragraph{Extra Premium Rate}
+
+\[
+{Extra\ premium\ rate}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+\text{Substandard Premium rate for each insured} & \text{if Permanent product} \\
+\text{Standard Premium rate for each insured} & \text{if Term product}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and associated End of Premium rate table
+
+\textbf{For term products, there are 2 set of rates: Individual and JFTD}
+
+\begin{itemize}
+\item \textbf{If the coverage type is Individual: Use Individual rates}
+\item \textbf{If the coverage type is Joint: Use JFTD rates. The rates for each insured person must be added together to obtain the overall rate for the coverage}
+\item \textbf{If there is a discount (if MCD discount applies): Use the next higher band of the Individual rates}
+\end{itemize}
+
+\paragraph{Extra Premium \%}
+
+\[
+{Extra\ premium\ \%}_{\left(iCov,iInsured\right)} = \text{\% of the permanent extra premium input for each insured} \left(\text{from Capsil}\right)
+\]
+
+$\rightarrow$ For joint protections with equivalent age type (permanent products), only one extra premium is calculated.
+
+\paragraph{Insurance Amount}
+Refer to previous definition
+
+\paragraph{Unit value}
+Refer to previous definition
+
+\paragraph{PREM\_ADJ\%}
+Refer to previous definition
+
+\subsubsection{Dollar Extra Premium}
+
+\[
+{Dollar\ Extra\ Premium}_{\left(iCov,iDur\right)} = \sum_{iInsured=1}^{NbInsuredOnCov} Insured\ {Dollar\ Extra\ Premium}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\[
+{Insured\ Dollar\ Extra\ Premium}_{\left(iCov,iInsured,iDur\right)} = ROUND\left\{{Dollar\ Extra\ Premium\ Rate}_{\left(iCov,iInsured,iDur\right)}\ast ROUND\left\{\frac{{Insurance\ Amount}_{\left(iCov,iDur\right)}}{Unit\ value};5\right\}\ ;2\right\}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1st Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\paragraph{Dollar Extra Premium Rate}
+
+\[
+{Dollar\ Extra\ Premium\ Rate}_{\left(iCov,iInsured,iDur\right)} = \text{Dollar extra premium rate for each insured} \left(\text{rate per } 1000\right) \left(\text{from Capsil}\right)
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and MIN ( \underline{\textit{End of Premium Payment}} ; Dollar Extra Premium Remaining Duration)
+
+\subparagraph{Dollar Extra Premium Remaining Duration}
+
+\[
+{Dollar\ Extra\ Premium\ Remaining\ Duration}_{\left(iCov,iInsured\right)} = {Dollar\ Extra\ Premium\ Duration}_{\left(iCov,iInsured\right)} - {Premium\ Rate\ Duration}_{\left(iCov\right)} + 1
+\]
+
+\subparagraph{Dollar Extra Premium Duration}
+
+\[
+Dollar{\ Extra\ Premium\ Duration}_{\left(iCov,iInsured\right)} = \text{Duration of the extra premium in \$} \left(\text{from Capsil}\right)
+\]
+
+\subparagraph{Premium Rate Duration}
+Refer to previous definition
+
+\paragraph{Insurance Amount}
+\textit{Refer to previous definition}
+
+\paragraph{Unit value}
+\textit{Refer to previous definition}
+
+\subsubsection{Modal Factor}
+\[
+{Modal\ factor}_{\left(iCov\right)} = \text{Modal factor of the coverage} \quad \text{(see Product characteristics document)}
+\]
+
+\subsubsection{Coverage Fee}
+\[
+{Coverage\ fee}_{\left(iCov,iDur\right)} = \text{Fee for each coverage} \quad \text{(from Capsil)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Premium Rate Duration}} and \underline{\textit{End of Premium Payment}}
+
+\section{REPORT: Life Insurance Premium}
+\[
+{Life\ Insurance\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+$\rightarrow$ Only life insurance coverages are included in this calculation
+
+\subsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only life insurance coverages.
+
+\section{REPORT: Cumulative Premiums}
+\[
+{Cumulative\ Premiums}_{\left(iDur\right)} =
+\begin{cases}
+Total\ Premiums\ Paid + {Total\ Premium}_{\left(iDur\right)} & \text{if } iDur = Policy\ 1^{st}\ Duration \\
+{Cumulative\ Premiums}_{\left(iDur-1\right)} + {Total\ Premium}_{\left(iDur\right)} & \text{if } iDur > Policy\ 1^{st}\ Duration
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{End of Illustration Projection}}
+
+\subsection{Total Premiums Paid}
+\textit{Refer to previous definition}
+
+\subsection{Policy 1\textsuperscript{st} Duration}
+\textit{Refer to previous definition}
+
+\subsection{Total Premium}
+\textit{Refer to previous definition}
+
+\section{REPORT: Total Extra Premium}
+\[
+{Total\ Extra\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Extra\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsection{Total Interpolated Extra Premium}
+
+$\Rightarrow$ If Payment Frequency is \textbf{Annual}
+
+$\Rightarrow$ If $iDur = {Coverage\ 1^{st}\ Duration}_{\left(iCov\right)}$, then
+
+\[
+{\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Extra}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \ast \left[\left(\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur-1\right)}+\left(1-\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\Rightarrow$ If $iDur > {Coverage\ 1^{st}\ Duration}_{\left(iCov\right)}$, then
+
+\[
+{\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Extra}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[\left(\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur-1\right)}\right]+\left[\left(1-\frac{{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}}{365}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\Rightarrow$ If Payment Frequency is \textbf{Monthly}
+
+$\Rightarrow$ If $iDur = {Coverage\ 1^{st}\ Duration}_{\left(iCov\right)}$, then
+
+a) If $Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \leq 12 - {Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}$, then
+
+\[
+{\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Extra}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = Nbr\ Premiums\ Until\ Next\ Policy\ Anniv \ast {Modal\ Extra\ Premium}_{\left(iCov,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+b) Otherwise
+
+\[
+{\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Extra}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur\right)}\right]+\left[\left(Nbr\ Premiums\ Until\ Next\ Policy\ Anniv-\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur-1\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\Rightarrow$ If $iDur > {Coverage\ 1^{st}\ Duration}_{\left(iCov\right)}$, then
+
+\[
+{\boldsymbol{Total}\ \boldsymbol{Interpolated}\ \boldsymbol{Extra}\ \boldsymbol{Premium}}_{\left(\boldsymbol{iCov},\ \boldsymbol{iDur}\right)} = \left[{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur-1\right)}\right]+\left[\left(12-{Policy\ vs\ Coverage\ Offset}_{\left(iCov\right)}\right)\ast {Modal\ Extra\ Premium}_{\left(iCov,iDur\right)}\right]
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{Nbr Premiums Left Until Next Policy Anniversary}
+\textit{Refer to previous definition}
+
+\subsubsection{Policy vs Coverage Anniversary Offset}
+\textit{Refer to previous definition}
+
+\subsection{Modal Extra Premium}
+\[
+{Modal\ Extra\ Premium}_{\left(iCov,iDur\right)} = {Modal\ Premium}_{\left(iCov,iDur\right)} - {Modal\ Premium\ without\ Extra\ Premium}_{\left(iCov,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{Modal Premium}
+\textit{Refer to previous definition}
+
+\subsubsection{Modal Premium without Extra Premium}
+\[
+{Modal\ Premium\ without\ Extra\ Premium}_{\left(iCov,iDur\right)} = ROUND\left\{{Cost\ of\ Insurance}_{\left(iCov,iDur\right)}\ast {Modal\ factor}_{\left(iCov,iDur\right)}\ ;\ 2\right\} + ROUND\left\{{Coverage\ fee}_{\left(iCov,iDur\right)}\ast {Modal\ factor}_{\left(iCov,iDur\right)}\ ;\ 2\right\}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+\paragraph{Cost of Insurance}
+\textit{Refer to previous definition}
+
+\paragraph{Modal factor}
+\textit{Refer to previous definition}
+
+\paragraph{Coverage fee}
+\textit{Refer to previous definition}
+
+\section{REPORT: Life Insurance Amount}
+\[
+{Life\ Insurance\ Amount}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Coverage\ Life\ Insurance\ Amount}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\[
+{Coverage\ Life\ Insurance\ Amount}_{\left(iCov,iDur\right)} = \text{Coverage Life Insurance Amount (from Capsil at first but can be modified)}
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{End of Coverage Projection}}
+
+$\rightarrow$ Additional coverages are not included in the coverages calculated
+
+\section{REPORT: Additional Coverages Premium}
+\[
+{Additional\ Coverages\ Premium}_{\left(iDur\right)} = {Fracture\ Premium}_{\left(iDur\right)} + {AD\ Premium}_{\left(iDur\right)} + AD\&D\ Premium
+\]
+
+$\rightarrow$ Where iDur is between \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{End of Illustration Projection}}
+
+\subsection{Fracture Premium}
+\[
+{Fracture\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{Fracture} coverages.
+
+\subsection{AD Premium}
+\[
+{AD\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{AD} coverages.
+
+\subsection{AD\&D Premium}
+\textit{AD\&D Premium}
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{AD\&D} coverages.
+
+\subsection{Accident Premium}
+\[
+{Accident\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{Accident} coverages.
+
+\subsection{Disability Waiver Premium}
+\[
+{Disability\ Waiver\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{Disability Waiver} coverages.
+
+\subsection{GI Premium}
+\[
+{GI\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{GI} coverages.
+
+\subsection{Bus. Insurability Premium}
+\[
+{Bus.\ Insurability\ Premium}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)} = \sum_{iCov=1}^{NbCov} {Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only \textit{Bus. Insurability} coverages.
+
+\subsection{Children' s Life Premium}
+
+\[
+{Children^{\prime}s\ Life\ Premium}_{\left(Policy\ 1st\ Duration+iDur-1\right)}=\sum_{iCov=1}^{NbCov}{Total\ Interpolated\ Premium}_{\left(iCov,{Cov\ 1st\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1st Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+
+\textit{Refer to previous definition}
+
+Considering only \textit{Children' s Life} coverages.
+
+\subsection{Children' s Fracture Premium}
+
+\[
+{Children^{\prime}s\ Fracture\ Premium}_{\left(Policy\ 1st\ Duration+iDur-1\right)}=\sum_{iCov=1}^{NbCov}{Total\ Interpolated\ Premium}_{\left(iCov,{Cov\ 1st\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1st Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}
+
+\subsubsection{Total Interpolated Premium}
+
+\textit{Refer to previous definition}
+
+Considering only \textit{Children' s Fracture} coverages.
+
+\section{REPORT: Coverage Net Premium Reserve}
+
+Note: In SIP (Values tab), the variable is named \textit{Coverage Net Premium Reserve}. For presentation purposes in this document, it is referred to as \textit{Total Coverage Net Premium Reserve}.
+
+\[
+Total\ {Coverage\ Net\ Premium\ Reserve}_{\left(Policy\ 1st\ Duration+iDur-1\right)}=\sum_{iCov=1}^{NbCov}{Coverage\ Net\ Premium\ Reserve}_{\left(iCov,{Cov\ 1st\ Duration}_{\left(iCov\right)}+{Coverage\ Dec\ 31st\ Indicator}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1st Duration}} )
+
+$\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{Coverage Dec 31\textsuperscript{st} Indicator}}
+
+\subsection{Guidelines per coverage}
+
+\begin{itemize}
+  \item The \textit{CoverageNetPremiumReserve} must always be calculated for all coverages since their \underline{inception}.
+  \item For each coverage, the calculation is based on the illustration \underline{coverage parameters}, which are applied retrospectively to calculate the \textit{CoverageNetPremiumReserve} from inception across all durations.
+  \item The \textit{CoverageNetPremiumReserve} is calculated on the anniversary date of each individual coverage, and not on the policy anniversary date
+  \item For each coverage, it must be determined whether the first duration displayed in the report projection should be deferred. Deferral applies when \underline{the policy was issued before December 31, while the coverage was issued after December 31}.
+\end{itemize}
+
+\[
+{Coverage\ Net\ Premium\ Reserve}_{\left(iCov,\ iDur\right)}=\sum_{iInsured=1}^{NbInsuredOnCov}{Net\ Premium\ Reserve}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+$\rightarrow$ Additional coverages are not included in the coverages calculated
+
+\textbf{If:} $1\leq \boldsymbol{iDur}\leq \boldsymbol{MIN}\left\{8;{\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Payment}}_{\left(\boldsymbol{iCov}\right)}\right\}+1$, \textbf{then}
+
+\[
+{Net\ Premium\ Reserve}_{\left(iCov,iInsured,iDur\right)}=MAX\left\{0;ROUND\left\{\frac{{Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}}{100\,000}\ast{Interpolation\ Duration}_{\left(iCov,iDur\right)}\ast{Interpolation\ Net\ Premium\ Reserve}_{\left(iCov,iInsured\right)};2\right\}\right\}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\textbf{If:} $\boldsymbol{iDur}\gt \boldsymbol{MIN}\left\{8;{\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Payment}}_{\left(\boldsymbol{iCov}\right)}\right\}+1$, \textbf{then}
+
+\[
+{Net\ Premium\ Reserve}_{\left(iCov,iInsured,iDur\right)}=MAX\left\{0;ROUND\left\{\frac{{Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}}{100\,000}\ast\left({TXR}_{\left(iCov,iInsured,iDur\right)}-\frac{{TXR}_{\left(iCov,iInsured,1\right)}}{{TXP}_{\left(iCov,iInsured,1\right)}}\ast{TXP}_{\left(iCov,iInsured,iDur\right)}\right);2\right\}\right\}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\subsection{Fiscal Insurance Amount}
+
+\[
+{Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}=\boldsymbol{Input}\ \boldsymbol{Coverage}\ \boldsymbol{Insurance}\ \boldsymbol{Amount}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}} + 1
+
+\subsection{Interpolation Duration}
+
+\[
+{Interpolation\ Duration}_{\left(iCov,iDur\right)}=\frac{iDur-1}{MIN\left\{8;{\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Payment}}_{\left(\boldsymbol{iCov}\right)}\right\}}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \textit{MIN(8; \underline{\textit{End of Premium Payment}})} + 1
+
+\subsection{Interpolation Net Premium Reserve}
+
+\[
+{Interpolation\ Net\ Premium\ Reserve}_{\left(iCov,iInsured\right)}=MAX\left\{0;{TXR}_{\left(iCov,iInsured,MIN\left\{8;{\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{payment}\ \boldsymbol{of}\ \boldsymbol{premiums}}_{\left(\boldsymbol{iCov}\right)}\right\}+1\right)}-\frac{{TXR}_{\left(iCov,iInsured,1\right)}}{{TXP}_{\left(iCov,iInsured,1\right)}}\ast{TXP}_{\left(iCov,iInsured,MIN\left\{8;{\boldsymbol{End}\ \boldsymbol{of}\ \boldsymbol{Premium}\ \boldsymbol{Payment}}_{\left(\boldsymbol{iCov}\right)}\right\}+1\right)}\right\}
+\]
+
+\subsection{TXR}
+
+\[
+{TXR}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+100\,000 & \text{if } {tPx}_{\left(iCov,iInsured,iDur\right)}=0 \\
+TRUNC\left\{\dfrac{{Sum\ PVCF\ Benefit}_{\left(iCov,iInsured,iDur\right)}}{{tPx}_{\left(iCov,iInsured,iDur\right)}\ast v};3\right\} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{tPx}
+
+\[
+{tPx}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+1 & \text{if } iDur=1 \\
+TRUNC\left({tPx}_{\left(iCov,iInsured,iDur-1\right)}\ast{Px}_{\left(iCov,iInsured,iDur\right)};12\right) & \text{if } iDur\gt 1
+\end{cases}
+\]
+
+\[
+{Px}_{\left(iCov,iInsured,iDur\right)}=1-{Qx}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}}
+
+\paragraph{Qx}
+
+\[
+{Qx}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+0 & \text{if } iDur=1 \\
+TRUNC\left\{MIN\left\{1;\dfrac{{Mortality\ Table\ Qx}_{\left(iCov,iInsured,iDur\right)}}{1\,000}\ast\left(1+{Extra\ Premium\ \%}_{\left(iCov,iInsured\right)}\right)+\dfrac{{Temporary\ Extra\ Premium\ Rate}_{\left(iCov,iInsured,iDur-1\right)}}{1\,000}\right\};12\right\} & \text{if } iDur\gt 1
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}}
+
+\subparagraph{Mortality Table Qx}
+
+\[
+{Mortality\ Table\ Qx}_{\left(iCov,iInsured,iDur\right)} = \text{Prescribed mortality rate from CIA 8692 Mortality Table}\ \left(see\ Product\ characteristics\ document\right)
+\]
+
+$\rightarrow$ Where iDur is between 1 and End of CIA8692 Mortality Table (\textit{see Product characteristics document})
+
+\subparagraph{Extra Premium \%}
+
+\textit{Refer to previous definition}
+
+\subparagraph{Dollar Extra Premium Rate}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Sum PVCF Benefit}
+
+\[
+{Sum\ PVCF\ Benefit}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+{Cumul\ PVCF\ Benefit}_{\left(iCov,iInsured,End\ of\ Fiscal\ Projection+1\right)} & \text{if } iDur=1 \\
+{Sum\ PVCF\ Benefit}_{\left(iCov,iInsured,1\right)}-{Cumul\ PVCF\ Benefit}_{\left(iCov,iInsured,iDur\right)} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\[
+{Cumul\ PVCF\ Benefit}_{\left(iCov,iInsured,iDur\right)}=\sum_{i=1}^{iDur}{PVCF\ Benefit}_{\left(iCov,iInsured,i\right)}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}}
+
+\paragraph{PVCFBenefit}
+
+\[
+{PVCF\ Benefit}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+0 & \text{if } iDur=1 \\
+TRUNC\left\{100\,000\ast v_{\left(iCov,iInsured,iDur\right)}\ast{tPx}_{\left(iCov,iInsured,iDur-1\right)}\ast{Qx}_{\left(iCov,iInsured,iDur\right)}\ast\left(1+\dfrac{{Interest\ rate}_{\left(iCov,iInsured,iDur\right)}}{2}\right);12\right\} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}}
+
+\subparagraph{Interest rate}
+
+\[
+{Interest\ rate}_{\left(iCov,iInsured,iDur\right)} = 3.5\%\ \left(\boldsymbol{prescribed}\ \boldsymbol{interest}\ \boldsymbol{rate}\right)\ \left(see\ Product\ characteristics\ document\right)
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}}
+
+\subparagraph{v}
+
+\[
+v_{\left(iCov,iInsured,iDur\right)}=ROUND\left\{\left(\frac{1}{1+{Interest\ rate}_{\left(iCov,iInsured,iDur\right)}}\right)^{iDur-1};12\right\}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Fiscal Projection}} + 1
+
+\subparagraph{tPx}
+
+\textit{Refer to previous definition}
+
+\subparagraph{Qx}
+
+\textit{Refer to previous definition}
+
+\subsection{TXP}
+
+\[
+{TXP}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+0 & \text{if } {tPx}_{\left(iCov,iInsured,iDur\right)}=0 \\
+TRUNC\left\{\dfrac{{Sum\ PVCF\ Premium}_{\left(iCov,iInsured,iDur\right)}}{{tPx}_{\left(iCov,iInsured,iDur\right)}\ast v_{\left(iCov,iInsured,iDur\right)}};3\right\} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\subsubsection{tPx}
+
+\textit{Refer to previous definition}
+
+\subsubsection{v}
+
+\textit{Refer to previous definition}
+
+\subsubsection{Sum PVCF Premium}
+
+\[
+{Sum\ PVCF\ Premium}_{\left(iCov,iInsured,iDur\right)} = \begin{cases}
+{Cumul\ PVCF\ Premium}_{\left(iCov,iInsured,End\ of\ Projection\right)} & \text{if } iDur=1 \\
+{Sum\ PVCF\ Premium}_{\left(iCov,iInsured,1\right)}-{Cumul\ PVCF\ Premium}_{\left(iCov,iInsured,iDur-1\right)} & \text{otherwise}
+\end{cases}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\[
+{Cumul\ PVCF\ Premium}_{\left(iCov,iInsured,iDur\right)}=\sum_{i=1}^{iDur}{PVCF\ Premium}_{\left(iCov,iInsured,i\right)}
+\]
+
+\paragraph{PVCF Premium}
+
+\[
+\begin{aligned}
+{PVCF\ Premium}_{\left(iCov,iInsured,iDur\right)} = TRUNC\Big\{ \Big[ & \left(\left({Premium\ rate}_{\left(iCov,iInsured,iDur\right)}+{Extra\ premium\ rate}_{\left(iCov,iInsured,iDur\right)}\ast{Extra\ premium\ \%}_{\left(iCov,iInsured\right)}\right)\ast{PREM\_ADJ\%}_{\left(iCov,iDur\right)}\right. \\
+& \left.+{Temporary\ Extra\ Premium\ Rate}_{\left(iCov,iInsured,iDur\right)}\right)\ast 100 \\
+& +TRUNC\left\{\frac{{PREM\_ADJ\$}_{\left(iCov,iDur\right)}\ast 100\,000}{{Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}};2\right\} \\
+& +TRUNC\left\{\frac{{Coverage\ fee}_{\left(iCov,iDur\right)}\ast 100\,000}{{Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}};2\right\} \Big] \\
+& \ast v_{\left(iCov,iInsured,iDur\right)}\ast{tPx}_{\left(iCov,iInsured,iDur\right)};12\Big\}
+\end{aligned}
+\]
+
+$\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}
+
+\subparagraph{Premium Rate}
+
+\textit{Refer to previous definition}
+
+\subparagraph{Extra Premium Rate}
+\textit{Refer to previous definition}
+
+\subparagraph{Extra Premium \%}
+\textit{Refer to previous definition}
+
+\subparagraph{PREM\_ADJ\%}
+\textit{Refer to previous definition}
+
+\subparagraph{PREM\_ADJ\$}
+\textit{Refer to previous definition}
+
+\subparagraph{Dollar Extra Premium Rate}
+\textit{Refer to previous definition}
+
+\subparagraph{Coverage fee}
+\textit{Refer to previous definition}
+
+\subparagraph{Fiscal Insurance Amount}
+\textit{Refer to previous definition}
+
+\section{REPORT: Net Amount at Risk (NAAR)}
+
+\[
+{Net\ Amount\ at\ Risk}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)}=\sum_{iCov=1}^{NbCov}{Coverage\ Net\ Amount\ at\ Risk}_{\left(iCov,{\ Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+{Coverage\ Dec\ 31^{st}\ Indicator}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )\\
+\noindent $\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{Coverage Dec 31\textsuperscript{st} Indicator}}
+
+\subsection{Coverage Net Amount at Risk}
+
+\[
+{Coverage\ Net\ Amount\ at\ Risk}_{\left(iCov,iDur\right)}=\sum_{iInsured=1}^{NbInsuredOnCov}{Coverage\ Net\ Amount\ at\ Risk}_{\left(iCov,iInsured,\ iDur\right)}
+\]
+
+\[
+{Coverage\ Net\ Amount\ at\ Risk}_{\left(iCov,iInsured,iDur\right)}=\sum_{iInsured=1}^{NbInsuredOnCov}\left({Fiscal\ Insurance\ Amount}_{\left(iCov,iInsured,iDur\right)}-{Net\ Premium\ Reserve}_{\left(iCov,iInsured,iDur\right)}\right)
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}\\
+\noindent $\rightarrow$ Additional coverages are not included in the coverages calculated
+
+\subsubsection{Fiscal Insurance Amount}
+\textit{Refer to previous definition}
+
+\subsubsection{Net Premium Reserve}
+\textit{Refer to previous duration}
+
+\section{REPORT: Net Cost of pure Insurance (NCPI)}
+
+\noindent $\Rightarrow$ If $iDur = 1$, \textbf{then}
+
+\[
+{\boldsymbol{Net}\ \boldsymbol{Cost}\ \boldsymbol{of}\ \boldsymbol{pure}\ \boldsymbol{Insurance}}_{\left(\boldsymbol{Policy}\ 1\boldsymbol{st}\ \boldsymbol{Duration}+\boldsymbol{iDur}-1\right)} = \begin{cases}
+0 & \text{if } Policy\ Dec\ 31^{st}\ Indicator = 1 \\
+\displaystyle\sum_{iCov=1}^{NbCov}{Coverage\ Net\ Cost\ of\ pure\ Insurance}_{\left(iCov,{\ Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+{Coverage\ Dec\ 31^{st}\ Indicator}_{\left(iCov\right)}+iDur-1\right)} & \text{otherwise}
+\end{cases}
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )\\
+\noindent $\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{Coverage Dec 31\textsuperscript{st} Indicator}}
+
+\bigskip
+\noindent $\Rightarrow$ If $iDur > 1$, \textbf{then}
+
+\[
+{\boldsymbol{Net}\ \boldsymbol{Cost}\ \boldsymbol{of}\ \boldsymbol{pure}\ \boldsymbol{Insurance}}_{\left(\boldsymbol{Policy}\ 1\boldsymbol{st}\ \boldsymbol{Duration}+\boldsymbol{iDur}-1\right)}=\sum_{iCov=1}^{NbCov}{Coverage\ Net\ Cost\ of\ pure\ Insurance}_{\left(iCov,{\ Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+{Coverage\ Dec\ 31^{st}\ Indicator}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )\\
+\noindent $\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}} and \underline{\textit{Coverage Dec 31\textsuperscript{st} Indicator}}
+
+\subsection{Coverage Net Cost of pure Insurance}
+
+\[
+{Coverage\ Net\ Cost\ of\ pure\ Insurance}_{\left(iCov,iDur\right)}=\sum_{iInsured=1}^{NbInsuredOnCov}{Coverage\ Net\ Cost\ of\ pure\ Insurance}_{\left(iCov,iInsured,iDur\right)}
+\]
+
+\[
+{Coverage\ Net\ Cost\ of\ pure\ Insurance}_{\left(iCov,iInsured,iDur\right)}=ROUND\left\{{Qx}_{\left(iCov,iInsured,iDur+1\right)}\ast{Coverage\ Net\ Amount\ at\ Risk}_{\left(iCov,iInsured,iDur\right)}\ ;2\right\}
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and \underline{\textit{End of Coverage Projection}}\\
+\noindent $\rightarrow$ Additional coverages are not included in the coverages calculated
+
+\subsubsection{Qx}
+\textit{Refer to previous definition}
+
+\subsubsection{Coverage Net Amount at Risk}
+\textit{Refer to previous definition}
+
+\section{REPORT: Cumulative NCPI}
+
+\[
+{Cumulative\ NCPI}_{\left(iDur\right)} = \begin{cases}
+Policy\ Cumulative\ NCPI & \text{if } iDur = Policy\ 1^{st}\ Duration \ \text{AND}\ Policy\ Dec\ 31^{st}\ Indicator = 1 \\
+Policy\ Cumulative\ NCPI+{Net\ Cost\ of\ pure\ Insurance}_{\left(iDur\right)} & \text{if } iDur = Policy\ 1^{st}\ Duration \ \text{AND}\ Policy\ Dec\ 31^{st}\ Indicator = 0 \\
+{Cumulative\ NCPI}_{\left(iDur-1\right)}+{Net\ Cost\ of\ pure\ Insurance}_{\left(iDur\right)} & \text{if } iDur > Policy\ 1^{st}\ Duration
+\end{cases}
+\]
+
+\noindent $\rightarrow$ Where iDur is between \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{End of Illustration Projection}}
+
+\subsection{Policy Cumulative NCPI}
+\textit{Refer to previous definition}
+
+\subsection{Policy 1\textsuperscript{st} Duration}
+\textit{Refer to previous definition}
+
+\subsection{Policy Dec 31\textsuperscript{st} Indicator}
+\textit{Refer to previous definition}
+
+\subsection{Net Cost of pure Insurance}
+\textit{Refer to previous definition}
+
+\section{REPORT: ACB Coverage Cost}
+
+\[
+{ACB\ Coverage\ Cost}_{\left(Policy\ 1^{st}\ Duration+iDur-1\right)}=\sum_{iCov=1}^{NbCov}{Total\ Interpolated\ Premium}_{\left(iCov,\ {Cov\ 1^{st}\ Duration}_{\left(iCov\right)}+iDur-1\right)}
+\]
+
+\noindent $\rightarrow$ Where iDur is between 1 and ( \underline{\textit{End of Illustration Projection}} - \underline{\textit{Policy 1\textsuperscript{st} Duration}} )\\
+\noindent $\rightarrow$ \underline{\textit{Coverage 1\textsuperscript{st} Duration}}\\
+\noindent $\rightarrow$ Only life insurance coverages are included in this calculation
+
+\subsection{Total Interpolated Premium}
+\textit{Refer to previous definition}
+
+Considering only life insurance coverages.
+
+\section{REPORT: Cumulative ACB Coverage Cost}
+
+\[
+{Cumulative\ ACB\ Coverage\ Cost}_{\left(iDur\right)} = \begin{cases}
+Policy\ ACB+Policy\ Cumulative\ NCPI+{ACB\ Coverage\ Cost}_{\left(iDur\right)} & \text{if } iDur = Policy\ 1^{st}\ Duration \\
+{Cumulative\ ACB\ Coverage\ Cost}_{\left(iDur-1\right)}+{ACB\ Coverage\ Cost}_{\left(iDur\right)} & \text{if } iDur > Policy\ 1^{st}\ Duration
+\end{cases}
+\]
+
+\noindent $\rightarrow$ Where iDur is between \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{End of Illustration Projection}}\\
+\noindent $\rightarrow$ Additional coverages are not included in the coverages calculated
+
+\subsection{ACB Coverage Cost}
+\textit{Refer to previous definition}
+
+\subsection{Policy ACB}
+\textit{Refer to previous definition}
+
+\subsection{Policy Cumulative NCPI}
+\textit{Refer to previous definition}
+
+\subsection{Policy 1\textsuperscript{st} Duration}
+\textit{Refer to previous definition}
+
+\section{REPORT: Adjusted Cost Basis (ACB)}
+
+\[
+{ACB}_{\left(iDur\right)} = MAX\left\{0\ ;\ {ACB\ Before\ MAX}_{\left(iDur\right)}\right\}
+\]
+
+\[
+{ACB\ Before\ MAX}_{\left(iDur\right)} = \begin{cases}
+Policy\ ACB+{ACB\ Coverage\ Cost}_{\left(iDur\right)}-{Net\ Cost\ of\ pure\ Insurance}_{\left(iDur\right)} & \text{if } iDur = Policy\ 1^{st}\ Duration \\
+{ACB\ Before\ MAX}_{\left(iDur-1\right)}+{ACB\ Coverage\ Cost}_{\left(iDur\right)}-{Net\ Cost\ of\ pure\ Insurance}_{\left(iDur\right)} & \text{if } iDur > Policy\ 1^{st}\ Duration
+\end{cases}
+\]
+
+\noindent $\rightarrow$ Where iDur is between \underline{\textit{Policy 1\textsuperscript{st} Duration}} and \underline{\textit{End of Illustration Projection}}
+
+\subsection{ACB Coverage Cost}
+\textit{Refer to previous definition}
+
+\subsection{Net Cost of pure Insurance}
+\textit{Refer to previous definition}
+
+\subsection{Policy ACB}
+\textit{Refer to previous definition}
+
+\subsection{Policy 1\textsuperscript{st} Duration}
+\textit{Refer to previous definition}
+\end{document}

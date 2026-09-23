@@ -40,11 +40,18 @@
 
     <div class="spacer"></div>
 
+    <input class="fi fi--txt" id="tcName" placeholder="Test Case Name" maxlength="60"
+           spellcheck="false" autocomplete="off" title="Test Case Name">
+    <!-- Filled in by the pre-load page (inforce_preload logic in inforce.js):
+         name as text, initials in data-ini (the prefix on every saved file name). -->
+    <span class="chip" id="tcUser" title="Signed in as"></span>
+    <button class="btn btn--primary" id="btnSaveTest" title="Save this test case to History">Save Test</button>
+
     <button class="btn btn--icon" id="btnTheme" title="Toggle light / dark theme">◐</button>
     <button class="btn" id="btnSample">Load Sample</button>
     <button class="btn" id="btnImport">Import Extract…</button>
     <button class="btn btn--danger" id="btnClear" hidden>Clear</button>
-    <input type="file" id="fileInput" accept=".xlsx,.xls,.xlsm,.csv" hidden>
+    <input type="file" id="fileInput" accept=".xlsx,.xlsm" hidden>
   </header>
 
   <!-- ═════════════════════════════════ TABS ════════════════════════════ -->
@@ -52,6 +59,8 @@
     <span class="tab-list" id="tabList">
       <button class="tab" role="tab" data-pane="paneHome" aria-selected="true">Home</button>
       <button class="tab" role="tab" data-pane="paneProjection" aria-selected="false">Projection</button>
+      <button class="tab" role="tab" data-pane="paneHistory" aria-selected="false">History</button>
+      <button class="tab" role="tab" data-pane="paneDevCalc" aria-selected="false">Dev Validations</button>
     </span>
     <div class="spacer"></div>
     <div class="asof" id="hdrStamp"></div>
@@ -73,9 +82,9 @@
           </div>
           <div class="fmt">
             <div class="micro">Expected</div>
-            <div>Sheet <code>POLICY_EXTRACT</code> — one policy header row followed by one
-                 row per coverage, insured lives in the trailing columns.</div>
-            <div class="warnline">Parsing is mocked in this build — any accepted file returns fixture data.</div>
+            <div>Sheets <code>Policy</code>, <code>Coverages</code> and <code>Insureds</code> are required.
+                 Policy uses its fixed key/value layout; Coverages and Insureds use one record per nonblank row.</div>
+            <div class="warnline">Insureds are attached to matching coverages; rows for unknown coverage numbers are ignored.</div>
           </div>
         </div>
       </div>
@@ -115,6 +124,20 @@
       </div>
     </section>
 
+    <!-- ── History ────────────────────────────────────────────────────── -->
+    <section class="pane" id="paneHistory" role="tabpanel" hidden>
+      <div id="historyTabHost"></div>
+    </section>
+
+    <!-- ── Dev Validations ────────────────────────────────────────────── -->
+    <!-- Not part of the tool as shipped: lets a developer see every
+         calc_engine.term_life variable's output against the loaded extract,
+         section by section, while the engine is being built. See
+         INFORCE_REFERENCE.md Sec 16. -->
+    <section class="pane" id="paneDevCalc" role="tabpanel" hidden>
+      <div id="devCalcHost"></div>
+    </section>
+
   </main>
 
   <!-- ═══════════════════════════════ STATUS ════════════════════════════ -->
@@ -123,9 +146,63 @@
     <span class="mono" id="stFile"></span>
     <span id="stChanges"></span>
     <div class="spacer"></div>
-    <span class="mono">PARSER MOCKED · ENGINE STUBBED</span>
+    <span class="mono">PARSER: POLICY + COVERAGES + INSUREDS LIVE · ENGINE STUBBED</span>
   </footer>
 
+</div>
+
+<!-- ══════════════════════════ PRE-LOAD PAGE ═══════════════════════════════
+     Covers the tool until a user is picked. Usernames come from
+     usernames.json on this tool's server (server.py / _start-life-inforce.bat);
+     "Add" appends a new one there so it's proposed to everyone next time.
+     Nothing about this choice is remembered between launches — it asks every
+     time, same as the Coverage Optimizer's pre-load page.
+
+     Also carries its own "Import a policy extract" section (same controls as
+     the empty-state pane, #paneEmpty) so picking a name and getting a policy
+     loaded is one screen, not two — Select/Load Sample/drop a file here
+     dismiss this page and land straight on Home with data. #paneEmpty stays
+     in the DOM for the *later* case (Clear, mid-session), where there is no
+     preload gate left to fold it into. -->
+<div class="preload" id="preload" role="dialog" aria-modal="true" aria-labelledby="plTitle">
+  <div class="pl-card">
+    <div class="pl-brand"><span class="mark">IT</span><span class="pl-brand-name">Inforce Tool</span></div>
+    <h2 id="plTitle">Before you start</h2>
+
+    <div class="pl-sec">
+      <div class="micro">Who is using the tool?</div>
+      <div class="pl-users" id="plUsers" role="radiogroup" aria-label="User"></div>
+      <div class="pl-add">
+        <input class="fi fi--txt" id="plNewName" placeholder="Not listed? Add your name…" maxlength="40"
+               spellcheck="false" autocomplete="off">
+        <button class="btn btn--sm" id="plAddUser" type="button">Add</button>
+      </div>
+    </div>
+
+    <div class="pl-sec">
+      <div class="micro">Import a policy extract</div>
+      <div class="drop" id="plDropZone">
+        <p>Drop the workbook scraped from the terminal, or choose a file.
+           The extract is parsed locally — nothing is uploaded anywhere.</p>
+        <div class="acts">
+          <button class="btn btn--primary" id="plSelectExtract" type="button">Select Extract…</button>
+          <button class="btn" id="plSampleExtract" type="button">Load Sample Extract</button>
+        </div>
+        <div class="fmt">
+          <div class="micro">Expected</div>
+          <div>Sheets <code>Policy</code>, <code>Coverages</code> and <code>Insureds</code> are required.
+               Policy uses its fixed key/value layout; Coverages and Insureds use one record per nonblank row.</div>
+          <div class="warnline">Insureds are attached to matching coverages; rows for unknown coverage numbers are ignored.</div>
+        </div>
+      </div>
+      <div class="pl-hint" id="plImportHint">Pick your name above before importing.</div>
+    </div>
+
+    <div class="pl-foot">
+      <button class="btn btn--primary" id="plStart" type="button" disabled>Start with a blank tool</button>
+      <span class="pl-hint" id="plHint">Choose your name.</span>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>

@@ -51,36 +51,51 @@ likely way to produce an unusable result.
 
 ```
 inforce-tool/
-├── inforce.html               static shell: top bar, tabs, panes, status bar, toast
-├── inforce.css                green palette + every component class
-├── inforce.js                 one IIFE: schema, state, render, events, engine hooks
-├── INFORCE_REFERENCE.md       this file
-├── INFORCE_INSTRUCTIONS.md    custom instructions for the coding platform
-│
-├── optimizer.html / .css / .js   the sibling tool — out of scope here
-└── OPTIMIZER_REFERENCE.md / OPTIMIZER_INSTRUCTIONS.md
+├── _start-life-inforce.bat    launcher: runs backend/server.py, opens the browser
+├── backend/
+│   ├── inforce.html           static shell: top bar, tabs, panes, status bar, toast, pre-load overlay
+│   ├── inforce.css            green palette + every component class
+│   ├── inforce.js             one IIFE: schema, state, render, events, engine hooks, History/pre-load
+│   ├── server.py              local server: static files + ../history_data/ + ../usernames.json routes
+│   └── calc_engine*.py        calculation engine modules (§11) — live here too, code goes in backend/
+├── markdown_reference/
+│   ├── INFORCE_REFERENCE.md   this file
+│   └── INFORCE_INSTRUCTIONS.md   custom instructions for the coding platform
+├── usernames.json             known users proposed on the pre-load page (server-owned, atomic writes)
+├── history_data/               saved test cases, one .json per save; history_data/_deleted/ = soft-deletes
+├── calculation_specs/          per-product calculation specs (source screenshots + generated LaTeX)
+└── term_catalog.xlsx / .json   the Term product's variable catalog (§11)
 ```
 
-**`inforce.css` and `optimizer.css` share every component rule byte-for-byte;
-only the palette tokens differ.** They were generated from one source. If you
-change a component rule in `inforce.css`, make the identical change in
-`optimizer.css` — visual consistency across the two tools depends on it.
+**`inforce.css` shares every component rule byte-for-byte with the sibling
+Coverage Optimizer tool's `optimizer.css`** (a separate project/repo, not a
+subfolder here); only the palette tokens differ. They were generated from one
+source — if you change a component rule in `inforce.css`, make the identical
+change in that other project's `optimizer.css` too, for visual consistency
+across the two tools.
 
 ### Running it
 
-Opening `inforce.html` directly from disk works — `inforce.js` is a classic
-script, not a module. For development, prefer a local server so the browser does not
-serve stale files:
+Opening `backend/inforce.html` directly from disk still works for the core
+tool — `inforce.js` is a classic script, not a module — but the pre-load page
+then can't `fetch()` `usernames.json`, and Save Test can't write into
+`history_data/` (it falls back to a browser download; see §15). **Preferred:**
+run `_start-life-inforce.bat` (from the project root), which starts
+`backend/server.py` (stdlib-only, no `pip install`) on port 8001 and opens
+the tool over `http://localhost:8001/backend/inforce.html`.
+
+For plain static-file development that doesn't touch History, a generic
+server still works:
 
 ```bash
 python -m http.server 8000
 ```
 
-> **Caching gotcha.** `python -m http.server` sends no cache headers, and
-> browsers will happily hold on to an old `inforce.js` after you edit it. If a
-> change appears not to take effect, hard-reload or restart the server on a
-> different port before you start debugging your own code. This wasted real
-> time during development.
+> **Caching gotcha.** Neither `python -m http.server` nor `server.py` sends
+> strong cache headers by default for a stale-`.js` bug like this — `server.py`
+> does send `Cache-Control: no-cache` for exactly that reason. If a change
+> appears not to take effect with the plain `http.server`, hard-reload or
+> restart it on a different port before you start debugging your own code.
 
 ---
 
@@ -307,23 +322,23 @@ parser, the UI and your engine all key off them.
 
 ### Policy — 15 fields
 
-| Key | Type | Constraint | Editable |
-|---|---|---|---|
-| `policyNumber` | text | ≤ 10 alphanumeric | no |
-| `policyStatus` | text | exactly 1 alphanumeric | no |
-| `paymentMode` | enum | `'01'` = Monthly, `'12'` = Annual | **yes** |
-| `premiumDepositAccount` | text | exactly 3 numeric, **blank allowed** | no |
-| `specialQuoteIdentifier` | text | ≤ 20 alphanumeric + space, format `### YYMMMDDD` | no |
-| `policyIssueDate` | date | DD-MMM-YYYY | no |
-| `projectionDate` | date | DD-MMM-YYYY | **yes** |
-| `paidToDate` | date | DD-MMM-YYYY | no |
-| `adjustedCostBasis` | money | 0 … 999,999,999.99, 2 dp | no |
-| `totalPremiumsPaid` | money | 0 … 999,999,999.99, 2 dp | no |
-| `netCostOfPureInsurance` | money | 0 … 999,999,999.99, 2 dp | no |
-| `currentLoanAmount` | money | 0 … 999,999,999.99, 2 dp | no* |
-| `currentLoanInterest` | money | 0 … 999,999,999.99, 2 dp | no* |
-| `currentAplAmount` | money | 0 … 999,999,999.99, 2 dp | no* |
-| `currentAplInterest` | money | 0 … 999,999,999.99, 2 dp | no* |
+| Key | Type | Constraint | Editable | .xlsx Sheet | .xlsx Cell |
+|---|---|---|---|---|---|
+| `policyNumber` | text | ≤ 10 alphanumeric | no | Policy | B2 |
+| `policyStatus` | text | exactly 1 alphanumeric | no | Policy | B20 |
+| `pmtMode` | enum | `'01'` = Monthly, `'12'` = Annual | **yes** | Policy | B18 |
+| `premiumDepositAccount` | text | exactly 3 numeric, **blank allowed** | no | Policy | B8 |
+| `specialQuoteIdentifier` | text | ≤ 20 alphanumeric + space, format `### YYMMMDDD` | no | Policy | B21 |
+| `policyIssueDate` | date | DD-MMM-YYYY | no | Policy | B19 |
+| `valueAsOfDate` | date | DD-MMM-YYYY | **yes** | Policy | B5 |
+| `premiumsPaidToDate` | date | DD-MMM-YYYY | no | Policy | B7 |
+| `policyAcb` | money | 0 … 999,999,999.99, 2 dp | no | Policy | B10 |
+| `totalPremiumsPaid` | money | 0 … 999,999,999.99, 2 dp | no | Policy | B11 |
+| `policyCumulativeNcpi` | money | 0 … 999,999,999.99, 2 dp | no | Policy | B12 |
+| `currentLoanAmount` | money | 0 … 999,999,999.99, 2 dp | no* | Policy | B13 |
+| `currentLoanInterest` | money | 0 … 999,999,999.99, 2 dp | no* | Policy | B14 |
+| `currentAplAmount` | money | 0 … 999,999,999.99, 2 dp | no* | Policy | B15 |
+| `currentAplInterest` | money | 0 … 999,999,999.99, 2 dp | no* | Policy | B16 |
 
 \* The four indebtedness fields are locked as *fields*, but are written by the
 **Add Loan on Policy** / **Add APL on Policy** buttons, which open an inline
@@ -352,7 +367,7 @@ coverage (`newOk`). See §7 for why these differ.
 | `grpTotalAmount` | money | 0 … 999,999,999.99 CAD, 2 dp | | |
 | `businessPremiumAllocationDuration` | int | 1 … 999 yrs | | |
 | `coverageIssueDate` | date | DD-MMM-YYYY | | ✓ |
-| `maturityExpiryDate` | date | DD-MMM-YYYY | | |
+| `coverageExpirationDate` | date | DD-MMM-YYYY | | |
 | `paidUpDate` | date | DD-MMM-YYYY | | |
 | `rateDate` | date | DD-MMM-YYYY | | |
 | `permanentExtraPremiumPct` | pct | 0 … 1,000,000 % | ✓ | ✓ |
@@ -486,7 +501,7 @@ splices.
 
 | Function | Behaviour |
 |---|---|
-| `parseDate(s)` | accepts `DD-MMM-YYYY`, `YYYY-MM-DD`, `YYYYMMDD`, `YYYY/MM/DD` → `Date` (UTC) or `null` |
+| `parseDate(s)` | accepts `DD-MMM-YYYY`, `DDMMMYYYY`, `YYYY-MM-DD`, `YYYYMMDD`, `YYYY/MM/DD` → `Date` (UTC) or `null` |
 | `fmtDate(dt)` | → canonical `DD-MMM-YYYY` |
 | `agesAt(birth, asOf)` | → `{ real, nearest }` |
 
@@ -587,7 +602,7 @@ descriptor and a record.
 | Scope | Format | Example |
 |---|---|---|
 | Coverage | `cov\|<coverageId>\|<fieldKey>` | `cov\|c1\|faceAmount` |
-| Policy | `pol\|\|<fieldKey>` | `pol\|\|projectionDate` |
+| Policy | `pol\|\|<fieldKey>` | `pol\|\|valueAsOfDate` |
 | Insured | `ins\|<coverageId>~<insuredId>\|<fieldKey>` | `ins\|c1~i2\|birthdate` |
 
 Read-only controls (`.fi--ro`) deliberately have **no** `data-fk`, so the
@@ -616,11 +631,14 @@ Handled by `onClick` via delegation on `#coverageList` and `#policyCol`.
 |---|---|
 | Tool switcher | `brandBlock`, `toolSelect`, `toolMark`, `toolName`, `toolMenu` |
 | Top bar | `hdrPolicy`, `hdrFile`, `hdrMock`, `btnTheme`, `btnSample`, `btnImport`, `btnClear`, `fileInput` |
+| Top bar — Save Test | `tcName`, `tcUser`, `btnSaveTest` |
 | Tabs | `tabList`, `hdrStamp` |
 | Empty state | `paneEmpty`, `dropZone`, `btnSelect`, `btnSample2` |
 | Home | `paneHome`, `coverageList`, `covCount`, `btnAddCoverage`, `policyCol` |
 | Projection | `paneProjection`, `btnRun`, `projectionSlot` |
+| History | `paneHistory`, `historyTabHost`, `historyTabBody`, `historyTabCount`, `hfUser` |
 | Inline loan form | `loanAmt`, `loanInt` |
+| Pre-load page | `preload`, `plUsers`, `plNewName`, `plAddUser`, `plStart`, `plHint`, `plDropZone`, `plSelectExtract`, `plSampleExtract`, `plImportHint` |
 | Status / toast | `stDot`, `stText`, `stFile`, `stChanges`, `toast` |
 
 ### Event wiring
@@ -683,6 +701,12 @@ Requirements:
   per coverage, insured lives in trailing columns.
 - On a malformed file, `throw` — `ingest()` catches and shows an error toast.
 - Accepted extensions are gated in `ingest()`: `.xlsx .xls .xlsm .csv`.
+- **Only in-force coverages are imported.** A `Coverages` row is skipped
+  entirely unless its `CS` column is `1`, `2`, `3` or `4`. Skipped rows are
+  never rendered and never counted. `coverageNumber` always comes straight
+  from the row's own `C#` cell — a gap left by a skipped coverage (e.g.
+  importing only C05–C08 out of 18) is never closed by renumbering the
+  survivors.
 
 ### B. `runProjection(dataset)` — the engine
 
@@ -793,7 +817,7 @@ After any change, confirm:
 - [ ] Edit a face amount: row goes gold, "was …" appears in the tooltip, the
       card header total updates, the change log gains a row.
 - [ ] Tab through a whole coverage card typing values — focus must never drop.
-- [ ] Dates accept all four formats and normalise to `DD-MMM-YYYY`.
+- [ ] Dates accept all five formats and normalise to `DD-MMM-YYYY`.
 - [ ] Out-of-range values are rejected and not committed.
 - [ ] Terminate a coverage: struck through, restorable, excluded from totals.
 - [ ] Add and remove an insured: no strikethrough, no log entry.
@@ -802,3 +826,235 @@ After any change, confirm:
 - [ ] Toggle dark mode.
 - [ ] No horizontal page scroll at 1280px and 1920px.
 - [ ] Console is free of errors.
+- [ ] Pre-load page: only `_start-life-inforce.bat` reaches `usernames.json`;
+      opening the file directly shows the "could not reach the server" hint
+      but Add still works via download-free retry once the server is up.
+      Adding a name posts it to `usernames.json` and auto-selects the new pill.
+- [ ] Pre-load page: clicking Select Extract / Load Sample Extract / dropping
+      a file with no name picked does nothing but flag `#plImportHint` —
+      nothing loads, the overlay stays up.
+- [ ] Pre-load page: pick a name, then Load Sample Extract *on that page* —
+      dismisses the overlay and lands straight on Home with data, no
+      intermediate empty-state screen.
+- [ ] Pre-load page: "Start with a blank tool" still reaches the ordinary
+      empty state, and History from there.
+- [ ] Save Test with no extract loaded: blocked with a toast, nothing written.
+- [ ] Save Test with a blank name: `tcName` goes `.fi--bad`, nothing written.
+- [ ] Save Test: entry appears in the History tab immediately, and a matching
+      `<initials>_<name>.json` lands in `history_data/`.
+- [ ] History tab is reachable (and `paneEmpty` steps aside for it) even
+      before any extract is imported.
+- [ ] Load a saved test case: switches to Home, restores the gold "changed"
+      highlights and Change Log exactly as they were at save time (both
+      `state.base` and `state.data` come back, not just the working copy).
+- [ ] Delete a saved test case: removed from the list; its file moves to
+      `history_data/_deleted/` (never erased).
+- [ ] Reopen the tool: every case anyone saved into `history_data/` is listed,
+      merged with this browser's own `localStorage` copy.
+
+---
+
+## 15. History, Save Test and the pre-load page
+
+Added on top of the base spec above, following the same pattern as the
+Coverage Optimizer's History tab (`OPTIMIZER_REFERENCE.md` §2h) — read that
+first if extending this section; the two are meant to stay recognisably the
+same feature.
+
+### The pre-load page
+
+A full-screen overlay (`#preload`) covers the tool (`.app.inert = true`)
+until a user is picked. Unlike the Optimizer's three hardcoded pills, this
+tool's roster is **dynamic**: `initPreload()` fetches `usernames.json` from
+`server.py` and renders one `.pl-user` pill per entry. "Not listed? Add your
+name…" + **Add** (or Enter) `POST`s `{name}` to `usernames.json`; the server
+de-dupes case-insensitively, derives initials from the name's word-initial
+letters (disambiguating a collision with a trailing digit), atomically
+rewrites the file, and replies with the full updated list — which the client
+re-renders and auto-selects. **Nothing is remembered between launches** — it
+asks every time, on purpose (§14.3 of the Optimizer reference has the same
+rule and the same reasoning).
+
+**The page also carries its own "Import a policy extract" section** — the
+same controls as `#paneEmpty` (`#plDropZone`, `#plSelectExtract`,
+`#plSampleExtract`), so picking a name and getting a policy loaded is one
+screen, not two. `plProceed()` is the shared gate every one of those controls
+calls first: if no name is picked yet it flags `#plImportHint` and bails;
+otherwise it calls `plEnter(...)` immediately (dismissing the overlay,
+writing the `#tcUser` chip) and *then* the click handler proceeds exactly as
+the top-bar's own Select/Sample controls would — `ingest()` or
+`parseWorkbook(null, …).then(load)`. The overlay disappears on click, not on
+the (async) result, so a cancelled file-picker dialog just leaves the
+operator on the ordinary empty state (`#paneEmpty`), not stuck anywhere.
+
+**`#plStart` ("Start with a blank tool") still exists** as the explicit
+skip-import path — same gate (disabled until a name is picked), same
+`plEnter(...)` call, but no load. This is also how an operator reaches
+History without importing anything: Start, then the History tab (reachable
+pre-load per the `showTab()` note above).
+
+### Test Case Name / Save Test
+
+`#tcName` + `#tcUser` + `#btnSaveTest` live in the static top bar, not inside
+the History pane — same split as the Optimizer. `doSaveTest()`:
+
+1. Refuses with a toast if `!state.loaded` (there is nothing to save) or the
+   name is blank (`.fi--bad` + toast + focus).
+2. Builds an entry via `histBuildEntry`, which snapshots **both**
+   `state.base` and `state.data` (deep-cloned), plus `state.meta`,
+   `policyNumber`, `coverageCount`, and `changeCount` (`diff().length` —
+   reusing the existing Change Log diff, not a separate count).
+3. Pushes the entry into `histCatalog`, persisted to `localStorage` under
+   `life-inforce-testcases` (instant list, survives a reload even offline).
+4. `POST`s the entry to `history_data/<initials>_<sanitised name>.json`
+   through `server.py`, which never overwrites (a collision gets a
+   timestamp-suffixed name back). If the server can't be reached, falls back
+   to a browser download of the same JSON — same fallback contract as the
+   Optimizer's `saveToDataFolder`.
+
+### Load — the one place this diverges from the Optimizer
+
+The Optimizer's `restoreState` only replaces its working state; this tool's
+whole UI is built around diffing `state.base` (pristine) against `state.data`
+(working copy) — see §9. So `doHistLoad` restores **both** from the
+snapshot, not just `data`: the gold "changed" rows, the tooltip "was …"
+values, and the Change Log all come back exactly as they were the moment the
+case was saved, so the operator can keep analysing a case rather than getting
+a clean slate. `state.loaded` is set, the header/status bar are refreshed as
+in `load()`, and the tab switches to Home.
+
+### History tab
+
+`paneHistory` → `#historyTabHost`, filled by `initHistoryTab()` with a
+`.card.card--out` + filtered `.ins` table (`historyTabShell()` /
+`renderHistoryTab()` / `historyRow()`), mirroring the Optimizer's
+`optimizer_history.js` shell almost verbatim. Columns are this tool's own:
+**Test Case Name, Username, Date Saved, Policy Number, Coverages, Changes,
+Load, Delete** (no Insureds/Modal-Premium columns — those are the Optimizer's
+domain, not this one's). Filter row: Test Case Name and Date Saved are
+"contains" (case-insensitive); Username is an exact-match `<select>` built
+from whatever users have actually saved something.
+
+**Unlike the other tabs, History is reachable before an extract is loaded** —
+see the `showTab()` change in §9: `paneEmpty` steps aside for `paneHistory`
+specifically, since Load is a legitimate alternative entry point to a working
+session, not just something you do after importing.
+
+`histLoadFromFolder()` runs once at startup (independent of the pre-load
+gate — it's a harmless background fetch): `GET history_data/` returns every
+saved case from every user's machine, merged into `histCatalog` by `id` so a
+case saved by a colleague is there the next time anyone opens the tool.
+
+### Everything lives in `inforce.js`
+
+Ground rule §0 says one IIFE, and this feature does not get a pass: unlike
+the Optimizer (whose tabs are split into files talking through a
+`window.OptimizerCore` bridge, justified by that tool's larger size), History
+and the pre-load page are implemented as more functions inside `inforce.js`'s
+existing closure — same file, same conventions, no new global, no bridge.
+`server.py`, `_start-life-inforce.bat` and `usernames.json` are the only new
+files, and they are infrastructure (a local HTTP server and its data), not
+UI code.
+
+---
+
+## 16. The Term Life calculation engine (`backend/calc_engine/term_life/`)
+
+Unlike the rest of this tool, **the calculation engine is Python, not
+JavaScript** — the goal is for a future team unfamiliar with this codebase to
+be able to maintain the calculations without also knowing browser-side
+front-end conventions. It is not wired into the real projection tab yet
+(§11's `runProjection` is still a stub); it exists today so each formula can
+be built and checked section by section against `term_catalog.json` before
+anything depends on it.
+
+### Structure: a declarative registry, called by a shared Context
+
+Every catalog variable (`term_catalog.json`) is one small Python function,
+named after its `python_name`, registered under that name with `@variable(...)`.
+Functions are grouped one file per catalog section, numbered so they sort in
+reading order — `s1_duration.py`, `s2_input_policy.py`, `s3_input_coverage.py`
+(not `1_duration.py`: Python identifiers, and therefore module names, can't
+start with a digit, so `import 1_duration` is a syntax error). A formula never
+calls another module's function directly; it always goes through
+`Context.get(python_name, iCov=..., iDur=..., iInsured=...)`, which looks up
+the function in the registry, calls it, and caches the result. That
+indirection is what lets a policy-level scalar (`value_as_of_date`), a
+per-coverage variable (`coverage_1st_duration`), and — once Report-section
+formulas arrive — a per-duration or per-insured one all share one lookup
+mechanism, and it's what will let a later formula like "cumulative NCPI at
+duration 5" pull duration 4, 3, 2… underneath it without knowing the call
+chain in advance.
+
+`iCov` and `iInsured` are **1-based** in `Context`, matching the spec's own
+notation (`sum_{iCov=1}^{NbCov}`) rather than Python's 0-based lists, so the
+code reads next to the LaTeX spec without an off-by-one translation.
+
+A variable that cannot be computed yet (see below) raises `calc_engine.term_life.context.Blocked`,
+not `NotImplementedError` — that distinction lets a caller (the dev endpoint,
+a future test) tell "this formula is written but missing an input" apart
+from "this is a bug".
+
+### Extract field renames
+
+Six extract field names were renamed to match their `term_catalog.json`
+`python_name` exactly, for maintainability — a future reader cross-referencing
+the catalog against the code should find the identical name, not a synonym:
+
+| old name | new name | catalog `python_name` |
+|---|---|---|
+| `policy.projectionDate` | `policy.valueAsOfDate` | `value_as_of_date` |
+| `policy.paidToDate` | `policy.premiumsPaidToDate` | `premiums_paid_to_date` |
+| `policy.netCostOfPureInsurance` | `policy.policyCumulativeNcpi` | `policy_cumulative_ncpi` |
+| `policy.adjustedCostBasis` | `policy.policyAcb` | `policy_acb` |
+| `policy.paymentMode` | `policy.pmtMode` | `pmt_mode` |
+| `coverage.maturityExpiryDate` | `coverage.coverageExpirationDate` | `coverage_expiration_date` |
+
+Display labels (`l:` in the field descriptors) are unchanged — only the `k:`
+key and every reference to it moved. Every other field already matched its
+catalog name closely enough to leave alone.
+
+### What's implemented, and what's blocked on Product Characteristics
+
+Sections 2 (Input Setup - Policy, 13/13) and 3 (Input Setup - Coverage,
+11/13) are fully implemented — everything computable from the extract alone.
+Section 1 (Duration) has 4/16 implemented (DUR-01 through DUR-04); the rest,
+plus `coverage_type` (COV-12) and `product_type` (COV-13), raise `Blocked`
+because they need a **Product Characteristics reference** (a per-plan lookup
+— e.g. "plan LT10I: premiums end after 10 years, coverage ends at age 100")
+that does not exist yet. `term_catalog.json`'s `source` column marks these
+`product_char`. `DUR-16` (`age`) is blocked for a different reason: the
+catalog lists it as a direct CAPSIL read with no dependencies, but the
+extract has no raw age field, only birthdate — whether/how it should be
+computed is still an open question, not yet answered.
+
+Day-counts in `dates.days_between_365` (used by `POL-09` and `COV-08`'s
+Annual-mode branch) deliberately assume a 365-day year with February always
+28 days, per the catalog's own note on those two variables — not a real
+calendar day-count, and leap years are never special-cased anywhere in the
+engine.
+
+### Dev Validations tab — not part of the shipped tool
+
+A `POST /calc/term_life` route on `server.py` (`run_term_life_calc`) takes
+the working dataset (`state.data`), walks every `term_catalog.json` entry in
+the three sections above, calls `Context.get(...)` for each — once for a
+policy-level variable, once per coverage for an `iCov` one, once per
+(coverage, insured) for an `iCov, iInsured` one — and replies with the
+results grouped by section, each carrying either a value or an error string
+(`Blocked`'s reason, or another exception's message so a bug in a formula
+surfaces instead of crashing the whole tab).
+
+The **Dev Validations** tab (`inforce.js` `renderDevCalc()` /
+`devCalcSection()` / `devCalcRow()`, `#devCalcHost`) POSTs to that route
+whenever it's opened and renders one `.card.card--out` per section, one row
+per (variable, scope) — mirroring the History tab's own card/table idiom.
+Like History, it needs its own server (`_start-life-inforce.bat`); unlike
+History, it needs a loaded extract (there is nothing to compute against
+otherwise), so it is **not** exempted from the `showTab()` "nothing shows
+until loaded" rule the way History is.
+
+This tab is scaffolding for building the engine, not a feature for the
+tool's actual users — remove it (and the `/calc/term_life` route) once the
+engine is wired into the real Projection tab, or keep it around as a
+developer aid; that's a call for whoever finishes the engine.

@@ -1,0 +1,192 @@
+{
+  "characteristics": [
+    {
+      "id": "LT10IB",
+      "product_type": "Term",
+      "plan_name": "Life Term 10",
+      "coverage_plan_code": "LT10I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT15IB",
+      "product_type": "Term",
+      "plan_name": "Life Term 15",
+      "coverage_plan_code": "LT15I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT20IB",
+      "product_type": "Term",
+      "plan_name": "Life Term 20",
+      "coverage_plan_code": "LT20I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT25IB",
+      "product_type": "Term",
+      "plan_name": "Life Term 25",
+      "coverage_plan_code": "LT25I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT30IB",
+      "product_type": "Term",
+      "plan_name": "Life Term 30",
+      "coverage_plan_code": "LT30I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT65IB",
+      "product_type": "Term",
+      "plan_name": "Life Term to 65",
+      "coverage_plan_code": "LT65I",
+      "rate_scale": "B",
+      "coverage_type": "Individual",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT10FB",
+      "product_type": "Term",
+      "plan_name": "Life Term 10",
+      "coverage_plan_code": "LT10F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT15FB",
+      "product_type": "Term",
+      "plan_name": "Life Term 15",
+      "coverage_plan_code": "LT15F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT20FB",
+      "product_type": "Term",
+      "plan_name": "Life Term 20",
+      "coverage_plan_code": "LT20F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT25FB",
+      "product_type": "Term",
+      "plan_name": "Life Term 25",
+      "coverage_plan_code": "LT25F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT30FB",
+      "product_type": "Term",
+      "plan_name": "Life Term 30",
+      "coverage_plan_code": "LT30F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    },
+    {
+      "id": "LT65FB",
+      "product_type": "Term",
+      "plan_name": "Life Term to 65",
+      "coverage_plan_code": "LT65F",
+      "rate_scale": "B",
+      "coverage_type": "JFTD",
+      "expiration_type": "C",
+      "end_of_premium_age_or_duration": 85,
+      "end_of_coverage_age_or_duration": 85,
+      "end_of_premium_type": "C",
+      "base_premium_rate_band": "B00025; B00050; B00100; B00250; B00500; B01000; B02000; B10000"
+    }
+  ],
+  "legend": [
+    {
+      "id": "expiration_type",
+      "value": "A",
+      "label": "coverage never ends"
+    },
+    {
+      "id": "expiration_type",
+      "value": "B",
+      "label": "ends at predetermined number of years"
+    },
+    {
+      "id": "expiration_type",
+      "value": "C",
+      "label": "ends at predetermined age"
+    },
+    {
+      "id": "end_of_premium_type",
+      "value": "A",
+      "label": "premiums end in a predetermined number of years"
+    },
+    {
+      "id": "end_of_premium_type",
+      "value": "B",
+      "label": "premiums end at a predetermined age"
+    },
+    {
+      "id": "end_of_premium_type",
+      "value": "C",
+      "label": "premium never ends"
+    }
+  ]
+}

@@ -480,4 +480,57 @@ select.fi { width: 92px; padding: 0 2px; }
   transition: opacity .12s, transform .12s;
 }
 .toast.show { opacity: 1; transform: none; }
+
+/* ══════════════════════════ PRE-LOAD PAGE ═════════════════════════════
+   A centred card over everything (z-index 30: over the tool, under .toast
+   at 40 so a load error still shows), matching the empty-state (.drop)
+   idiom. Shown until a user is picked, via #plStart. */
+.preload {
+  position: fixed; inset: 0; z-index: 30; overflow: auto;
+  display: grid; place-items: center; padding: 24px 16px;
+  background: var(--canvas);
+}
+.pl-card {
+  width: 100%; max-width: 520px; padding: 28px 30px;
+  background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r);
+}
+.pl-brand { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; }
+.pl-brand-name { font-size: 15px; font-weight: 650; }
+.pl-card h2 { font-size: 12px; font-weight: 500; color: var(--ink-3); margin-bottom: 4px; }
+.pl-sec { margin-top: 16px; }
+
+/* One pill per known user; the chosen one takes the accent fill, same
+   convention as a selected .tab. */
+.pl-users { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.pl-user {
+  height: 30px; padding: 0 16px; border-radius: 15px; font-size: 12px;
+  border: 1px solid var(--line-strong); background: var(--surface); color: var(--ink-2);
+  cursor: pointer;
+}
+.pl-user:hover { border-color: var(--ink-4); }
+.pl-user[aria-checked="true"] { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+
+.pl-add { display: flex; gap: 6px; margin-top: 10px; }
+.pl-add .fi { flex: 1; height: 27px; }
+
+.pl-foot { display: flex; align-items: center; gap: 12px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--line-hair); }
+.pl-hint { font-size: 11px; color: var(--ink-4); }
+
+/* The "Import a policy extract" section reuses .drop (the empty-state
+   pane's own zone) verbatim for visual consistency, just tighter — it sits
+   inside an already-padded card, not the full viewport. */
+.pl-sec .drop { max-width: none; padding: 18px 18px; margin-top: 8px; }
+.pl-sec > .pl-hint { margin-top: 8px; }
+
+/* ══════════════════════════ HISTORY TAB ═══════════════════════════════ */
+#tcName, #tcUser { height: 27px; }
+#tcName { width: 160px; }
+
+.table-scroll-wrap {
+  margin: 8px; border: 1px solid var(--ins-border); border-radius: var(--r);
+  overflow-x: auto;
+}
+/* The filter row under the column names. */
+.hist-filter th { padding: 3px 6px; text-transform: none; }
+.hist-filter .fi { width: 100%; }
 .toast--err { border-left-color: var(--neg); color: var(--neg); }

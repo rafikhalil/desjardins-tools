@@ -46,7 +46,7 @@
   /* Accepted entry formats. The terminal shows DD-MMM-YYYY, but nobody wants
      to type month abbreviations all day, so the ISO-ish forms are taken too
      and normalised back to DD-MMM-YYYY on commit. */
-  var DATE_FORMATS = 'DD-MMM-YYYY, YYYY-MM-DD, YYYYMMDD or YYYY/MM/DD';
+  var DATE_FORMATS = 'DD-MMM-YYYY, DDMMMYYYY, YYYY-MM-DD, YYYYMMDD or YYYY/MM/DD';
 
   function buildDate(y, mi, d) {
     if (mi < 0 || mi > 11 || d < 1 || d > 31) return null;
@@ -62,6 +62,9 @@
     var m;
 
     m = /^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/.exec(t);                 // DD-MMM-YYYY
+    if (m) return buildDate(+m[3], MONTHS.indexOf(m[2].toUpperCase()), +m[1]);
+
+    m = /^(\d{1,2})([A-Za-z]{3})(\d{4})$/.exec(t);                   // DDMMMYYYY
     if (m) return buildDate(+m[3], MONTHS.indexOf(m[2].toUpperCase()), +m[1]);
 
     m = /^(\d{4})[-\/](\d{1,2})[-\/](\d{1,2})$/.exec(t);            // YYYY-MM-DD, YYYY/MM/DD
@@ -165,7 +168,7 @@
     { g: 'amounts', k: 'businessPremiumAllocationDuration', l: 'Bus. Alloc. Dur.', t: 'int', lock: 1, min: 1, max: 999, u: 'yrs', hint: 'Business premium allocation duration' },
 
     { g: 'dates', k: 'coverageIssueDate', l: 'Issue Date', t: 'date', newOk: 1, lock: 1, hint: 'Coverage issue date' },
-    { g: 'dates', k: 'maturityExpiryDate', l: 'Maturity/Exp.', t: 'date', lock: 1, hint: 'Maturity / expiry date' },
+    { g: 'dates', k: 'coverageExpirationDate', l: 'Maturity/Exp.', t: 'date', lock: 1, hint: 'Maturity / expiry date' },
     { g: 'dates', k: 'paidUpDate', l: 'Paid-Up Date', t: 'date', lock: 1 },
     { g: 'dates', k: 'rateDate', l: 'Rate Date', t: 'date', lock: 1 },
 
@@ -180,19 +183,19 @@
     { g: 'Identification' },
     { k: 'policyNumber', l: 'Policy Number', t: 'txt', lock: 1, maxLen: 10, cs: ALNUM, csl: 'alphanumeric' },
     { k: 'policyStatus', l: 'Policy Status', t: 'txt', lock: 1, len: 1, cs: ALNUM, csl: 'alphanumeric' },
-    { k: 'paymentMode', l: 'Payment Mode', t: 'enum', opts: [['01', '01 — Monthly'], ['12', '12 — Annual']] },
+    { k: 'pmtMode', l: 'Payment Mode', t: 'enum', opts: [['01', '01 — Monthly'], ['12', '12 — Annual']] },
     { k: 'premiumDepositAccount', l: 'Premium Deposit Acct', t: 'txt', lock: 1, len: 3, cs: NUMERIC, csl: 'numeric', opt: 1 },
     { k: 'specialQuoteIdentifier', l: 'Special Quote ID', t: 'txt', lock: 1, maxLen: 20, cs: QID, csl: 'alphanumeric', hint: 'Format ### YYMMMDDD' },
 
     { g: 'Key Dates' },
     { k: 'policyIssueDate', l: 'Policy Issue Date', t: 'date', lock: 1 },
-    { k: 'projectionDate', l: 'Projection Date', t: 'date' },
-    { k: 'paidToDate', l: 'Paid-To Date', t: 'date', lock: 1 },
+    { k: 'valueAsOfDate', l: 'Projection Date', t: 'date' },
+    { k: 'premiumsPaidToDate', l: 'Paid-To Date', t: 'date', lock: 1 },
 
     { g: 'Tax & Premiums' },
-    { k: 'adjustedCostBasis', l: 'Adjusted Cost Basis', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
+    { k: 'policyAcb', l: 'Adjusted Cost Basis', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
     { k: 'totalPremiumsPaid', l: 'Total Premiums Paid', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
-    { k: 'netCostOfPureInsurance', l: 'Net Cost of Pure Ins.', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
+    { k: 'policyCumulativeNcpi', l: 'Net Cost of Pure Ins.', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
 
     { g: 'Indebtedness' },
     { k: 'currentLoanAmount', l: 'Current Loan Amount', t: 'money', lock: 1, min: 0, max: MONEY, dec: 2 },
@@ -295,10 +298,381 @@
     return false;
   }
 
-  // ------------------------------------------------------------- mock i/o
-  /* MOCKED. Swap the body for a real XLSX reader; the return shape is the
-     contract the rest of the file is written against. */
-  function parseWorkbook(bytes, fileName) {
+  // ------------------------------------------------------------------ xlsx io
+  /* A dependency-free .xlsx (OOXML zip) reader — just enough to pull named
+     cells off a workbook by sheet name and cell reference, per ground rule
+     §0: no SheetJS-as-npm-module, no bundler. A .xlsx is a zip of XML parts;
+     the only compression method it actually uses is 8 (deflate), which the
+     browser's own DecompressionStream handles, so no inflate library is
+     needed either. */
+  var RELS_NS = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships';
+
+  function zipEntries(buf) {
+    var view = new DataView(buf), bytes = new Uint8Array(buf);
+    var EOCD = 0x06054b50, i = bytes.length - 22, min = Math.max(0, bytes.length - 22 - 65536);
+    for (; i >= min; i--) { if (view.getUint32(i, true) === EOCD) break; }
+    if (i < min) throw new Error('Not a valid .xlsx (zip) file');
+
+    var cdCount = view.getUint16(i + 10, true), cdOffset = view.getUint32(i + 16, true);
+    var entries = {}, p = cdOffset;
+    for (var n = 0; n < cdCount; n++) {
+      if (view.getUint32(p, true) !== 0x02014b50) break;
+      var compMethod = view.getUint16(p + 10, true);
+      var compSize = view.getUint32(p + 20, true);
+      var nameLen = view.getUint16(p + 28, true);
+      var extraLen = view.getUint16(p + 30, true);
+      var commentLen = view.getUint16(p + 32, true);
+      var localOffset = view.getUint32(p + 42, true);
+      var name = '';
+      for (var c = 0; c < nameLen; c++) name += String.fromCharCode(bytes[p + 46 + c]);
+      entries[name] = { compMethod: compMethod, compSize: compSize, localOffset: localOffset };
+      p += 46 + nameLen + extraLen + commentLen;
+    }
+    return { view: view, bytes: bytes, entries: entries };
+  }
+
+  /** Decompressed bytes of one zip entry, or null if the archive has none by that name. */
+  function zipReadEntry(zip, name) {
+    var e = zip.entries[name];
+    if (!e) return Promise.resolve(null);
+
+    var view = zip.view, p = e.localOffset;
+    if (view.getUint32(p, true) !== 0x04034b50) return Promise.reject(new Error('Corrupt zip entry: ' + name));
+    var nameLen = view.getUint16(p + 26, true), extraLen = view.getUint16(p + 28, true);
+    var dataStart = p + 30 + nameLen + extraLen;
+    var rawBytes = zip.bytes.slice(dataStart, dataStart + e.compSize);
+
+    if (e.compMethod === 0) return Promise.resolve(rawBytes);        // stored
+    if (e.compMethod !== 8) return Promise.reject(new Error('Unsupported zip compression in ' + name));
+    if (typeof DecompressionStream === 'undefined') {
+      return Promise.reject(new Error('This browser cannot decompress .xlsx files (DecompressionStream unsupported)'));
+    }
+    var stream = new Blob([rawBytes]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+    return new Response(stream).arrayBuffer().then(function (buf) { return new Uint8Array(buf); });
+  }
+
+  function utf8(bytes) { return new TextDecoder('utf-8').decode(bytes); }
+
+  function parseWorkbookXml(xml) {
+    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var nodes = doc.getElementsByTagName('sheet'), out = [];
+    for (var i = 0; i < nodes.length; i++) {
+      var n = nodes[i];
+      out.push({ name: n.getAttribute('name'), rid: n.getAttributeNS(RELS_NS, 'id') || n.getAttribute('r:id') });
+    }
+    return out;
+  }
+
+  function parseRelsXml(xml) {
+    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var nodes = doc.getElementsByTagName('Relationship'), out = {};
+    for (var i = 0; i < nodes.length; i++) out[nodes[i].getAttribute('Id')] = nodes[i].getAttribute('Target');
+    return out;
+  }
+
+  function parseSharedStrings(xml) {
+    if (!xml) return [];
+    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var items = doc.getElementsByTagName('si'), out = [];
+    for (var i = 0; i < items.length; i++) {
+      // <si> holds one <t>, or several <r><t> runs for rich text — join all <t>.
+      var ts = items[i].getElementsByTagName('t'), s = '';
+      for (var j = 0; j < ts.length; j++) s += ts[j].textContent;
+      out.push(s);
+    }
+    return out;
+  }
+
+  /** Cell reference (e.g. "B7") -> raw value (string, number or boolean). */
+  function parseSheetCells(xml, sharedStrings) {
+    var doc = new DOMParser().parseFromString(xml, 'application/xml');
+    var nodes = doc.getElementsByTagName('c'), cells = {};
+    for (var i = 0; i < nodes.length; i++) {
+      var cellNode = nodes[i], ref = cellNode.getAttribute('r'), type = cellNode.getAttribute('t');
+      var vNode = cellNode.getElementsByTagName('v')[0], value = null;
+      if (type === 's') {
+        value = vNode ? (sharedStrings[+vNode.textContent] || '') : '';
+      } else if (type === 'str' || type === 'inlineStr') {
+        var isNode = cellNode.getElementsByTagName('is')[0], ts = isNode ? isNode.getElementsByTagName('t') : [];
+        var s = '';
+        for (var j = 0; j < ts.length; j++) s += ts[j].textContent;
+        value = ts.length ? s : (vNode ? vNode.textContent : '');
+      } else if (type === 'b') {
+        value = vNode ? vNode.textContent === '1' : null;
+      } else {
+        value = vNode ? Number(vNode.textContent) : null;              // number, possibly a date serial
+      }
+      cells[ref] = value;
+    }
+    return cells;
+  }
+
+  /* Excel's date epoch is 30-DEC-1899; 25569 is the day count from there to
+     the Unix epoch (1970-01-01), the standard constant for this conversion. */
+  function excelSerialToDate(n) { return new Date(Math.round((n - 25569) * 86400 * 1000)); }
+
+  /** Reads every named sheet of an uploaded workbook into { sheets: { name: cells } }. */
+  function readWorkbookXlsx(bytes) {
+    var zip;
+    try { zip = zipEntries(bytes); } catch (err) { return Promise.reject(err); }
+
+    return Promise.all([
+      zipReadEntry(zip, 'xl/workbook.xml'),
+      zipReadEntry(zip, 'xl/_rels/workbook.xml.rels'),
+      zipReadEntry(zip, 'xl/sharedStrings.xml')
+    ]).then(function (parts) {
+      if (!parts[0]) throw new Error('Missing xl/workbook.xml — not a valid .xlsx file');
+      var sheetDefs = parseWorkbookXml(utf8(parts[0]));
+      var rels = parts[1] ? parseRelsXml(utf8(parts[1])) : {};
+      var sharedStrings = parseSharedStrings(parts[2] ? utf8(parts[2]) : '');
+
+      var reads = sheetDefs.map(function (sd) {
+        var target = rels[sd.rid];
+        if (!target) return Promise.resolve([sd.name, null]);
+        var path = target.charAt(0) === '/' ? target.slice(1) : 'xl/' + target;
+        return zipReadEntry(zip, path).then(function (raw) {
+          return [sd.name, raw ? parseSheetCells(utf8(raw), sharedStrings) : null];
+        });
+      });
+
+      return Promise.all(reads).then(function (pairs) {
+        var sheets = {};
+        pairs.forEach(function (pair) { sheets[pair[0]] = pair[1]; });
+        return { sheets: sheets };
+      });
+    });
+  }
+
+  function findSheet(book, name) {
+    var target = name.toLowerCase(), hit = null;
+    Object.keys(book.sheets).forEach(function (k) { if (k.toLowerCase() === target) hit = book.sheets[k]; });
+    return hit;
+  }
+
+  /* Policy sheet now uses 3-column format: TOOL Field | CAPSIL Field | Value
+     Column A: TOOL Field name (display label, ignored by parser)
+     Column B: CAPSIL Field name (internal name used to find the row)
+     Column C: Value (the actual data, what we read)
+     Mapping: GUI field name → CAPSIL Field name (to find the row) → Kind (how to parse the value)
+     */
+  var POLICY_CAPSIL_FIELD_MAP = {
+    policyNumber:     { capsil: 'Policy',          kind: 'text' },
+    valueAsOfDate:   { capsil: 'POLI Date',       kind: 'date' },
+    premiumsPaidToDate:       { capsil: 'PAID-TO-DATE',    kind: 'date' },
+    premiumDepositAccount: { capsil: 'PDA',        kind: 'code3' },
+    policyAcb: { capsil: 'ACB',            kind: 'number' },
+    totalPremiumsPaid: { capsil: 'PREMIUMS-PAID',  kind: 'number' },
+    policyCumulativeNcpi: { capsil: 'NCPI',      kind: 'number' },
+    currentLoanAmount: { capsil: 'LOAN-AMOUNT',    kind: 'number' },
+    currentLoanInterest: { capsil: 'LOAN-INT',     kind: 'number' },
+    currentAplAmount: { capsil: 'APL-AMOUNT',      kind: 'number' },
+    currentAplInterest: { capsil: 'APL-INT',       kind: 'number' },
+    pmtMode:      { capsil: 'MODE',            kind: 'code2' },
+    policyIssueDate:  { capsil: 'POL-DT',          kind: 'date' },
+    policyStatus:     { capsil: 'ST',              kind: 'text' },
+    specialQuoteIdentifier: { capsil: 'COMM3',      kind: 'text' }
+  };
+
+  function readPolicyCell(cells, spec) {
+    var v = cells[spec.ref];
+    if (v === null || v === undefined || v === '') return '';        // blank stays blank
+
+    if (spec.kind === 'date') {
+      if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
+      var dt = parseDate(v);
+      return dt ? fmtDate(dt) : String(v).trim();
+    }
+    if (spec.kind === 'number') {
+      if (typeof v === 'number') return v;
+      var n = toNum(v);
+      return n === null ? '' : n;
+    }
+    if (spec.kind === 'code2' || spec.kind === 'code3') {
+      var len = spec.kind === 'code2' ? 2 : 3;
+      var s = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
+      return s === '' ? '' : s.padStart(len, '0');
+    }
+    return String(v).trim();                                          // text
+  }
+
+  function parsePolicyCellByName(cells, spec) {
+    /* New format: scan rows for CAPSIL field name in column B, read value from column C */
+    var capsulField = spec.capsil;
+    var kind = spec.kind;
+
+    // Scan through cells to find the row with matching CAPSIL field name in column B
+    for (var i = 2; i <= 100; i++) {  // rows 2-100 (row 1 is header)
+      var cellB = 'B' + i;
+      if (cells[cellB] === capsulField) {
+        var cellC = 'C' + i;
+        var v = cells[cellC];
+        if (v === null || v === undefined || v === '') return '';
+
+        if (kind === 'date') {
+          if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
+          var dt = parseDate(v);
+          return dt ? fmtDate(dt) : String(v).trim();
+        }
+        if (kind === 'number') {
+          if (typeof v === 'number') return v;
+          var n = toNum(v);
+          return n === null ? '' : n;
+        }
+        if (kind === 'code2' || kind === 'code3') {
+          var len = kind === 'code2' ? 2 : 3;
+          var s = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
+          return s === '' ? '' : s.padStart(len, '0');
+        }
+        return String(v).trim();  // text
+      }
+    }
+    return '';  // field not found
+  }
+
+  function parsePolicySheet(cells) {
+    var p = {};
+    Object.keys(POLICY_CAPSIL_FIELD_MAP).forEach(function (k) {
+      p[k] = parsePolicyCellByName(cells, POLICY_CAPSIL_FIELD_MAP[k]);
+    });
+    return p;
+  }
+
+  var COVERAGE_CELL_MAP = {
+    coverageNumber:  { col: 'A', kind: 'text' },
+    planId:          { col: 'B', kind: 'text' },
+    rateScale:       { col: 'C', kind: 'text' },
+    sex:             { col: 'D', kind: 'text' },
+    smokerStatus:    { col: 'E', kind: 'text' },
+    stb1:            { col: 'F', kind: 'code2' },
+    stb2:            { col: 'G', kind: 'code3' },
+    faceAmount:      { col: 'H', kind: 'number' },
+    sumInsured:      { col: 'I', kind: 'number' },
+    permanentExtraPremiumPct: { col: 'J', kind: 'number' },
+    flatRate:        { col: 'K', kind: 'number' },
+    flatRateDuration: { col: 'L', kind: 'number' },
+    policyFee:       { col: 'M', kind: 'number' },
+    coverageIssueDate: { col: 'N', kind: 'date' },
+    coverageExpirationDate: { col: 'O', kind: 'date' },
+    paidUpDate:      { col: 'P', kind: 'date' },
+    coverageStatus:  { col: 'Q', kind: 'text' },
+    modalPremium:    { col: 'R', kind: 'number' },
+    rateDate:        { col: 'S', kind: 'date' },
+    premiumCoiAdjustmentPct: { col: 'T', kind: 'number' },
+    premiumCoiAdjustmentDuration: { col: 'U', kind: 'number' },
+    grpTotalAmount:  { col: 'V', kind: 'number' },
+    businessPremiumAllocationDuration: { col: 'W', kind: 'number' },
+    cashValue:       { col: 'AC', kind: 'number' }
+  };
+
+  function readCoverageCell(cells, row, spec) {
+    var v = cells[spec.col + row];
+    if (v === null || v === undefined || v === '') return '';
+
+    if (spec.kind === 'date') {
+      if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
+      var dt = parseDate(v);
+      return dt ? fmtDate(dt) : String(v).trim();
+    }
+    if (spec.kind === 'number') {
+      if (typeof v === 'number') return v;
+      var n = toNum(v);
+      return n === null ? '' : n;
+    }
+    if (spec.kind === 'code2' || spec.kind === 'code3') {
+      var len = spec.kind === 'code2' ? 2 : 3;
+      var code = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
+      return code === '' ? '' : code.padStart(len, '0');
+    }
+    return String(v).trim();
+  }
+
+  function parseCoveragesSheet(cells) {
+    var rows = [], maxRow = 0;
+    Object.keys(cells).forEach(function (ref) {
+      var match = /^(?:[A-Z]+)(\d+)$/.exec(ref);
+      if (match && +match[1] > maxRow) maxRow = +match[1];
+    });
+
+    for (var row = 2; row <= maxRow; row++) {
+      var hasValue = false;
+      Object.keys(cells).forEach(function (ref) {
+        var match = /^(?:[A-Z]+)(\d+)$/.exec(ref);
+        var value = cells[ref];
+        if (match && +match[1] === row && value !== null && value !== undefined && String(value).trim() !== '') {
+          hasValue = true;
+        }
+      });
+      if (!hasValue) continue;
+
+      var coverage = {};
+      Object.keys(COVERAGE_CELL_MAP).forEach(function (k) {
+        coverage[k] = readCoverageCell(cells, row, COVERAGE_CELL_MAP[k]);
+      });
+      // Only in-force statuses are imported; coverageNumber is left as-is on the
+      // survivors — never renumbered to fill the gap left by a skipped status.
+      if (['1', '2', '3', '4'].indexOf(coverage.coverageStatus) === -1) continue;
+
+      coverage._id = 'c' + row;
+      coverage._removed = false;
+      coverage._new = false;
+      coverage.insureds = [];
+      rows.push(coverage);
+    }
+    return rows;
+  }
+
+  function parseInsuredsSheet(cells, coverages) {
+    var byCoverage = {}, maxRow = 0, insuredSeq = 0;
+    coverages.forEach(function (coverage) {
+      byCoverage[String(coverage.coverageNumber).trim().toUpperCase()] = coverage;
+    });
+    Object.keys(cells).forEach(function (ref) {
+      var match = /^(?:[A-Z]+)(\d+)$/.exec(ref);
+      if (match && +match[1] > maxRow) maxRow = +match[1];
+    });
+
+    for (var row = 2; row <= maxRow; row++) {
+      var hasValue = false;
+      Object.keys(cells).forEach(function (ref) {
+        var match = /^(?:[A-Z]+)(\d+)$/.exec(ref);
+        var value = cells[ref];
+        if (match && +match[1] === row && value !== null && value !== undefined && String(value).trim() !== '') {
+          hasValue = true;
+        }
+      });
+      if (!hasValue) continue;
+
+      var coverageNumber = cells['A' + row];
+      var coverage = coverageNumber === null || coverageNumber === undefined
+        ? null
+        : byCoverage[String(coverageNumber).trim().toUpperCase()];
+      if (!coverage) continue;
+
+      var birthdate = cells['C' + row];
+      if (typeof birthdate === 'number') {
+        birthdate = fmtDate(excelSerialToDate(birthdate));
+      } else if (birthdate !== null && birthdate !== undefined && birthdate !== '') {
+        var dt = parseDate(birthdate);
+        birthdate = dt ? fmtDate(dt) : String(birthdate).trim();
+      } else {
+        birthdate = '';
+      }
+
+      var name = cells['B' + row];
+      coverage.insureds.push({
+        fullName: name === null || name === undefined ? '' : String(name).trim().toUpperCase(),
+        birthdate: birthdate,
+        sex: coverage.sex,
+        _id: 'i' + (++insuredSeq),
+        _removed: false,
+        _new: false
+      });
+    }
+    return coverages;
+  }
+
+  /** "Load Sample" — no bytes to parse; the fixture stands in for a real workbook. */
+  function sampleResult(fileName) {
     var digits = String(fileName || '').replace(/\D/g, '');
     var data = JSON.parse(JSON.stringify(FIXTURE));
     if (digits.length >= 6) data.policy.policyNumber = digits.slice(0, 10);
@@ -312,8 +686,33 @@
     });
     return {
       data: data,
-      meta: { fileName: fileName || 'extract.xlsx', importedAt: new Date(), mocked: true }
+      meta: { fileName: fileName || 'extract.xlsx', importedAt: new Date(), mocked: false }
     };
+  }
+
+  /* Real extract import. Reads the "Policy", "Coverages" and "Insureds"
+     sheets of the uploaded workbook and populates the working dataset. Returns a Promise
+     (zip decompression is async) — callers use
+     .then(load).catch(...) rather than calling load() directly. */
+  function parseWorkbook(bytes, fileName) {
+    if (!bytes) return Promise.resolve(sampleResult(fileName));
+
+    return readWorkbookXlsx(bytes).then(function (book) {
+      var cells = findSheet(book, 'Policy');
+      if (!cells) throw new Error('Workbook has no "Policy" sheet');
+      var coverageCells = findSheet(book, 'Coverages');
+      if (!coverageCells) throw new Error('Workbook has no "Coverages" sheet');
+      var insuredCells = findSheet(book, 'Insureds');
+      if (!insuredCells) throw new Error('Workbook has no "Insureds" sheet');
+
+      var coverages = parseCoveragesSheet(coverageCells);
+      parseInsuredsSheet(insuredCells, coverages);
+      var data = { policy: parsePolicySheet(cells), coverages: coverages };
+      return {
+        data: data,
+        meta: { fileName: fileName || 'extract.xlsx', importedAt: new Date(), mocked: false }
+      };
+    });
   }
 
   /* STUBBED. The heavy engine lands here; it receives the working dataset with
@@ -332,18 +731,18 @@
 
   var FIXTURE = {
     policy: {
-      policyNumber: '7841002', policyIssueDate: '15-MAR-2011', projectionDate: '01-JAN-2026',
-      paidToDate: '15-MAR-2026', premiumDepositAccount: '004',
-      adjustedCostBasis: 48210.55, totalPremiumsPaid: 132750, netCostOfPureInsurance: 84539.45,
+      policyNumber: '7841002', policyIssueDate: '15-MAR-2011', valueAsOfDate: '01-JAN-2026',
+      premiumsPaidToDate: '15-MAR-2026', premiumDepositAccount: '004',
+      policyAcb: 48210.55, totalPremiumsPaid: 132750, policyCumulativeNcpi: 84539.45,
       currentLoanAmount: 0, currentLoanInterest: 0, currentAplAmount: 0, currentAplInterest: 0,
-      paymentMode: '12', policyStatus: 'A', specialQuoteIdentifier: '001 26JAN0001'
+      pmtMode: '12', policyStatus: 'A', specialQuoteIdentifier: '001 26JAN0001'
     },
     coverages: [
       {
         coverageNumber: 'C01', planId: 'ULT10', rateScale: 'A', sex: 'M', smokerStatus: 'N',
         stb1: '01', stb2: '100', faceAmount: 500000, sumInsured: 500000,
         permanentExtraPremiumPct: 0, flatRate: 0, flatRateDuration: 1, policyFee: 60,
-        coverageIssueDate: '15-MAR-2011', maturityExpiryDate: '15-MAR-2061', paidUpDate: '15-MAR-2031',
+        coverageIssueDate: '15-MAR-2011', coverageExpirationDate: '15-MAR-2061', paidUpDate: '15-MAR-2031',
         coverageStatus: 'A', modalPremium: 412.75, rateDate: '15-MAR-2011',
         premiumCoiAdjustmentPct: 0, premiumCoiAdjustmentDuration: 1, grpTotalAmount: 0,
         businessPremiumAllocationDuration: 10, cashValue: 41288.32,
@@ -353,7 +752,7 @@
         coverageNumber: 'C02', planId: 'TRM20', rateScale: 'B', sex: 'F', smokerStatus: 'S',
         stb1: '02', stb2: '210', faceAmount: 250000, sumInsured: 250000,
         permanentExtraPremiumPct: 150, flatRate: 2.5, flatRateDuration: 10, policyFee: 60,
-        coverageIssueDate: '15-MAR-2011', maturityExpiryDate: '15-MAR-2031', paidUpDate: '15-MAR-2031',
+        coverageIssueDate: '15-MAR-2011', coverageExpirationDate: '15-MAR-2031', paidUpDate: '15-MAR-2031',
         coverageStatus: 'A', modalPremium: 188.4, rateDate: '15-MAR-2011',
         premiumCoiAdjustmentPct: 0, premiumCoiAdjustmentDuration: 1, grpTotalAmount: 0,
         businessPremiumAllocationDuration: 5, cashValue: 0,
@@ -363,7 +762,7 @@
         coverageNumber: 'C03', planId: 'JLTD1', rateScale: 'A', sex: 'M', smokerStatus: 'N',
         stb1: '03', stb2: '300', faceAmount: 1000000, sumInsured: 1000000,
         permanentExtraPremiumPct: 0, flatRate: 0, flatRateDuration: 1, policyFee: 60,
-        coverageIssueDate: '01-SEP-2015', maturityExpiryDate: '01-SEP-2065', paidUpDate: '01-SEP-2035',
+        coverageIssueDate: '01-SEP-2015', coverageExpirationDate: '01-SEP-2065', paidUpDate: '01-SEP-2035',
         coverageStatus: 'A', modalPremium: 655.2, rateDate: '01-SEP-2015',
         premiumCoiAdjustmentPct: 25, premiumCoiAdjustmentDuration: 15, grpTotalAmount: 0,
         businessPremiumAllocationDuration: 20, cashValue: 12904.11,
@@ -410,7 +809,7 @@
       coverageNumber: num, planId: '', rateScale: '', sex: 'M', smokerStatus: 'N',
       stb1: '', stb2: '', faceAmount: '', sumInsured: '',
       permanentExtraPremiumPct: '', flatRate: '', flatRateDuration: '', policyFee: '',
-      coverageIssueDate: '', maturityExpiryDate: '', paidUpDate: '',
+      coverageIssueDate: '', coverageExpirationDate: '', paidUpDate: '',
       coverageStatus: '', modalPremium: '', rateDate: '',
       premiumCoiAdjustmentPct: '', premiumCoiAdjustmentDuration: '', grpTotalAmount: '',
       businessPremiumAllocationDuration: '', cashValue: '',
@@ -570,7 +969,7 @@
   }
 
   function insuredTable(c) {
-    var proj = state.data.policy.projectionDate;
+    var proj = state.data.policy.valueAsOfDate;
     var live = liveInsureds(c).length;
 
     var rows = c.insureds.map(function (i) {
@@ -828,18 +1227,29 @@
     Array.prototype.forEach.call(document.querySelectorAll('.tab'), function (t) {
       t.setAttribute('aria-selected', String(t.dataset.pane === pane));
     });
-    // Nothing shows at all until an extract is loaded.
-    PANES.forEach(function (id) { $(id).hidden = id !== pane || !state.loaded; });
+    // Nothing shows at all until an extract is loaded — except History,
+    // which is how an operator gets back into a case without a fresh
+    // import, so it stays reachable (and pushes the empty state aside)
+    // regardless of state.loaded.
+    $('paneEmpty').hidden = state.loaded || pane === 'paneHistory';
+    PANES.forEach(function (id) {
+      var needsData = id !== 'paneHistory';
+      $(id).hidden = id !== pane || (needsData && !state.loaded);
+    });
   }
 
   function ingest(file) {
-    if (!/\.(xlsx|xls|xlsm|csv)$/i.test(file.name)) {
-      toast(file.name + ' is not an accepted extract (.xlsx .xls .xlsm .csv)', 'err');
+    if (!/\.(xlsx|xlsm)$/i.test(file.name)) {
+      toast(file.name + ' is not an accepted extract (.xlsx .xlsm)', 'err');
       return;
     }
     var r = new FileReader();
     r.onerror = function () { toast('Could not read ' + file.name, 'err'); };
-    r.onload = function () { load(parseWorkbook(r.result, file.name)); };
+    r.onload = function () {
+      parseWorkbook(r.result, file.name).then(load, function (err) {
+        toast('Could not parse ' + file.name + ' — ' + err.message, 'err');
+      });
+    };
     r.readAsArrayBuffer(file);
   }
 
@@ -853,7 +1263,7 @@
       note: 'Optimise the coverage structure' }
   ];
   var THIS_TOOL = 'inforce';
-  var PANES = ['paneHome', 'paneProjection'];
+  var PANES = ['paneHome', 'paneProjection', 'paneHistory', 'paneDevCalc'];
 
   function renderToolMenu() {
     $('toolMenu').innerHTML = TOOLS.map(function (o) {
@@ -906,6 +1316,447 @@
     try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* no storage */ }
   }
 
+  // -------------------------------------------------------------- history
+  /* Save Test / History — same persistence pattern as the Coverage
+     Optimizer's History tab: a catalog kept in this browser's own
+     localStorage (instant list + one-click Load) AND mirrored as portable
+     .json files in history_data/, written through server.py (the tool is
+     started from _start-life-inforce.bat; Save Test falls back to a browser
+     download if the server can't be reached).
+
+     Unlike the Optimizer, a saved entry captures BOTH state.base and
+     state.data (not just the working copy) — Load restores both, so the
+     gold "changed" highlights and the Change Log come back exactly as they
+     were the moment the case was saved, ready to keep analysing. */
+  var HIST_KEY = 'life-inforce-testcases';
+  var HIST_COLUMNS = ['Test Case Name', 'Username', 'Date Saved', 'Policy Number', 'Coverages', 'Changes', 'Load', 'Delete'];
+  var histFilters = { name: '', user: '', date: '' };
+
+  function histLoadCatalog() {
+    try {
+      var raw = localStorage.getItem(HIST_KEY);
+      var parsed = raw ? JSON.parse(raw) : [];
+      if (Array.isArray(parsed)) return parsed;
+    } catch (e) { /* storage unavailable/corrupt — start empty, tool still runs */ }
+    return [];
+  }
+  function histPersistCatalog() {
+    try { localStorage.setItem(HIST_KEY, JSON.stringify(histCatalog)); } catch (e) { /* storage unavailable */ }
+  }
+  var histCatalog = histLoadCatalog();
+
+  function histNewId() { return 'tc' + Date.now() + Math.floor(Math.random() * 1000); }
+
+  // A real wall-clock moment (when Save Test was clicked), so built from
+  // local time — deliberately not fmtDate, which is for the business dates
+  // elsewhere on this page (birthdates, policy dates) and reads UTC fields.
+  function histNowStamp() {
+    var d = new Date();
+    var p = function (x) { return String(x).padStart(2, '0'); };
+    return p(d.getDate()) + '-' + MONTHS[d.getMonth()] + '-' + d.getFullYear() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function histSafeFileName(name) {
+    var base = String(name || 'test-case').trim().replace(/[^A-Za-z0-9\-_ ]+/g, '').replace(/\s+/g, '_');
+    // The saver's initials first (set on the pre-load page) so two people's files can't collide.
+    return ($('tcUser').dataset.ini || 'u') + '_' + (base || 'test-case').slice(0, 60) + '.json';
+  }
+
+  /** Fallback only (see histSaveToDataFolder): a plain download can't choose
+      a folder — the browser's own download directory decides. */
+  function histDownloadJSON(filename, obj) {
+    var blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+
+  /** POSTs the test case to server.py (_start-life-inforce.bat), which writes
+      it into history_data/ and never overwrites — a taken name comes back
+      with a timestamp suffix. Resolves { name } — the file actually written
+      — or { why } (page opened from disk, server down, refused) → the
+      caller downloads instead. */
+  function histSaveToDataFolder(filename, obj) {
+    return fetch('../history_data/' + filename, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj, null, 2)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('the server answered HTTP ' + r.status);
+      return r.json();
+    }).then(function (j) { return { name: j.name }; })
+      .catch(function (e) { return { why: e.message === 'Failed to fetch' ? 'the tool\'s server isn\'t reachable' : e.message }; });
+  }
+
+  function histBuildEntry(name, user) {
+    return {
+      id: histNewId(),
+      name: name,
+      user: user,
+      savedAt: histNowStamp(),
+      policyNumber: state.data.policy.policyNumber || '',
+      coverageCount: state.data.coverages.length,
+      changeCount: diff().length,
+      // base + data, deep-cloned: everything Load needs to put both the
+      // pristine extract AND the operator's edits back exactly as saved.
+      snapshot: {
+        base: JSON.parse(JSON.stringify(state.base)),
+        data: JSON.parse(JSON.stringify(state.data)),
+        meta: state.meta ? { fileName: state.meta.fileName, importedAt: state.meta.importedAt, mocked: state.meta.mocked } : null
+      }
+    };
+  }
+
+  function doSaveTest() {
+    if (!state.loaded) {
+      toast('Import an extract before saving a test case', 'err');
+      return;
+    }
+    var nameEl = $('tcName');
+    var name = nameEl.value.trim();
+    if (!name) {
+      nameEl.classList.add('fi--bad');
+      nameEl.title = 'Enter a Test Case Name before saving';
+      toast('Enter a Test Case Name before saving', 'err');
+      nameEl.focus();
+      return;
+    }
+    nameEl.classList.remove('fi--bad');
+    nameEl.title = 'Test Case Name';
+
+    var entry = histBuildEntry(name, $('tcUser').textContent);
+    histCatalog.push(entry);
+    histPersistCatalog();
+    renderHistoryTab();
+    nameEl.value = '';
+
+    var fname = histSafeFileName(name);
+    histSaveToDataFolder(fname, entry).then(function (r) {
+      if (r.name) {
+        entry.file = r.name;
+        histPersistCatalog();
+        toast('Saved "' + name + '" to History and history_data/' + r.name + '.');
+        return;
+      }
+      histDownloadJSON(fname, entry);
+      toast('Saved "' + name + '" to History; downloaded instead — history_data/ not reachable (start the tool with _start-life-inforce.bat).', 'err');
+    });
+  }
+
+  function doHistLoad(id) {
+    var entry = null;
+    histCatalog.forEach(function (e) { if (e.id === id) entry = e; });
+    if (!entry) return;
+    var snap = entry.snapshot;
+    if (!snap || !snap.base || !snap.data) { toast('Could not load "' + entry.name + '" — the saved file is damaged.', 'err'); return; }
+
+    state.loaded = true;
+    state.meta = snap.meta || { fileName: entry.name, importedAt: new Date(), mocked: false };
+    state.base = JSON.parse(JSON.stringify(snap.base));
+    state.data = JSON.parse(JSON.stringify(snap.data));
+    state.form = null;
+
+    $('hdrPolicy').textContent = state.data.policy.policyNumber || '(no policy number)';
+    $('hdrFile').textContent = state.meta.fileName;
+    $('hdrMock').hidden = !state.meta.mocked;
+    $('hdrStamp').textContent = 'Loaded "' + entry.name + '" — saved ' + entry.savedAt;
+    $('btnClear').hidden = false;
+    showTab('paneHome');
+    render();
+    toast('Loaded "' + entry.name + '" — the changes on it at save time came back with it.');
+  }
+
+  function doHistDelete(id) {
+    var entry = null;
+    histCatalog.forEach(function (e) { if (e.id === id) entry = e; });
+    if (!entry) return;
+    histCatalog = histCatalog.filter(function (e) { return e !== entry; });
+    histPersistCatalog();
+    renderHistoryTab();
+    if (!entry.file) { toast('Test case removed.'); return; }
+    // Its file goes too (else it would come back at the next launch) — moved to history_data/_deleted/, never erased.
+    fetch('../history_data/' + entry.file, { method: 'DELETE' }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      toast('Test case removed (its file is in history_data/_deleted/).');
+    }).catch(function () {
+      toast('Removed from the list, but its file in history_data/ could not be deleted — it will reappear next launch.', 'err');
+    });
+  }
+
+  /* Every launch: merge in every test case already in history_data/ (every
+     colleague's saves) by id, so a case saved by someone else is here when
+     this browser opens the tool. */
+  function histLoadFromFolder() {
+    fetch('../history_data/').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (files) {
+      var inFolder = {}, have = {};
+      files.forEach(function (f) { inFolder[f.file] = 1; });
+      histCatalog = histCatalog.filter(function (e) { return !e.file || inFolder[e.file]; });
+      histCatalog.forEach(function (e) { have[e.id] = e; });
+      files.forEach(function (f) {
+        var d = f.entry, snap = d && d.snapshot;
+        if (!d || !d.name || !snap || !snap.base || !snap.data) return;
+        if (!d.id) d.id = histNewId();
+        if (have[d.id]) { have[d.id].file = f.file; return; }
+        d.file = f.file;
+        histCatalog.push(d);
+        have[d.id] = d;
+      });
+      histPersistCatalog();
+      renderHistoryTab();
+    }).catch(function () { /* no server reachable — this browser's own list still works */ });
+  }
+
+  // Filters: Test Case Name and Date Saved match "contains" (case-insensitive), Username is exact. Newest first.
+  function histHas(v, q) { return !q || String(v || '').toLowerCase().indexOf(q.toLowerCase()) >= 0; }
+  function histShows(e) { return histHas(e.name, histFilters.name) && (!histFilters.user || e.user === histFilters.user) && histHas(e.savedAt, histFilters.date); }
+  function histSavedMs(e) { return parseInt(String(e.id).slice(2, 15), 10) || 0; }
+
+  function historyRow(entry) {
+    return '<tr>' +
+        '<td class="r">' + esc(entry.name) + '</td>' +
+        '<td class="r">' + esc(entry.user) + '</td>' +
+        '<td class="r">' + esc(entry.savedAt) + '</td>' +
+        '<td class="r">' + esc(entry.policyNumber || '—') + '</td>' +
+        '<td class="r">' + entry.coverageCount + '</td>' +
+        '<td class="r">' + entry.changeCount + '</td>' +
+        '<td class="r"><button class="btn btn--sm" data-act="load-tc" data-id="' + esc(entry.id) + '">Load</button></td>' +
+        '<td class="r"><button class="btn btn--sm btn--danger" data-act="del-tc" data-id="' + esc(entry.id) + '">Delete</button></td>' +
+      '</tr>';
+  }
+
+  function renderHistoryTab() {
+    if (!$('historyTabBody')) return;   // not built yet
+    var users = [];
+    histCatalog.forEach(function (e) { if (e.user && users.indexOf(e.user) < 0) users.push(e.user); });
+    users.sort();
+    $('hfUser').innerHTML = '<option value="">All</option>' + users.map(function (u) {
+      return '<option' + (u === histFilters.user ? ' selected' : '') + '>' + esc(u) + '</option>';
+    }).join('');
+    var list = histCatalog.slice().sort(function (a, b) { return histSavedMs(b) - histSavedMs(a); }).filter(histShows);
+    $('historyTabBody').innerHTML = list.length
+      ? list.map(historyRow).join('')
+      : '<tr><td colspan="' + HIST_COLUMNS.length + '">' +
+          '<div class="proj-slot" style="margin:0;"><div class="s">' +
+            (histCatalog.length ? 'No test case matches the filters.' : 'No test cases saved yet — use Save Test in the top bar to add one.') +
+          '</div></div></td></tr>';
+    $('historyTabCount').textContent = (list.length === histCatalog.length ? '' : list.length + ' of ') +
+      histCatalog.length + ' test case' + (histCatalog.length === 1 ? '' : 's');
+  }
+
+  function historyTabShell() {
+    var headCells = HIST_COLUMNS.map(function (l) { return '<th class="r">' + esc(l) + '</th>'; }).join('');
+    return '<div class="card card--out">' +
+        '<div class="card-head card-head--band">' +
+          '<span class="card-title">History</span>' +
+          '<span class="card-note" id="historyTabCount"></span>' +
+        '</div>' +
+        '<div class="table-scroll-wrap">' +
+          '<table class="ins hist-tab-table">' +
+            '<thead><tr>' + headCells + '</tr>' +
+              '<tr class="hist-filter">' +
+                '<th><input class="fi fi--txt" data-hf="name" placeholder="Filter name…" spellcheck="false" autocomplete="off" aria-label="Filter by Test Case Name"></th>' +
+                '<th><select class="fi" id="hfUser" data-hf="user" aria-label="Filter by Username"></select></th>' +
+                '<th><input class="fi fi--txt" data-hf="date" placeholder="e.g. 23-SEP-2026" spellcheck="false" autocomplete="off" aria-label="Filter by Date Saved"></th>' +
+                '<th colspan="5"><button class="btn btn--sm" data-act="clear-hf" type="button">Clear filters</button></th>' +
+              '</tr></thead>' +
+            '<tbody id="historyTabBody"></tbody>' +
+          '</table>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function initHistoryTab() {
+    $('historyTabHost').innerHTML = historyTabShell();
+    renderHistoryTab();
+
+    $('historyTabHost').addEventListener('click', function (e) {
+      var loadBtn = e.target.closest ? e.target.closest('[data-act="load-tc"]') : null;
+      if (loadBtn) { doHistLoad(loadBtn.dataset.id); return; }
+      var delBtn = e.target.closest ? e.target.closest('[data-act="del-tc"]') : null;
+      if (delBtn) { doHistDelete(delBtn.dataset.id); return; }
+      if (e.target.closest && e.target.closest('[data-act="clear-hf"]')) {
+        histFilters = { name: '', user: '', date: '' };
+        Array.prototype.forEach.call(document.querySelectorAll('input[data-hf]'), function (i) { i.value = ''; });
+        renderHistoryTab();
+      }
+    });
+    $('historyTabHost').addEventListener('input', function (e) {
+      if (e.target.dataset && e.target.dataset.hf) { histFilters[e.target.dataset.hf] = e.target.value; renderHistoryTab(); }
+    });
+    $('historyTabHost').addEventListener('change', function (e) {   // the Username <select> fires `change`
+      if (e.target.dataset && e.target.dataset.hf === 'user') { histFilters.user = e.target.value; renderHistoryTab(); }
+    });
+  }
+
+  // ------------------------------------------------------------- dev calc
+  /* Dev Validations — not part of the tool as shipped. POSTs the current
+     working dataset to server.py's /calc/term_life route, which runs every
+     calc_engine.term_life variable it knows about and returns the results
+     grouped by section; this just renders that response into one card per
+     section, one row per (variable, coverage). A variable the engine hasn't
+     implemented yet, or that raised Blocked (e.g. needs the Product
+     Characteristics lookup), shows its reason instead of a value — see
+     INFORCE_REFERENCE.md Sec 16. */
+  var SECTION_LABELS = { 'Duration': '1. Duration', 'Input Setup - Policy': '2. Input Setup — Policy', 'Input Setup - Coverage': '3. Input Setup — Coverage' };
+
+  function devCalcRow(v) {
+    return v.results.map(function (r) {
+      var scope = r.iCov == null ? '(policy)' : 'C' + (r.coverageNumber || r.iCov) + (r.iInsured == null ? '' : ' / insured ' + r.iInsured);
+      var cell = r.error
+        ? '<span class="chip chip--warn" title="' + esc(r.error) + '">' + esc(r.error.length > 46 ? r.error.slice(0, 46) + '…' : r.error) + '</span>'
+        : '<span class="mono">' + esc(String(r.value)) + '</span>';
+      return '<tr><td class="mono">' + esc(v.id) + '</td><td>' + esc(v.business_name) + '</td>' +
+        '<td class="mono">' + esc(v.python_name) + '</td><td class="r">' + esc(scope) + '</td>' +
+        '<td class="r">' + cell + '</td></tr>';
+    }).join('');
+  }
+
+  function devCalcSection(sec) {
+    return '<div class="card card--out">' +
+        '<div class="card-head card-head--band"><span class="card-title">' + esc(SECTION_LABELS[sec.section] || sec.section) + '</span>' +
+        '<span class="card-note">' + sec.vars.length + ' variable(s)</span></div>' +
+        '<div class="table-scroll-wrap"><table class="ins">' +
+          '<thead><tr><th>ID</th><th>Business name</th><th>python_name</th><th class="r">Scope</th><th class="r">Value</th></tr></thead>' +
+          '<tbody>' + sec.vars.map(devCalcRow).join('') + '</tbody>' +
+        '</table></div></div>';
+  }
+
+  function renderDevCalc() {
+    var host = $('devCalcHost');
+    if (!host) return;
+    if (!state.loaded) { host.innerHTML = ''; return; }
+    host.innerHTML = '<div class="card-note" style="margin:8px;">Loading…</div>';
+    fetch('../calc/term_life', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.data)
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (result) {
+      host.innerHTML = result.sections.map(devCalcSection).join('');
+    }).catch(function (e) {
+      host.innerHTML = '<div class="card card--out"><div class="card-body card-note">' +
+        'Could not reach the calc engine (' + esc(e.message) + ') — start the tool with _start-life-inforce.bat.</div></div>';
+    });
+  }
+
+  // -------------------------------------------------------------- preload
+  /* Covers the tool until a user is picked. Usernames are proposed from
+     usernames.json (server.py); "Add" (or Enter) posts a new one there so
+     it's on the list for everyone next launch too. Picking a pill writes
+     the name/initials onto the top-bar chip #tcUser, which the History code
+     above reads. Nothing is remembered between launches — it asks every
+     time. */
+  var plUser = null;
+
+  function plRenderUsers(list) {
+    $('plUsers').innerHTML = (list || []).map(function (u) {
+      return '<button class="pl-user" type="button" role="radio" aria-checked="false" data-user="' +
+        esc(u.name) + '" data-ini="' + esc(u.ini) + '">' + esc(u.name) + '</button>';
+    }).join('');
+  }
+
+  function plUpdate() {
+    $('plStart').disabled = !plUser;
+    $('plHint').textContent = plUser ? '' : 'Choose your name.';
+    $('plImportHint').hidden = !!plUser;
+  }
+
+  function plEnter(name, ini) {
+    $('tcUser').textContent = name;
+    $('tcUser').dataset.ini = ini;
+    $('preload').hidden = true;
+    document.querySelector('.app').inert = false;
+  }
+
+  /** Gate for the preload page's own import controls: a name must be picked
+      first (Save Test and the history_data file name both need it). Dismisses
+      the preload immediately on success — the app shell underneath then shows
+      #paneEmpty for the instant it takes ingest()/load() to finish, same as
+      if Start had been clicked first. */
+  function plProceed() {
+    if (!plUser) { $('plImportHint').hidden = false; $('plDropZone').scrollIntoView({ block: 'nearest' }); return false; }
+    plEnter(plUser.dataset.user, plUser.dataset.ini);
+    return true;
+  }
+
+  function plAddUser() {
+    var input = $('plNewName');
+    var name = input.value.trim();
+    if (!name) { input.focus(); return; }
+    fetch('../usernames.json', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: name })
+    }).then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(function (list) {
+      plRenderUsers(list);
+      input.value = '';
+      var match = null;
+      Array.prototype.forEach.call(document.querySelectorAll('.pl-user'), function (b) {
+        if (b.dataset.user.toLowerCase() === name.toLowerCase()) match = b;
+      });
+      if (match) match.click();
+    }).catch(function () {
+      toast('Could not reach the server to add "' + name + '" — start the tool with _start-life-inforce.bat.', 'err');
+    });
+  }
+
+  function initPreload() {
+    document.querySelector('.app').inert = true;
+
+    fetch('../usernames.json').then(function (r) {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    }).then(plRenderUsers).catch(function () {
+      $('plHint').textContent = 'Could not reach the server for the username list — start the tool with _start-life-inforce.bat, or just type your name below and click Add.';
+    });
+
+    $('plUsers').addEventListener('click', function (e) {
+      var btn = e.target.closest ? e.target.closest('.pl-user') : null;
+      if (!btn) return;
+      Array.prototype.forEach.call(document.querySelectorAll('.pl-user'), function (b) {
+        b.setAttribute('aria-checked', String(b === btn));
+      });
+      plUser = btn;
+      plUpdate();
+    });
+
+    $('plAddUser').addEventListener('click', plAddUser);
+    $('plNewName').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); plAddUser(); }
+    });
+
+    $('plStart').addEventListener('click', function () {
+      if (!$('plStart').disabled) plEnter(plUser.dataset.user, plUser.dataset.ini);
+    });
+
+    $('plSelectExtract').addEventListener('click', function () {
+      if (plProceed()) $('fileInput').click();
+    });
+    $('plSampleExtract').addEventListener('click', function () {
+      if (plProceed()) parseWorkbook(null, 'SAMPLE_EXTRACT.xlsx').then(load);
+    });
+
+    var plDz = $('plDropZone');
+    ['dragenter', 'dragover'].forEach(function (t) {
+      plDz.addEventListener(t, function (e) { e.preventDefault(); plDz.classList.add('is-over'); });
+    });
+    ['dragleave', 'drop'].forEach(function (t) {
+      plDz.addEventListener(t, function (e) { e.preventDefault(); plDz.classList.remove('is-over'); });
+    });
+    plDz.addEventListener('drop', function (e) {
+      if (!plProceed()) return;
+      if (e.dataTransfer.files && e.dataTransfer.files[0]) ingest(e.dataTransfer.files[0]);
+    });
+
+    plUpdate();
+  }
+
   // ------------------------------------------------------------------ init
   loadTheme();
   renderToolMenu();
@@ -952,7 +1803,9 @@
 
   $('tabList').addEventListener('click', function (e) {
     var b = e.target.closest ? e.target.closest('.tab') : null;
-    if (b) showTab(b.dataset.pane);
+    if (!b) return;
+    showTab(b.dataset.pane);
+    if (b.dataset.pane === 'paneDevCalc') renderDevCalc();
   });
 
   $('btnRun').addEventListener('click', function () {
@@ -965,8 +1818,8 @@
 
   $('btnTheme').addEventListener('click', toggleTheme);
 
-  $('btnSample').addEventListener('click', function () { load(parseWorkbook(null, 'SAMPLE_EXTRACT.xlsx')); });
-  $('btnSample2').addEventListener('click', function () { load(parseWorkbook(null, 'SAMPLE_EXTRACT.xlsx')); });
+  $('btnSample').addEventListener('click', function () { parseWorkbook(null, 'SAMPLE_EXTRACT.xlsx').then(load); });
+  $('btnSample2').addEventListener('click', function () { parseWorkbook(null, 'SAMPLE_EXTRACT.xlsx').then(load); });
   $('btnImport').addEventListener('click', function () { $('fileInput').click(); });
   $('btnSelect').addEventListener('click', function () { $('fileInput').click(); });
 
@@ -999,6 +1852,18 @@
   });
   dz.addEventListener('drop', function (e) {
     if (e.dataTransfer.files && e.dataTransfer.files[0]) ingest(e.dataTransfer.files[0]);
+  });
+
+  initHistoryTab();
+  histLoadFromFolder();
+  initPreload();
+
+  $('btnSaveTest').addEventListener('click', doSaveTest);
+  $('tcName').addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); doSaveTest(); }
+  });
+  $('tcName').addEventListener('input', function () {
+    if ($('tcName').value.trim()) $('tcName').classList.remove('fi--bad');
   });
 
   window.__state = function () { return state; };   // console access for validation work

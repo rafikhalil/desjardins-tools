@@ -12,10 +12,7 @@
     "capsil_screen": null,
     "formula": "end_of_coverage_projection_without_adj + coverage_projection_adjustment",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "end_of_coverage_projection_without_adj",
-      "coverage_projection_adjustment"
-    ],
+    "depends_on": ["end_of_coverage_projection_without_adj", "coverage_projection_adjustment"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -35,10 +32,7 @@
     "capsil_screen": null,
     "formula": "YEAR(coverage_expiration_date) - YEAR(coverage_issue_date)",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "coverage_expiration_date",
-      "coverage_issue_date"
-    ],
+    "depends_on": ["coverage_expiration_date", "coverage_issue_date"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -58,13 +52,8 @@
     "capsil_screen": null,
     "formula": "0 if policy_vs_coverage_offset == 0 else 1",
     "conditions_constraints": "in {0, 1}",
-    "depends_on": [
-      "policy_vs_coverage_offset"
-    ],
-    "allowed_values": [
-      "0",
-      "1"
-    ],
+    "depends_on": ["policy_vs_coverage_offset"],
+    "allowed_values": ["0", "1"],
     "default_example": null,
     "rounding": null,
     "notes": "Aligns coverage anniversaries with policy anniversaries.",
@@ -83,9 +72,7 @@
     "capsil_screen": null,
     "formula": "MAX over iCov (end_of_coverage_projection[iCov])",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -105,10 +92,7 @@
     "capsil_screen": null,
     "formula": "end_of_premium_pmt_without_adj + coverage_projection_adjustment",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "end_of_premium_pmt_without_adj",
-      "coverage_projection_adjustment"
-    ],
+    "depends_on": ["end_of_premium_pmt_without_adj", "coverage_projection_adjustment"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -128,14 +112,7 @@
     "capsil_screen": null,
     "formula": "if end_of_premium_type in {A,B}: YEAR(coverage_paid_up_date) - YEAR(coverage_issue_date); if end_of_premium_type == C: (end_of_premium_value if expiration_type == A else end_of_premium_value - maximum_age)",
     "conditions_constraints": "branch on end_of_premium_type",
-    "depends_on": [
-      "end_of_premium_type",
-      "coverage_paid_up_date",
-      "coverage_issue_date",
-      "end_of_premium_value",
-      "expiration_type",
-      "maximum_age"
-    ],
+    "depends_on": ["end_of_premium_type", "coverage_paid_up_date", "coverage_issue_date", "end_of_premium_value", "expiration_type", "maximum_age"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -156,11 +133,7 @@
     "formula": "A: coverage never ends; B: ends at predetermined number of years; C: ends at predetermined age",
     "conditions_constraints": "in {A, B, C}",
     "depends_on": [],
-    "allowed_values": [
-      "A",
-      "B",
-      "C"
-    ],
+    "allowed_values": ["A", "B", "C"],
     "default_example": null,
     "rounding": null,
     "notes": "Map product -> type via Product Characteristics doc.",
@@ -179,11 +152,7 @@
     "capsil_screen": null,
     "formula": "MIN(100, expiration_value) if end_of_premium_type == C else end_of_premium_age_or_duration",
     "conditions_constraints": "branch on end_of_premium_type",
-    "depends_on": [
-      "end_of_premium_type",
-      "expiration_value",
-      "end_of_premium_age_or_duration"
-    ],
+    "depends_on": ["end_of_premium_type", "expiration_value", "end_of_premium_age_or_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -223,10 +192,7 @@
     "capsil_screen": null,
     "formula": "100 if expiration_type == A else end_of_coverage_age_or_duration",
     "conditions_constraints": "branch on expiration_type",
-    "depends_on": [
-      "expiration_type",
-      "end_of_coverage_age_or_duration"
-    ],
+    "depends_on": ["expiration_type", "end_of_coverage_age_or_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -267,11 +233,7 @@
     "formula": "A: premiums end in N years; B: premiums end at an age; C: premium never ends",
     "conditions_constraints": "in {A, B, C}",
     "depends_on": [],
-    "allowed_values": [
-      "A",
-      "B",
-      "C"
-    ],
+    "allowed_values": ["A", "B", "C"],
     "default_example": null,
     "rounding": null,
     "notes": "Map product -> type via Product Characteristics doc.",
@@ -286,13 +248,11 @@
     "type": "int",
     "unit": "age",
     "indices": "iCov",
-    "source": "CAPSIL",
-    "capsil_screen": "(external ref?)",
+    "source": "computed",
+    "capsil_screen": null,
     "formula": "Age of insured (individual); Equivalent age (joint equivalent-age type); Age of oldest insured (joint, no equivalent age)",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "coverage_type"
-    ],
+    "depends_on": ["coverage_type", "joint_age_equivalent", "age"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -312,11 +272,7 @@
     "capsil_screen": null,
     "formula": "(omega - age) if expiration_type in {A, C} else omega",
     "conditions_constraints": "branch on expiration_type",
-    "depends_on": [
-      "omega",
-      "age",
-      "expiration_type"
-    ],
+    "depends_on": ["omega", "age", "expiration_type"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -329,17 +285,14 @@
     "section": "Duration",
     "business_name": "Omega",
     "python_name": "omega",
-    "type": null,
-    "unit": null,
-    "indices": null,
+    "type": "int",
+    "unit": "age",
+    "indices": "iCov",
     "source": "computed",
     "capsil_screen": null,
     "formula": "106 for Permanent products; expiration_value for Term products",
     "conditions_constraints": "branch on product_type",
-    "depends_on": [
-      "expiration_value",
-      "product_type"
-    ],
+    "depends_on": ["expiration_value", "product_type"],
     "allowed_values": [],
     "default_example": "106",
     "rounding": null,
@@ -499,10 +452,7 @@
     "capsil_screen": null,
     "formula": "DATE(year_next_policy_anniversary, MONTH(policy_issue_date), DAY(policy_issue_date))",
     "conditions_constraints": "valid date",
-    "depends_on": [
-      "year_next_policy_anniversary",
-      "policy_issue_date"
-    ],
+    "depends_on": ["year_next_policy_anniversary", "policy_issue_date"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -522,10 +472,7 @@
     "capsil_screen": null,
     "formula": "{YEAR(value_as_of_date) + 1 @if MONTH(policy_issue_date) < MONTH(value_as_of_date) {YEAR(value_as_of_date) + 1 @if MONTH(policy_issue_date) = MONTH(value_as_of_date) AND DAY(policy_issue_date) <= DAY(value_as_of_date) {YEAR(value_as_of_date) @otherwise",
     "conditions_constraints": null,
-    "depends_on": [
-      "value_as_of_date",
-      "policy_issue_date"
-    ],
+    "depends_on": ["value_as_of_date", "policy_issue_date"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -545,11 +492,7 @@
     "capsil_screen": null,
     "formula": "Annual: MIN(1, days(next_policy_anniversary, premiums_paid_to_date)/365); Monthly: MONTH(next) - MONTH(paid) [+12 if MONTH(next) < MONTH(paid)]",
     "conditions_constraints": "branch on pmt_mode; >= 0",
-    "depends_on": [
-      "next_policy_anniversary",
-      "premiums_paid_to_date",
-      "pmt_mode"
-    ],
+    "depends_on": ["next_policy_anniversary", "premiums_paid_to_date", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -569,11 +512,7 @@
     "capsil_screen": null,
     "formula": "YEAR(value_as_of_date) - YEAR(policy_issue_date) + policy_duration_adjustment",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "value_as_of_date",
-      "policy_issue_date",
-      "policy_duration_adjustment"
-    ],
+    "depends_on": ["value_as_of_date", "policy_issue_date", "policy_duration_adjustment"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -593,14 +532,8 @@
     "capsil_screen": null,
     "formula": "0 if MONTH(value_as_of) < MONTH(issue) or (MONTH equal and DAY(value_as_of) < DAY(issue)) else 1",
     "conditions_constraints": "in {0, 1}",
-    "depends_on": [
-      "value_as_of_date",
-      "policy_issue_date"
-    ],
-    "allowed_values": [
-      "0",
-      "1"
-    ],
+    "depends_on": ["value_as_of_date", "policy_issue_date"],
+    "allowed_values": ["0", "1"],
     "default_example": null,
     "rounding": null,
     "notes": null,
@@ -619,14 +552,8 @@
     "capsil_screen": null,
     "formula": "1 if MONTH(value_as_of) < MONTH(issue) or (MONTH equal and DAY(value_as_of) < DAY(issue)) else 0",
     "conditions_constraints": "in {0, 1}",
-    "depends_on": [
-      "value_as_of_date",
-      "policy_issue_date"
-    ],
-    "allowed_values": [
-      "0",
-      "1"
-    ],
+    "depends_on": ["value_as_of_date", "policy_issue_date"],
+    "allowed_values": ["0", "1"],
     "default_example": null,
     "rounding": null,
     "notes": "1 => NCPI already deducted from ACB.",
@@ -646,10 +573,7 @@
     "formula": "Premium payment frequency of the policy (from Capsil)",
     "conditions_constraints": "in {Annual, Monthly}",
     "depends_on": [],
-    "allowed_values": [
-      "Annual",
-      "Monthly"
-    ],
+    "allowed_values": ["Annual", "Monthly"],
     "default_example": null,
     "rounding": null,
     "notes": "Drives Annual vs Monthly branching. Doc also calls this 'Payment Frequency' (sec 5+) - same variable.",
@@ -728,11 +652,7 @@
     "capsil_screen": null,
     "formula": "YEAR(value_as_of_date) - YEAR(coverage_issue_date) + coverage_duration_adjustment",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "value_as_of_date",
-      "coverage_issue_date",
-      "coverage_duration_adjustment"
-    ],
+    "depends_on": ["value_as_of_date", "coverage_issue_date", "coverage_duration_adjustment"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -752,14 +672,8 @@
     "capsil_screen": null,
     "formula": "0 if MONTH(value_as_of) < MONTH(cov_issue) or (MONTH equal and DAY(value_as_of) < DAY(cov_issue)) else 1",
     "conditions_constraints": "in {0, 1}",
-    "depends_on": [
-      "value_as_of_date",
-      "coverage_issue_date"
-    ],
-    "allowed_values": [
-      "0",
-      "1"
-    ],
+    "depends_on": ["value_as_of_date", "coverage_issue_date"],
+    "allowed_values": ["0", "1"],
     "default_example": null,
     "rounding": null,
     "notes": null,
@@ -778,11 +692,7 @@
     "capsil_screen": null,
     "formula": "YEAR(premiums_paid_to_date) - YEAR(coverage_issue_date) + premium_duration_adjustment",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "premiums_paid_to_date",
-      "coverage_issue_date",
-      "premium_duration_adjustment"
-    ],
+    "depends_on": ["premiums_paid_to_date", "coverage_issue_date", "premium_duration_adjustment"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -802,14 +712,8 @@
     "capsil_screen": null,
     "formula": "0 if MONTH(paid) < MONTH(cov_issue) or (MONTH equal and DAY(paid) < DAY(cov_issue)) else 1",
     "conditions_constraints": "in {0, 1}",
-    "depends_on": [
-      "premiums_paid_to_date",
-      "coverage_issue_date"
-    ],
-    "allowed_values": [
-      "0",
-      "1"
-    ],
+    "depends_on": ["premiums_paid_to_date", "coverage_issue_date"],
+    "allowed_values": ["0", "1"],
     "default_example": null,
     "rounding": null,
     "notes": null,
@@ -828,12 +732,7 @@
     "capsil_screen": null,
     "formula": "Annual: days(adjusted_coverage_issue_date, policy_issue_date); Monthly: MONTH(cov_issue) - MONTH(policy_issue) [+12 if MONTH(cov_issue) < MONTH(policy_issue)]",
     "conditions_constraints": "branch on pmt_mode; >= 0",
-    "depends_on": [
-      "adjusted_coverage_issue_date",
-      "policy_issue_date",
-      "coverage_issue_date",
-      "pmt_mode"
-    ],
+    "depends_on": ["adjusted_coverage_issue_date", "policy_issue_date", "coverage_issue_date", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -853,10 +752,7 @@
     "capsil_screen": null,
     "formula": "DATE(adjusted_coverage_issue_year, MONTH(coverage_issue_date), DAY(coverage_issue_date))",
     "conditions_constraints": "valid date",
-    "depends_on": [
-      "adjusted_coverage_issue_year",
-      "coverage_issue_date"
-    ],
+    "depends_on": ["adjusted_coverage_issue_year", "coverage_issue_date"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -876,10 +772,7 @@
     "capsil_screen": null,
     "formula": "YEAR(policy_issue_date) if MONTH(cov_issue) >= MONTH(policy_issue) else YEAR(policy_issue_date) + 1",
     "conditions_constraints": null,
-    "depends_on": [
-      "policy_issue_date",
-      "coverage_issue_date"
-    ],
+    "depends_on": ["policy_issue_date", "coverage_issue_date"],
     "allowed_values": [],
     "default_example": null,
     "rounding": null,
@@ -899,14 +792,8 @@
     "capsil_screen": null,
     "formula": "-1 if MONTH(cov_issue) < MONTH(policy_issue) or (MONTH equal and DAY(cov_issue) < DAY(policy_issue)) else 0",
     "conditions_constraints": "in {-1, 0}",
-    "depends_on": [
-      "coverage_issue_date",
-      "policy_issue_date"
-    ],
-    "allowed_values": [
-      "-1",
-      "0"
-    ],
+    "depends_on": ["coverage_issue_date", "policy_issue_date"],
+    "allowed_values": ["-1", "0"],
     "default_example": null,
     "rounding": null,
     "notes": "Used to defer NCPI when policy anniv before Dec 31 and coverage anniv after.",
@@ -922,14 +809,11 @@
     "unit": null,
     "indices": "iCov",
     "source": "product_char",
-    "capsil_screen": "(external ref?)",
+    "capsil_screen": null,
     "formula": "Individual vs Joint classification of the coverage (from Capsil)",
     "conditions_constraints": "in {Individual, Joint}",
     "depends_on": [],
-    "allowed_values": [
-      "Individual",
-      "Joint"
-    ],
+    "allowed_values": ["Individual", "Joint"],
     "default_example": null,
     "rounding": null,
     "notes": "Selects Individual vs JFTD rate set; affects maximum_age.",
@@ -945,17 +829,54 @@
     "unit": null,
     "indices": "iCov",
     "source": "product_char",
-    "capsil_screen": "(external ref?)",
+    "capsil_screen": null,
     "formula": "Term vs Permanent classification of the coverage product (from Capsil)",
     "conditions_constraints": "in {Term, Permanent}",
     "depends_on": [],
-    "allowed_values": [
-      "Term",
-      "Permanent"
-    ],
+    "allowed_values": ["Term", "Permanent"],
     "default_example": "Term",
     "rounding": null,
     "notes": "Phase 1 = Term. Affects omega (106 Permanent vs expiration_value Term).",
+    "status": "todo"
+  },
+  {
+    "id": "COV-14",
+    "doc_section": null,
+    "section": "Input Setup - Coverage",
+    "business_name": "Joint Type",
+    "python_name": "joint_type",
+    "type": "str",
+    "unit": null,
+    "indices": "iCov",
+    "source": "product_char",
+    "capsil_screen": null,
+    "formula": "JFTD, JLTD, or JLTDPU classification of a Joint coverage (from Product Characteristics); null for Individual",
+    "conditions_constraints": "in {JFTD, JLTD, JLTDPU}; null if coverage_type != Joint",
+    "depends_on": ["coverage_type"],
+    "allowed_values": ["JFTD", "JLTD", "JLTDPU"],
+    "default_example": null,
+    "rounding": null,
+    "notes": "Only meaningful when coverage_type = Joint. Added alongside COV-12/13 once product_characteristics.json distinguished JFTD/JLTD/JLTDPU.",
+    "status": "todo"
+  },
+  {
+    "id": "COV-15",
+    "doc_section": null,
+    "section": "Input Setup - Coverage",
+    "business_name": "Joint Age Equivalent",
+    "python_name": "joint_age_equivalent",
+    "type": "bool",
+    "unit": null,
+    "indices": "iCov",
+    "source": "product_char",
+    "capsil_screen": null,
+    "formula": "Whether a Joint coverage uses the equivalent-age convention for Maximum Age (from Product Characteristics); null for Individual",
+    "conditions_constraints": "in {true, false}; null if coverage_type != Joint",
+    "depends_on": ["coverage_type"],
+    "allowed_values": ["true", "false"],
+    "default_example": null,
+    "rounding": null,
+    "notes": "Drives the Maximum Age (DUR-13) branch. False for every plan in product_characteristics.json so far (no equivalent-age Term product yet).",
     "status": "todo"
   },
   {
@@ -971,11 +892,7 @@
     "capsil_screen": null,
     "formula": "illustration_minimum_age + iDur",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "illustration_minimum_age",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["illustration_minimum_age", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -995,11 +912,7 @@
     "capsil_screen": null,
     "formula": "coverage_minimum_age[iCov] + iDur",
     "conditions_constraints": "coverage_1st_duration[iCov] <= iDur <= end_of_coverage_projection[iCov]",
-    "depends_on": [
-      "coverage_minimum_age",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["coverage_minimum_age", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1019,10 +932,7 @@
     "capsil_screen": null,
     "formula": "MIN(coverage_minimum_age[iCov] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "number_of_coverages_on_illustration >= 1; include only coverages on the illustration",
-    "depends_on": [
-      "coverage_minimum_age",
-      "number_of_coverages_on_illustration"
-    ],
+    "depends_on": ["coverage_minimum_age", "number_of_coverages_on_illustration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1062,10 +972,7 @@
     "capsil_screen": null,
     "formula": "coverage_issue_age + coverage_1st_duration",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "coverage_issue_age",
-      "coverage_1st_duration"
-    ],
+    "depends_on": ["coverage_issue_age", "coverage_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1105,13 +1012,7 @@
     "capsil_screen": null,
     "formula": "SUM(total_interpolated_premium[iCov, coverage_1st_duration[iCov] + iDur - 1] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "1 <= iDur <= end_of_illustration_projection - policy_1st_duration",
-    "depends_on": [
-      "total_interpolated_premium",
-      "coverage_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["total_interpolated_premium", "coverage_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -1131,18 +1032,7 @@
     "capsil_screen": null,
     "formula": "annual_initial_interpolated_premium if pmt_mode == 'Annual' and iDur == coverage_1st_duration else annual_renewal_interpolated_premium if pmt_mode == 'Annual' else monthly_initial_current_interpolated_premium if iDur == coverage_1st_duration and nbr_premiums_until_next_policy_anniv <= 12 - policy_vs_coverage_offset else monthly_initial_split_interpolated_premium if iDur == coverage_1st_duration else monthly_renewal_interpolated_premium",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; pmt_mode in {Annual, Monthly}",
-    "depends_on": [
-      "annual_initial_interpolated_premium",
-      "annual_renewal_interpolated_premium",
-      "monthly_initial_current_interpolated_premium",
-      "monthly_initial_split_interpolated_premium",
-      "monthly_renewal_interpolated_premium",
-      "pmt_mode",
-      "coverage_1st_duration",
-      "nbr_premiums_until_next_policy_anniv",
-      "policy_vs_coverage_offset",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["annual_initial_interpolated_premium", "annual_renewal_interpolated_premium", "monthly_initial_current_interpolated_premium", "monthly_initial_split_interpolated_premium", "monthly_renewal_interpolated_premium", "pmt_mode", "coverage_1st_duration", "nbr_premiums_until_next_policy_anniv", "policy_vs_coverage_offset", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1162,13 +1052,7 @@
     "capsil_screen": null,
     "formula": "nbr_premiums_until_next_policy_anniv * ((policy_vs_coverage_offset / 365) * modal_premium[iCov, iDur - 1] + (1 - policy_vs_coverage_offset / 365) * modal_premium[iCov, iDur])",
     "conditions_constraints": "pmt_mode == Annual; iDur == coverage_1st_duration",
-    "depends_on": [
-      "nbr_premiums_until_next_policy_anniv",
-      "policy_vs_coverage_offset",
-      "modal_premium",
-      "coverage_1st_duration",
-      "pmt_mode"
-    ],
+    "depends_on": ["nbr_premiums_until_next_policy_anniv", "policy_vs_coverage_offset", "modal_premium", "coverage_1st_duration", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1188,12 +1072,7 @@
     "capsil_screen": null,
     "formula": "(policy_vs_coverage_offset / 365) * modal_premium[iCov, iDur - 1] + (1 - policy_vs_coverage_offset / 365) * modal_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Annual; iDur > coverage_1st_duration",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_premium",
-      "coverage_1st_duration",
-      "pmt_mode"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_premium", "coverage_1st_duration", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1213,13 +1092,7 @@
     "capsil_screen": null,
     "formula": "nbr_premiums_until_next_policy_anniv * modal_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Monthly; iDur == coverage_1st_duration; nbr_premiums_until_next_policy_anniv <= 12 - policy_vs_coverage_offset",
-    "depends_on": [
-      "nbr_premiums_until_next_policy_anniv",
-      "modal_premium",
-      "pmt_mode",
-      "coverage_1st_duration",
-      "policy_vs_coverage_offset"
-    ],
+    "depends_on": ["nbr_premiums_until_next_policy_anniv", "modal_premium", "pmt_mode", "coverage_1st_duration", "policy_vs_coverage_offset"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1239,13 +1112,7 @@
     "capsil_screen": null,
     "formula": "(12 - policy_vs_coverage_offset) * modal_premium[iCov, iDur] + (nbr_premiums_until_next_policy_anniv - (12 - policy_vs_coverage_offset)) * modal_premium[iCov, iDur - 1]",
     "conditions_constraints": "pmt_mode == Monthly; iDur == coverage_1st_duration; nbr_premiums_until_next_policy_anniv > 12 - policy_vs_coverage_offset",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_premium",
-      "nbr_premiums_until_next_policy_anniv",
-      "pmt_mode",
-      "coverage_1st_duration"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_premium", "nbr_premiums_until_next_policy_anniv", "pmt_mode", "coverage_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1265,12 +1132,7 @@
     "capsil_screen": null,
     "formula": "policy_vs_coverage_offset * modal_premium[iCov, iDur - 1] + (12 - policy_vs_coverage_offset) * modal_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Monthly; iDur > coverage_1st_duration",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_premium",
-      "pmt_mode",
-      "coverage_1st_duration"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_premium", "pmt_mode", "coverage_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1290,12 +1152,7 @@
     "capsil_screen": null,
     "formula": "modal_premium_base_component + modal_premium_fee_component",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "modal_premium_base_component",
-      "modal_premium_fee_component",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["modal_premium_base_component", "modal_premium_fee_component", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Each component ROUND(2); no final rounding specified",
@@ -1315,12 +1172,7 @@
     "capsil_screen": null,
     "formula": "ROUND((cost_of_insurance + percentage_extra_premium + dollar_extra_premium) * modal_factor, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "cost_of_insurance",
-      "percentage_extra_premium",
-      "dollar_extra_premium",
-      "modal_factor"
-    ],
+    "depends_on": ["cost_of_insurance", "percentage_extra_premium", "dollar_extra_premium", "modal_factor"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -1340,10 +1192,7 @@
     "capsil_screen": null,
     "formula": "ROUND(coverage_fee * modal_factor, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "coverage_fee",
-      "modal_factor"
-    ],
+    "depends_on": ["coverage_fee", "modal_factor"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -1363,13 +1212,7 @@
     "capsil_screen": null,
     "formula": "ROUND(unadjusted_cost_of_insurance * premium_adjustment_percent + premium_adjustment_dollar, 2)",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "unadjusted_cost_of_insurance",
-      "premium_adjustment_percent",
-      "premium_adjustment_dollar",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["unadjusted_cost_of_insurance", "premium_adjustment_percent", "premium_adjustment_dollar", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -1389,10 +1232,7 @@
     "capsil_screen": null,
     "formula": "ROUND(truncated_coverage_premium_rate * insurance_amount_in_units, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "truncated_coverage_premium_rate",
-      "insurance_amount_in_units"
-    ],
+    "depends_on": ["truncated_coverage_premium_rate", "insurance_amount_in_units"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -1412,9 +1252,7 @@
     "capsil_screen": null,
     "formula": "TRUNC(coverage_premium_rate, 6)",
     "conditions_constraints": null,
-    "depends_on": [
-      "coverage_premium_rate"
-    ],
+    "depends_on": ["coverage_premium_rate"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(6)",
@@ -1434,10 +1272,7 @@
     "capsil_screen": null,
     "formula": "ROUND(insurance_amount / unit_value, 5)",
     "conditions_constraints": "unit_value > 0",
-    "depends_on": [
-      "insurance_amount",
-      "unit_value"
-    ],
+    "depends_on": ["insurance_amount", "unit_value"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(5)",
@@ -1457,12 +1292,7 @@
     "capsil_screen": null,
     "formula": "SUM(premium_rate[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage)",
     "conditions_constraints": "premium_rate_duration <= iDur <= premium_rate_table_end_duration; number_of_insureds_on_coverage >= 1",
-    "depends_on": [
-      "premium_rate",
-      "number_of_insureds_on_coverage",
-      "premium_rate_duration",
-      "premium_rate_table_end_duration"
-    ],
+    "depends_on": ["premium_rate", "number_of_insureds_on_coverage", "premium_rate_duration", "premium_rate_table_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -1482,18 +1312,7 @@
     "capsil_screen": null,
     "formula": "RATE_LOOKUP(coverage_plan_code, rate_scale, premium_rate_basis, effective_premium_rate_band, insured_gender, insured_smoker_status, insured_preferred_rate_class, coverage_issue_age, iDur)",
     "conditions_constraints": "premium_rate_duration <= iDur <= premium_rate_table_end_duration",
-    "depends_on": [
-      "coverage_plan_code",
-      "rate_scale",
-      "premium_rate_basis",
-      "effective_premium_rate_band",
-      "insured_gender",
-      "insured_smoker_status",
-      "insured_preferred_rate_class",
-      "coverage_issue_age",
-      "premium_rate_duration",
-      "premium_rate_table_end_duration"
-    ],
+    "depends_on": ["coverage_plan_code", "rate_scale", "premium_rate_basis", "effective_premium_rate_band", "insured_gender", "insured_smoker_status", "insured_preferred_rate_class", "coverage_issue_age", "premium_rate_duration", "premium_rate_table_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Rate-table precision; source result later TRUNC(6)",
@@ -1533,13 +1352,8 @@
     "capsil_screen": null,
     "formula": "'Individual' if coverage_type == 'Individual' else 'JFTD'",
     "conditions_constraints": "coverage_type in {Individual, Joint}",
-    "depends_on": [
-      "coverage_type"
-    ],
-    "allowed_values": [
-      "Individual",
-      "JFTD"
-    ],
+    "depends_on": ["coverage_type"],
+    "allowed_values": ["Individual", "JFTD"],
     "default_example": null,
     "rounding": "N/A",
     "notes": "The MCD instruction references an Individual-rate band even for an otherwise JFTD branch; precedence is unresolved.",
@@ -1558,11 +1372,7 @@
     "capsil_screen": null,
     "formula": "RATE_BAND_LOOKUP(coverage_insurance_amount, coverage_plan_code, rate_scale)",
     "conditions_constraints": null,
-    "depends_on": [
-      "coverage_insurance_amount",
-      "coverage_plan_code",
-      "rate_scale"
-    ],
+    "depends_on": ["coverage_insurance_amount", "coverage_plan_code", "rate_scale"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -1582,10 +1392,7 @@
     "capsil_screen": null,
     "formula": "NEXT_HIGHER_BAND(base_premium_rate_band) if mcd_discount_applies else base_premium_rate_band",
     "conditions_constraints": "A next higher band must exist when mcd_discount_applies is true",
-    "depends_on": [
-      "base_premium_rate_band",
-      "mcd_discount_applies"
-    ],
+    "depends_on": ["base_premium_rate_band", "mcd_discount_applies"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -1606,10 +1413,7 @@
     "formula": "Normalized CAPSIL MCD indicator",
     "conditions_constraints": "CAPSIL code-to-boolean mapping must be defined",
     "depends_on": [],
-    "allowed_values": [
-      "True",
-      "False"
-    ],
+    "allowed_values": ["True", "False"],
     "default_example": null,
     "rounding": "N/A",
     "notes": "Normalized coverage-level MCD flag. M1/M2 identify STB2 at coverage and joint-insured levels, but the value mapping and reconciliation of differing joint values are unspecified.",
@@ -1648,9 +1452,7 @@
     "capsil_screen": "POLC_01 / RS",
     "formula": "Direct CAPSIL input; no calculation",
     "conditions_constraints": "Valid for coverage_plan_code",
-    "depends_on": [
-      "coverage_plan_code"
-    ],
+    "depends_on": ["coverage_plan_code"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -1730,12 +1532,7 @@
     "capsil_screen": null,
     "formula": "RATE_TABLE_END_DURATION(coverage_plan_code, rate_scale, premium_rate_basis)",
     "conditions_constraints": ">= premium_rate_duration",
-    "depends_on": [
-      "coverage_plan_code",
-      "rate_scale",
-      "premium_rate_basis",
-      "premium_rate_duration"
-    ],
+    "depends_on": ["coverage_plan_code", "rate_scale", "premium_rate_basis", "premium_rate_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -1755,13 +1552,7 @@
     "capsil_screen": null,
     "formula": "non_dw_annual_premium_total[iDur] if coverage_classification == 'DW' else coverage_insurance_amount",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "non_dw_annual_premium_total",
-      "coverage_classification",
-      "coverage_insurance_amount",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["non_dw_annual_premium_total", "coverage_classification", "coverage_insurance_amount", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1781,10 +1572,7 @@
     "capsil_screen": null,
     "formula": "SUM(non_dw_annual_premium[iCov, iDur] for all coverages where coverage_classification != 'DW')",
     "conditions_constraints": "Include every illustrated non-DW coverage exactly once",
-    "depends_on": [
-      "non_dw_annual_premium",
-      "coverage_classification"
-    ],
+    "depends_on": ["non_dw_annual_premium", "coverage_classification"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -1804,9 +1592,7 @@
     "capsil_screen": null,
     "formula": "Output supplied by the completed non-DW annual premium calculation stage",
     "conditions_constraints": "coverage_classification != DW",
-    "depends_on": [
-      "coverage_classification"
-    ],
+    "depends_on": ["coverage_classification"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1826,12 +1612,7 @@
     "capsil_screen": null,
     "formula": "capsil_coverage_insurance_amount + coverage_amount_adjustment",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; result >= 0",
-    "depends_on": [
-      "capsil_coverage_insurance_amount",
-      "coverage_amount_adjustment",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["capsil_coverage_insurance_amount", "coverage_amount_adjustment", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "capsil_coverage_insurance_amount when adjustment is 0",
     "rounding": "None specified",
@@ -1851,15 +1632,8 @@
     "capsil_screen": null,
     "formula": "'DW' if additional_coverage_type == 'Disability Waiver' else PRODUCT_COVERAGE_CLASS_LOOKUP(coverage_plan_code)",
     "conditions_constraints": "Every supported plan must map to exactly one classification; Disability Waiver must agree with additional_coverage_type",
-    "depends_on": [
-      "coverage_plan_code",
-      "additional_coverage_type"
-    ],
-    "allowed_values": [
-      "DW",
-      "LTC Advance",
-      "Other"
-    ],
+    "depends_on": ["coverage_plan_code", "additional_coverage_type"],
+    "allowed_values": ["DW", "LTC Advance", "Other"],
     "default_example": null,
     "rounding": "N/A",
     "notes": "Coarse classification retained for Section 5 unit-value and DW staging. Section 10's detailed additional_coverage_type is authoritative for Disability Waiver consistency.",
@@ -1878,13 +1652,8 @@
     "capsil_screen": null,
     "formula": "100 if coverage_classification in {'DW', 'LTC Advance'} else 1000",
     "conditions_constraints": "> 0",
-    "depends_on": [
-      "coverage_classification"
-    ],
-    "allowed_values": [
-      "100",
-      "1000"
-    ],
+    "depends_on": ["coverage_classification"],
+    "allowed_values": ["100", "1000"],
     "default_example": "1000",
     "rounding": "N/A",
     "notes": "Source constant selected by coverage classification. Premium rates are described as per 1,000 even though DW/LTC use a divisor of 100; confirm the applicable rate unit.",
@@ -1903,12 +1672,7 @@
     "capsil_screen": null,
     "formula": "premium_adjustment_percent_input if premium_rate_duration <= iDur <= MIN(end_of_premium_pmt, premium_adjustment_remaining_duration) else 1.0",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "premium_adjustment_percent_input",
-      "premium_rate_duration",
-      "end_of_premium_pmt",
-      "premium_adjustment_remaining_duration"
-    ],
+    "depends_on": ["premium_adjustment_percent_input", "premium_rate_duration", "end_of_premium_pmt", "premium_adjustment_remaining_duration"],
     "allowed_values": [],
     "default_example": "1.0",
     "rounding": "None specified",
@@ -1948,10 +1712,7 @@
     "capsil_screen": null,
     "formula": "premium_adjustment_duration - premium_rate_duration + 1",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "premium_adjustment_duration",
-      "premium_rate_duration"
-    ],
+    "depends_on": ["premium_adjustment_duration", "premium_rate_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -1991,10 +1752,7 @@
     "capsil_screen": null,
     "formula": "0",
     "conditions_constraints": "premium_rate_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "premium_rate_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["premium_rate_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0",
     "rounding": "Exact constant 0",
@@ -2014,12 +1772,7 @@
     "capsil_screen": null,
     "formula": "SUM(insured_percentage_extra_premium[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage)",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "insured_percentage_extra_premium",
-      "number_of_insureds_on_coverage",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["insured_percentage_extra_premium", "number_of_insureds_on_coverage", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2039,10 +1792,7 @@
     "capsil_screen": null,
     "formula": "ROUND(unadjusted_insured_percentage_extra_premium * premium_adjustment_percent, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "unadjusted_insured_percentage_extra_premium",
-      "premium_adjustment_percent"
-    ],
+    "depends_on": ["unadjusted_insured_percentage_extra_premium", "premium_adjustment_percent"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -2062,11 +1812,7 @@
     "capsil_screen": null,
     "formula": "ROUND(truncated_extra_premium_rate * extra_premium_percent * insurance_amount_in_units, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "truncated_extra_premium_rate",
-      "extra_premium_percent",
-      "insurance_amount_in_units"
-    ],
+    "depends_on": ["truncated_extra_premium_rate", "extra_premium_percent", "insurance_amount_in_units"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -2086,9 +1832,7 @@
     "capsil_screen": null,
     "formula": "TRUNC(extra_premium_rate, 6)",
     "conditions_constraints": null,
-    "depends_on": [
-      "extra_premium_rate"
-    ],
+    "depends_on": ["extra_premium_rate"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(6)",
@@ -2108,13 +1852,7 @@
     "capsil_screen": null,
     "formula": "premium_rate if product_type == 'Term' else substandard_premium_rate",
     "conditions_constraints": "premium_rate_duration <= iDur <= premium_rate_table_end_duration",
-    "depends_on": [
-      "premium_rate",
-      "product_type",
-      "substandard_premium_rate",
-      "premium_rate_duration",
-      "premium_rate_table_end_duration"
-    ],
+    "depends_on": ["premium_rate", "product_type", "substandard_premium_rate", "premium_rate_duration", "premium_rate_table_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Rate-table precision; source result later TRUNC(6)",
@@ -2134,15 +1872,7 @@
     "capsil_screen": null,
     "formula": "SUBSTANDARD_RATE_LOOKUP(coverage_plan_code, rate_scale, premium_rate_basis, insured_gender, insured_smoker_status, coverage_issue_age, iDur)",
     "conditions_constraints": "Required only when product_type == Permanent",
-    "depends_on": [
-      "coverage_plan_code",
-      "rate_scale",
-      "premium_rate_basis",
-      "insured_gender",
-      "insured_smoker_status",
-      "coverage_issue_age",
-      "product_type"
-    ],
+    "depends_on": ["coverage_plan_code", "rate_scale", "premium_rate_basis", "insured_gender", "insured_smoker_status", "coverage_issue_age", "product_type"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Rate-table precision unspecified",
@@ -2182,12 +1912,7 @@
     "capsil_screen": null,
     "formula": "SUM(insured_dollar_extra_premium[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage)",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "insured_dollar_extra_premium",
-      "number_of_insureds_on_coverage",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["insured_dollar_extra_premium", "number_of_insureds_on_coverage", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2207,10 +1932,7 @@
     "capsil_screen": null,
     "formula": "ROUND(dollar_extra_premium_rate * insurance_amount_in_units, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "dollar_extra_premium_rate",
-      "insurance_amount_in_units"
-    ],
+    "depends_on": ["dollar_extra_premium_rate", "insurance_amount_in_units"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -2230,12 +1952,7 @@
     "capsil_screen": null,
     "formula": "dollar_extra_premium_rate_input if premium_rate_duration <= iDur <= MIN(end_of_premium_pmt, dollar_extra_premium_remaining_duration) else 0",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "dollar_extra_premium_rate_input",
-      "premium_rate_duration",
-      "end_of_premium_pmt",
-      "dollar_extra_premium_remaining_duration"
-    ],
+    "depends_on": ["dollar_extra_premium_rate_input", "premium_rate_duration", "end_of_premium_pmt", "dollar_extra_premium_remaining_duration"],
     "allowed_values": [],
     "default_example": "0",
     "rounding": "None specified",
@@ -2275,10 +1992,7 @@
     "capsil_screen": null,
     "formula": "dollar_extra_premium_duration - premium_rate_duration + 1",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "dollar_extra_premium_duration",
-      "premium_rate_duration"
-    ],
+    "depends_on": ["dollar_extra_premium_duration", "premium_rate_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2318,10 +2032,7 @@
     "capsil_screen": null,
     "formula": "MODAL_FACTOR_LOOKUP(coverage_plan_code, pmt_mode)",
     "conditions_constraints": "> 0",
-    "depends_on": [
-      "coverage_plan_code",
-      "pmt_mode"
-    ],
+    "depends_on": ["coverage_plan_code", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Product-characteristic precision",
@@ -2341,11 +2052,7 @@
     "capsil_screen": null,
     "formula": "coverage_fee_input if premium_rate_duration <= iDur <= end_of_premium_pmt else 0",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "coverage_fee_input",
-      "premium_rate_duration",
-      "end_of_premium_pmt"
-    ],
+    "depends_on": ["coverage_fee_input", "premium_rate_duration", "end_of_premium_pmt"],
     "allowed_values": [],
     "default_example": "0",
     "rounding": "None specified",
@@ -2385,13 +2092,7 @@
     "capsil_screen": null,
     "formula": "SUM(life_insurance_interpolated_premium[iCov, coverage_1st_duration[iCov] + iDur - 1] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "1 <= iDur <= end_of_illustration_projection - policy_1st_duration; include only life-insurance coverages",
-    "depends_on": [
-      "life_insurance_interpolated_premium",
-      "coverage_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["life_insurance_interpolated_premium", "coverage_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2411,12 +2112,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if is_life_insurance_coverage else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "is_life_insurance_coverage",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "is_life_insurance_coverage", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life coverage",
     "rounding": "None specified",
@@ -2436,14 +2132,8 @@
     "capsil_screen": null,
     "formula": "False if additional_coverage_type is not None else LIFE_COVERAGE_ELIGIBILITY_LOOKUP(coverage_plan_code)",
     "conditions_constraints": "Every supported plan must map explicitly; any Section 10 additional-coverage category forces false",
-    "depends_on": [
-      "coverage_plan_code",
-      "additional_coverage_type"
-    ],
-    "allowed_values": [
-      "True",
-      "False"
-    ],
+    "depends_on": ["coverage_plan_code", "additional_coverage_type"],
+    "allowed_values": ["True", "False"],
     "default_example": null,
     "rounding": "N/A",
     "notes": "Authoritative PLAN mapping is not yet available. Section 10 classification mechanically excludes all additional coverages, including Children's Life; do not infer from coverage name.",
@@ -2462,12 +2152,7 @@
     "capsil_screen": null,
     "formula": "initial_cumulative_premiums if iDur == policy_1st_duration else renewal_cumulative_premiums",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "initial_cumulative_premiums",
-      "renewal_cumulative_premiums",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["initial_cumulative_premiums", "renewal_cumulative_premiums", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2487,11 +2172,7 @@
     "capsil_screen": null,
     "formula": "total_premiums_paid + total_premium[iDur]",
     "conditions_constraints": "iDur == policy_1st_duration",
-    "depends_on": [
-      "total_premiums_paid",
-      "total_premium",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["total_premiums_paid", "total_premium", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2511,12 +2192,7 @@
     "capsil_screen": null,
     "formula": "prior_duration_cumulative_premiums + total_premium[iDur]",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "prior_duration_cumulative_premiums",
-      "total_premium",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["prior_duration_cumulative_premiums", "total_premium", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2536,10 +2212,7 @@
     "capsil_screen": null,
     "formula": "TEMPORAL_STATE_LOOKUP(series='Cumulative Premiums', duration=iDur - 1)",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection; preceding duration must already be evaluated",
-    "depends_on": [
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -2559,13 +2232,7 @@
     "capsil_screen": null,
     "formula": "SUM(total_interpolated_extra_premium[iCov, coverage_1st_duration[iCov] + iDur - 1] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "1 <= iDur <= end_of_illustration_projection - policy_1st_duration",
-    "depends_on": [
-      "total_interpolated_extra_premium",
-      "coverage_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["total_interpolated_extra_premium", "coverage_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2585,18 +2252,7 @@
     "capsil_screen": null,
     "formula": "annual_initial_interpolated_extra_premium if pmt_mode == 'Annual' and iDur == coverage_1st_duration else annual_renewal_interpolated_extra_premium if pmt_mode == 'Annual' else monthly_initial_current_interpolated_extra_premium if iDur == coverage_1st_duration and nbr_premiums_until_next_policy_anniv <= 12 - policy_vs_coverage_offset else monthly_initial_split_interpolated_extra_premium if iDur == coverage_1st_duration else monthly_renewal_interpolated_extra_premium",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; pmt_mode in {Annual, Monthly}",
-    "depends_on": [
-      "annual_initial_interpolated_extra_premium",
-      "annual_renewal_interpolated_extra_premium",
-      "monthly_initial_current_interpolated_extra_premium",
-      "monthly_initial_split_interpolated_extra_premium",
-      "monthly_renewal_interpolated_extra_premium",
-      "pmt_mode",
-      "coverage_1st_duration",
-      "nbr_premiums_until_next_policy_anniv",
-      "policy_vs_coverage_offset",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["annual_initial_interpolated_extra_premium", "annual_renewal_interpolated_extra_premium", "monthly_initial_current_interpolated_extra_premium", "monthly_initial_split_interpolated_extra_premium", "monthly_renewal_interpolated_extra_premium", "pmt_mode", "coverage_1st_duration", "nbr_premiums_until_next_policy_anniv", "policy_vs_coverage_offset", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2616,13 +2272,7 @@
     "capsil_screen": null,
     "formula": "nbr_premiums_until_next_policy_anniv * ((policy_vs_coverage_offset / 365) * modal_extra_premium[iCov, iDur - 1] + (1 - policy_vs_coverage_offset / 365) * modal_extra_premium[iCov, iDur])",
     "conditions_constraints": "pmt_mode == Annual; iDur == coverage_1st_duration",
-    "depends_on": [
-      "nbr_premiums_until_next_policy_anniv",
-      "policy_vs_coverage_offset",
-      "modal_extra_premium",
-      "coverage_1st_duration",
-      "pmt_mode"
-    ],
+    "depends_on": ["nbr_premiums_until_next_policy_anniv", "policy_vs_coverage_offset", "modal_extra_premium", "coverage_1st_duration", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2642,12 +2292,7 @@
     "capsil_screen": null,
     "formula": "(policy_vs_coverage_offset / 365) * modal_extra_premium[iCov, iDur - 1] + (1 - policy_vs_coverage_offset / 365) * modal_extra_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Annual; iDur > coverage_1st_duration",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_extra_premium",
-      "coverage_1st_duration",
-      "pmt_mode"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_extra_premium", "coverage_1st_duration", "pmt_mode"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2667,13 +2312,7 @@
     "capsil_screen": null,
     "formula": "nbr_premiums_until_next_policy_anniv * modal_extra_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Monthly; iDur == coverage_1st_duration; nbr_premiums_until_next_policy_anniv <= 12 - policy_vs_coverage_offset",
-    "depends_on": [
-      "nbr_premiums_until_next_policy_anniv",
-      "modal_extra_premium",
-      "pmt_mode",
-      "coverage_1st_duration",
-      "policy_vs_coverage_offset"
-    ],
+    "depends_on": ["nbr_premiums_until_next_policy_anniv", "modal_extra_premium", "pmt_mode", "coverage_1st_duration", "policy_vs_coverage_offset"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2693,13 +2332,7 @@
     "capsil_screen": null,
     "formula": "(12 - policy_vs_coverage_offset) * modal_extra_premium[iCov, iDur] + (nbr_premiums_until_next_policy_anniv - (12 - policy_vs_coverage_offset)) * modal_extra_premium[iCov, iDur - 1]",
     "conditions_constraints": "pmt_mode == Monthly; iDur == coverage_1st_duration; nbr_premiums_until_next_policy_anniv > 12 - policy_vs_coverage_offset",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_extra_premium",
-      "nbr_premiums_until_next_policy_anniv",
-      "pmt_mode",
-      "coverage_1st_duration"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_extra_premium", "nbr_premiums_until_next_policy_anniv", "pmt_mode", "coverage_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2719,12 +2352,7 @@
     "capsil_screen": null,
     "formula": "policy_vs_coverage_offset * modal_extra_premium[iCov, iDur - 1] + (12 - policy_vs_coverage_offset) * modal_extra_premium[iCov, iDur]",
     "conditions_constraints": "pmt_mode == Monthly; iDur > coverage_1st_duration",
-    "depends_on": [
-      "policy_vs_coverage_offset",
-      "modal_extra_premium",
-      "pmt_mode",
-      "coverage_1st_duration"
-    ],
+    "depends_on": ["policy_vs_coverage_offset", "modal_extra_premium", "pmt_mode", "coverage_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -2744,12 +2372,7 @@
     "capsil_screen": null,
     "formula": "modal_premium - modal_premium_without_extra_premium",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; result expected >= 0",
-    "depends_on": [
-      "modal_premium",
-      "modal_premium_without_extra_premium",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["modal_premium", "modal_premium_without_extra_premium", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after subtraction",
@@ -2769,12 +2392,7 @@
     "capsil_screen": null,
     "formula": "modal_premium_without_extra_base_component + modal_premium_fee_component",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "modal_premium_without_extra_base_component",
-      "modal_premium_fee_component",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["modal_premium_without_extra_base_component", "modal_premium_fee_component", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Each component ROUND(2); no final rounding specified",
@@ -2794,10 +2412,7 @@
     "capsil_screen": null,
     "formula": "ROUND(cost_of_insurance * modal_factor, 2)",
     "conditions_constraints": null,
-    "depends_on": [
-      "cost_of_insurance",
-      "modal_factor"
-    ],
+    "depends_on": ["cost_of_insurance", "modal_factor"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -2817,13 +2432,7 @@
     "capsil_screen": null,
     "formula": "SUM(coverage_life_insurance_amount[iCov, coverage_1st_duration[iCov] + iDur - 1] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "1 <= iDur <= end_of_illustration_projection - policy_1st_duration",
-    "depends_on": [
-      "coverage_life_insurance_amount",
-      "coverage_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["coverage_life_insurance_amount", "coverage_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2843,12 +2452,7 @@
     "capsil_screen": null,
     "formula": "coverage_insurance_amount if is_life_insurance_coverage else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; exclude all additional coverages",
-    "depends_on": [
-      "coverage_insurance_amount",
-      "is_life_insurance_coverage",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["coverage_insurance_amount", "is_life_insurance_coverage", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life coverage",
     "rounding": "None specified",
@@ -2888,9 +2492,7 @@
     "capsil_screen": null,
     "formula": "Validated signed net amount change supplied by the illustration-scenario stage; 0 when unchanged",
     "conditions_constraints": "capsil_coverage_insurance_amount + coverage_amount_adjustment >= 0; apply only from the validated effective duration",
-    "depends_on": [
-      "capsil_coverage_insurance_amount"
-    ],
+    "depends_on": ["capsil_coverage_insurance_amount"],
     "allowed_values": [],
     "default_example": "0",
     "rounding": "None specified",
@@ -2910,19 +2512,7 @@
     "capsil_screen": null,
     "formula": "fracture_premium + ad_premium + ad_and_d_premium + accident_premium + disability_waiver_premium + gi_premium + business_insurability_premium + childrens_life_premium + childrens_fracture_premium",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "fracture_premium",
-      "ad_premium",
-      "ad_and_d_premium",
-      "accident_premium",
-      "disability_waiver_premium",
-      "gi_premium",
-      "business_insurability_premium",
-      "childrens_life_premium",
-      "childrens_fracture_premium",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["fracture_premium", "ad_premium", "ad_and_d_premium", "accident_premium", "disability_waiver_premium", "gi_premium", "business_insurability_premium", "childrens_life_premium", "childrens_fracture_premium", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -2942,21 +2532,8 @@
     "capsil_screen": null,
     "formula": "ADDITIONAL_COVERAGE_TYPE_LOOKUP(coverage_plan_code)",
     "conditions_constraints": "Every supported plan must map to exactly one listed category or None; categories are mutually exclusive",
-    "depends_on": [
-      "coverage_plan_code"
-    ],
-    "allowed_values": [
-      "Fracture",
-      "AD",
-      "AD&D",
-      "Accident",
-      "Disability Waiver",
-      "GI",
-      "Business Insurability",
-      "Children's Life",
-      "Children's Fracture",
-      "None"
-    ],
+    "depends_on": ["coverage_plan_code"],
+    "allowed_values": ["Fracture", "AD", "AD&D", "Accident", "Disability Waiver", "GI", "Business Insurability", "Children's Life", "Children's Fracture", "None"],
     "default_example": "None",
     "rounding": "N/A",
     "notes": "Authoritative PLAN mapping is not yet available. GI is preserved as the source label but its full business meaning is not defined in Section 10.",
@@ -2975,12 +2552,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'Fracture' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3000,13 +2572,7 @@
     "capsil_screen": null,
     "formula": "SUM(fracture_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "fracture_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["fracture_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3026,12 +2592,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'AD' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3051,13 +2612,7 @@
     "capsil_screen": null,
     "formula": "SUM(ad_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "ad_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["ad_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3077,12 +2632,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'AD&D' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3102,13 +2652,7 @@
     "capsil_screen": null,
     "formula": "SUM(ad_and_d_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "ad_and_d_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["ad_and_d_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3128,12 +2672,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'Accident' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3153,13 +2692,7 @@
     "capsil_screen": null,
     "formula": "SUM(accident_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "accident_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["accident_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3179,12 +2712,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'Disability Waiver' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3204,13 +2732,7 @@
     "capsil_screen": null,
     "formula": "SUM(disability_waiver_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "disability_waiver_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["disability_waiver_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3230,12 +2752,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'GI' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3255,13 +2772,7 @@
     "capsil_screen": null,
     "formula": "SUM(gi_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "gi_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["gi_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3281,12 +2792,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == 'Business Insurability' else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3306,13 +2812,7 @@
     "capsil_screen": null,
     "formula": "SUM(business_insurability_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "business_insurability_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["business_insurability_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3332,12 +2832,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == \"Children's Life\" else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3357,13 +2852,7 @@
     "capsil_screen": null,
     "formula": "SUM(childrens_life_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "childrens_life_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["childrens_life_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3383,12 +2872,7 @@
     "capsil_screen": null,
     "formula": "total_interpolated_premium if additional_coverage_type == \"Children's Fracture\" else 0",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "total_interpolated_premium",
-      "additional_coverage_type",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["total_interpolated_premium", "additional_coverage_type", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for other coverage types",
     "rounding": "None specified",
@@ -3408,13 +2892,7 @@
     "capsil_screen": null,
     "formula": "SUM(childrens_fracture_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "childrens_fracture_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["childrens_fracture_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3434,14 +2912,7 @@
     "capsil_screen": null,
     "formula": "SUM(coverage_net_premium_reserve[iCov, coverage_1st_duration[iCov] + coverage_dec31_indicator[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "coverage_net_premium_reserve",
-      "coverage_1st_duration",
-      "coverage_dec31_indicator",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["coverage_net_premium_reserve", "coverage_1st_duration", "coverage_dec31_indicator", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -3461,12 +2932,7 @@
     "capsil_screen": null,
     "formula": "SUM(net_premium_reserve[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage) if is_life_insurance_coverage else 0",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; calculate from coverage inception using illustration parameters retrospectively",
-    "depends_on": [
-      "net_premium_reserve",
-      "number_of_insureds_on_coverage",
-      "is_life_insurance_coverage",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["net_premium_reserve", "number_of_insureds_on_coverage", "is_life_insurance_coverage", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life/additional coverage",
     "rounding": "None specified after summation",
@@ -3486,12 +2952,7 @@
     "capsil_screen": null,
     "formula": "interpolated_net_premium_reserve if 1 <= iDur <= reserve_interpolation_end_duration else actuarial_net_premium_reserve",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "interpolated_net_premium_reserve",
-      "actuarial_net_premium_reserve",
-      "reserve_interpolation_end_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["interpolated_net_premium_reserve", "actuarial_net_premium_reserve", "reserve_interpolation_end_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Branch results ROUND(2) then MAX(0)",
@@ -3511,12 +2972,7 @@
     "capsil_screen": null,
     "formula": "MAX(0, ROUND(fiscal_insurance_amount_per_100000 * interpolation_duration * interpolation_net_premium_reserve, 2))",
     "conditions_constraints": "1 <= iDur <= reserve_interpolation_end_duration",
-    "depends_on": [
-      "fiscal_insurance_amount_per_100000",
-      "interpolation_duration",
-      "interpolation_net_premium_reserve",
-      "reserve_interpolation_end_duration"
-    ],
+    "depends_on": ["fiscal_insurance_amount_per_100000", "interpolation_duration", "interpolation_net_premium_reserve", "reserve_interpolation_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2), then MAX(0)",
@@ -3536,12 +2992,7 @@
     "capsil_screen": null,
     "formula": "MAX(0, ROUND(fiscal_insurance_amount_per_100000 * net_premium_reserve_factor, 2))",
     "conditions_constraints": "reserve_interpolation_end_duration < iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "fiscal_insurance_amount_per_100000",
-      "net_premium_reserve_factor",
-      "reserve_interpolation_end_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["fiscal_insurance_amount_per_100000", "net_premium_reserve_factor", "reserve_interpolation_end_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2), then MAX(0)",
@@ -3561,9 +3012,7 @@
     "capsil_screen": null,
     "formula": "MIN(8, end_of_premium_pmt)",
     "conditions_constraints": "> 0 to avoid division by zero in interpolation_duration",
-    "depends_on": [
-      "end_of_premium_pmt"
-    ],
+    "depends_on": ["end_of_premium_pmt"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -3583,9 +3032,7 @@
     "capsil_screen": null,
     "formula": "reserve_interpolation_base_duration + 1",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "reserve_interpolation_base_duration"
-    ],
+    "depends_on": ["reserve_interpolation_base_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -3605,9 +3052,7 @@
     "capsil_screen": null,
     "formula": "SELECT_ILLUSTRATION_COVERAGE_AMOUNT_FOR_RETROSPECTIVE_RESERVE(coverage_insurance_amount)",
     "conditions_constraints": ">= 0; one selected illustration amount must be applied retrospectively to all reserve durations",
-    "depends_on": [
-      "coverage_insurance_amount"
-    ],
+    "depends_on": ["coverage_insurance_amount"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3627,10 +3072,7 @@
     "capsil_screen": null,
     "formula": "reserve_basis_coverage_amount",
     "conditions_constraints": "1 <= iDur <= end_of_fiscal_projection + 1",
-    "depends_on": [
-      "reserve_basis_coverage_amount",
-      "end_of_fiscal_projection"
-    ],
+    "depends_on": ["reserve_basis_coverage_amount", "end_of_fiscal_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3650,9 +3092,7 @@
     "capsil_screen": null,
     "formula": "fiscal_insurance_amount / 100000",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "fiscal_insurance_amount"
-    ],
+    "depends_on": ["fiscal_insurance_amount"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3672,10 +3112,7 @@
     "capsil_screen": null,
     "formula": "(iDur - 1) / reserve_interpolation_base_duration",
     "conditions_constraints": "1 <= iDur <= reserve_interpolation_end_duration; reserve_interpolation_base_duration > 0",
-    "depends_on": [
-      "reserve_interpolation_base_duration",
-      "reserve_interpolation_end_duration"
-    ],
+    "depends_on": ["reserve_interpolation_base_duration", "reserve_interpolation_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3695,10 +3132,7 @@
     "capsil_screen": null,
     "formula": "MAX(0, net_premium_reserve_factor[iCov, iInsured, reserve_interpolation_end_duration])",
     "conditions_constraints": null,
-    "depends_on": [
-      "net_premium_reserve_factor",
-      "reserve_interpolation_end_duration"
-    ],
+    "depends_on": ["net_premium_reserve_factor", "reserve_interpolation_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "MAX(0); no rounding specified",
@@ -3718,12 +3152,7 @@
     "capsil_screen": null,
     "formula": "txr - initial_txr_txp_ratio * txp",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "txr",
-      "initial_txr_txp_ratio",
-      "txp",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["txr", "initial_txr_txp_ratio", "txp", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3743,10 +3172,7 @@
     "capsil_screen": null,
     "formula": "txr[iCov, iInsured, 1] / txp[iCov, iInsured, 1]",
     "conditions_constraints": "txp at duration 1 must be nonzero",
-    "depends_on": [
-      "txr",
-      "txp"
-    ],
+    "depends_on": ["txr", "txp"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -3766,12 +3192,7 @@
     "capsil_screen": null,
     "formula": "100000 if survival_probability == 0 else TRUNC(sum_pvcf_benefit / (survival_probability * discount_factor), 3)",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; denominator must be nonzero in the second branch",
-    "depends_on": [
-      "survival_probability",
-      "sum_pvcf_benefit",
-      "discount_factor",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["survival_probability", "sum_pvcf_benefit", "discount_factor", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(3) in nonzero-survival branch; exact 100000 otherwise",
@@ -3791,14 +3212,8 @@
     "capsil_screen": null,
     "formula": "1 if iDur == 1 else TRUNC(prior_duration_survival_probability * annual_survival_probability, 12)",
     "conditions_constraints": "1 <= iDur <= end_of_fiscal_projection; 0 <= result <= 1",
-    "depends_on": [
-      "prior_duration_survival_probability",
-      "annual_survival_probability",
-      "end_of_fiscal_projection"
-    ],
-    "allowed_values": [
-      "0 through 1"
-    ],
+    "depends_on": ["prior_duration_survival_probability", "annual_survival_probability", "end_of_fiscal_projection"],
+    "allowed_values": ["0 through 1"],
     "default_example": "1 at duration 1",
     "rounding": "TRUNC(12) when iDur > 1",
     "notes": "Temporal recurrence evaluated in ascending duration order.",
@@ -3817,9 +3232,7 @@
     "capsil_screen": null,
     "formula": "TEMPORAL_STATE_LOOKUP(series_id='NPR-16', duration=iDur - 1)",
     "conditions_constraints": "1 < iDur <= end_of_fiscal_projection; preceding duration must already be evaluated",
-    "depends_on": [
-      "end_of_fiscal_projection"
-    ],
+    "depends_on": ["end_of_fiscal_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -3839,12 +3252,8 @@
     "capsil_screen": null,
     "formula": "1 - mortality_probability_qx",
     "conditions_constraints": "0 <= mortality_probability_qx <= 1",
-    "depends_on": [
-      "mortality_probability_qx"
-    ],
-    "allowed_values": [
-      "0 through 1"
-    ],
+    "depends_on": ["mortality_probability_qx"],
+    "allowed_values": ["0 through 1"],
     "default_example": null,
     "rounding": "None specified",
     "notes": "Px complement of Qx.",
@@ -3863,15 +3272,8 @@
     "capsil_screen": null,
     "formula": "0 if iDur == 1 else TRUNC(MIN(1, mortality_table_qx / 1000 * (1 + extra_premium_percent) + temporary_extra_premium_rate[iCov, iInsured, iDur - 1] / 1000), 12)",
     "conditions_constraints": "1 <= iDur <= end_of_fiscal_projection; 0 <= result <= 1",
-    "depends_on": [
-      "mortality_table_qx",
-      "extra_premium_percent",
-      "temporary_extra_premium_rate",
-      "end_of_fiscal_projection"
-    ],
-    "allowed_values": [
-      "0 through 1"
-    ],
+    "depends_on": ["mortality_table_qx", "extra_premium_percent", "temporary_extra_premium_rate", "end_of_fiscal_projection"],
+    "allowed_values": ["0 through 1"],
     "default_example": "0 at duration 1",
     "rounding": "TRUNC(12) when iDur > 1",
     "notes": "Source calls the final term Temporary Extra Premium Rate but cross-references Dollar Extra Premium Rate. Duration iDur-1 may request duration 1 when iDur=2.",
@@ -3890,11 +3292,7 @@
     "capsil_screen": null,
     "formula": "MORTALITY_RATE_LOOKUP('CIA8692', insured_gender, fiscal_attained_age)",
     "conditions_constraints": "1 <= iDur <= cia8692_table_end_duration",
-    "depends_on": [
-      "insured_gender",
-      "fiscal_attained_age",
-      "cia8692_table_end_duration"
-    ],
+    "depends_on": ["insured_gender", "fiscal_attained_age", "cia8692_table_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Mortality-table precision",
@@ -3929,14 +3327,12 @@
     "python_name": "fiscal_attained_age",
     "type": "int",
     "unit": "age",
-    "indices": "iCov, iInsured",
+    "indices": "iCov, iInsured, iDur",
     "source": "computed",
     "capsil_screen": null,
     "formula": "insured_issue_age + iDur - 1",
     "conditions_constraints": ">= insured_issue_age",
-    "depends_on": [
-      "insured_issue_age"
-    ],
+    "depends_on": ["insured_issue_age"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -3956,10 +3352,7 @@
     "capsil_screen": null,
     "formula": "CIA8692_TABLE_END_DURATION(insured_gender, insured_issue_age)",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "insured_gender",
-      "insured_issue_age"
-    ],
+    "depends_on": ["insured_gender", "insured_issue_age"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -3979,9 +3372,7 @@
     "capsil_screen": null,
     "formula": "dollar_extra_premium_rate",
     "conditions_constraints": ">= 0",
-    "depends_on": [
-      "dollar_extra_premium_rate"
-    ],
+    "depends_on": ["dollar_extra_premium_rate"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4001,11 +3392,7 @@
     "capsil_screen": null,
     "formula": "initial_sum_pvcf_benefit if iDur == 1 else initial_sum_pvcf_benefit - cumulative_pvcf_benefit[iCov, iInsured, iDur]",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "initial_sum_pvcf_benefit",
-      "cumulative_pvcf_benefit",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["initial_sum_pvcf_benefit", "cumulative_pvcf_benefit", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4025,10 +3412,7 @@
     "capsil_screen": null,
     "formula": "cumulative_pvcf_benefit[iCov, iInsured, benefit_cashflow_end_duration]",
     "conditions_constraints": null,
-    "depends_on": [
-      "cumulative_pvcf_benefit",
-      "benefit_cashflow_end_duration"
-    ],
+    "depends_on": ["cumulative_pvcf_benefit", "benefit_cashflow_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4048,10 +3432,7 @@
     "capsil_screen": null,
     "formula": "SUM(pvcf_benefit[iCov, iInsured, i] for 1 <= i <= iDur)",
     "conditions_constraints": "1 <= iDur <= benefit_cashflow_end_duration",
-    "depends_on": [
-      "pvcf_benefit",
-      "benefit_cashflow_end_duration"
-    ],
+    "depends_on": ["pvcf_benefit", "benefit_cashflow_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -4071,13 +3452,7 @@
     "capsil_screen": null,
     "formula": "0 if iDur == 1 else TRUNC(100000 * discount_factor * prior_duration_survival_probability * mortality_probability_qx * (1 + prescribed_interest_rate / 2), 12)",
     "conditions_constraints": "1 <= iDur <= end_of_fiscal_projection",
-    "depends_on": [
-      "discount_factor",
-      "prior_duration_survival_probability",
-      "mortality_probability_qx",
-      "prescribed_interest_rate",
-      "end_of_fiscal_projection"
-    ],
+    "depends_on": ["discount_factor", "prior_duration_survival_probability", "mortality_probability_qx", "prescribed_interest_rate", "end_of_fiscal_projection"],
     "allowed_values": [],
     "default_example": "0 at duration 1",
     "rounding": "TRUNC(12) when iDur > 1",
@@ -4098,9 +3473,7 @@
     "formula": "0.035",
     "conditions_constraints": "Fixed by the specification until an approved source changes it",
     "depends_on": [],
-    "allowed_values": [
-      "0.035"
-    ],
+    "allowed_values": ["0.035"],
     "default_example": "0.035",
     "rounding": "Exact constant 3.5%",
     "notes": "Specification references Product Characteristics but explicitly prescribes 3.5%.",
@@ -4119,10 +3492,7 @@
     "capsil_screen": null,
     "formula": "ROUND((1 / (1 + prescribed_interest_rate)) ** (iDur - 1), 12)",
     "conditions_constraints": "1 <= iDur <= end_of_fiscal_projection + 1",
-    "depends_on": [
-      "prescribed_interest_rate",
-      "end_of_fiscal_projection"
-    ],
+    "depends_on": ["prescribed_interest_rate", "end_of_fiscal_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(12)",
@@ -4142,12 +3512,7 @@
     "capsil_screen": null,
     "formula": "0 if survival_probability == 0 else TRUNC(sum_pvcf_premium / (survival_probability * discount_factor), 3)",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; denominator must be nonzero in the second branch",
-    "depends_on": [
-      "survival_probability",
-      "sum_pvcf_premium",
-      "discount_factor",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["survival_probability", "sum_pvcf_premium", "discount_factor", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 when survival_probability is 0",
     "rounding": "TRUNC(3) in nonzero-survival branch",
@@ -4167,11 +3532,7 @@
     "capsil_screen": null,
     "formula": "initial_sum_pvcf_premium if iDur == 1 else initial_sum_pvcf_premium - cumulative_pvcf_premium[iCov, iInsured, iDur - 1]",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "initial_sum_pvcf_premium",
-      "cumulative_pvcf_premium",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["initial_sum_pvcf_premium", "cumulative_pvcf_premium", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4191,10 +3552,7 @@
     "capsil_screen": null,
     "formula": "cumulative_pvcf_premium[iCov, iInsured, premium_cashflow_end_duration]",
     "conditions_constraints": null,
-    "depends_on": [
-      "cumulative_pvcf_premium",
-      "premium_cashflow_end_duration"
-    ],
+    "depends_on": ["cumulative_pvcf_premium", "premium_cashflow_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4214,10 +3572,7 @@
     "capsil_screen": null,
     "formula": "SUM(pvcf_premium[iCov, iInsured, i] for 1 <= i <= iDur)",
     "conditions_constraints": "1 <= iDur <= premium_cashflow_end_duration",
-    "depends_on": [
-      "pvcf_premium",
-      "premium_cashflow_end_duration"
-    ],
+    "depends_on": ["pvcf_premium", "premium_cashflow_end_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -4237,12 +3592,7 @@
     "capsil_screen": null,
     "formula": "TRUNC(premium_cashflow_basis * discount_factor * survival_probability, 12)",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection",
-    "depends_on": [
-      "premium_cashflow_basis",
-      "discount_factor",
-      "survival_probability",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["premium_cashflow_basis", "discount_factor", "survival_probability", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(12)",
@@ -4262,13 +3612,7 @@
     "capsil_screen": null,
     "formula": "(premium_rate + extra_premium_rate * extra_premium_percent) * premium_adjustment_percent + temporary_extra_premium_rate",
     "conditions_constraints": null,
-    "depends_on": [
-      "premium_rate",
-      "extra_premium_rate",
-      "extra_premium_percent",
-      "premium_adjustment_percent",
-      "temporary_extra_premium_rate"
-    ],
+    "depends_on": ["premium_rate", "extra_premium_rate", "extra_premium_percent", "premium_adjustment_percent", "temporary_extra_premium_rate"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4288,9 +3632,7 @@
     "capsil_screen": null,
     "formula": "adjusted_premium_rate_component * 100",
     "conditions_constraints": null,
-    "depends_on": [
-      "adjusted_premium_rate_component"
-    ],
+    "depends_on": ["adjusted_premium_rate_component"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4310,10 +3652,7 @@
     "capsil_screen": null,
     "formula": "TRUNC((premium_adjustment_dollar * 100000) / fiscal_insurance_amount, 2)",
     "conditions_constraints": "fiscal_insurance_amount > 0",
-    "depends_on": [
-      "premium_adjustment_dollar",
-      "fiscal_insurance_amount"
-    ],
+    "depends_on": ["premium_adjustment_dollar", "fiscal_insurance_amount"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(2)",
@@ -4333,10 +3672,7 @@
     "capsil_screen": null,
     "formula": "TRUNC((coverage_fee * 100000) / fiscal_insurance_amount, 2)",
     "conditions_constraints": "fiscal_insurance_amount > 0",
-    "depends_on": [
-      "coverage_fee",
-      "fiscal_insurance_amount"
-    ],
+    "depends_on": ["coverage_fee", "fiscal_insurance_amount"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "TRUNC(2)",
@@ -4356,11 +3692,7 @@
     "capsil_screen": null,
     "formula": "scaled_adjusted_premium_rate_component + premium_adjustment_dollar_per_100000 + coverage_fee_per_100000",
     "conditions_constraints": null,
-    "depends_on": [
-      "scaled_adjusted_premium_rate_component",
-      "premium_adjustment_dollar_per_100000",
-      "coverage_fee_per_100000"
-    ],
+    "depends_on": ["scaled_adjusted_premium_rate_component", "premium_adjustment_dollar_per_100000", "coverage_fee_per_100000"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Component-specific; no aggregate rounding specified",
@@ -4380,9 +3712,7 @@
     "capsil_screen": null,
     "formula": "end_of_fiscal_projection + 1",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "end_of_fiscal_projection"
-    ],
+    "depends_on": ["end_of_fiscal_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -4402,9 +3732,7 @@
     "capsil_screen": null,
     "formula": "end_of_coverage_projection",
     "conditions_constraints": ">= 1",
-    "depends_on": [
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "Exact integer",
@@ -4424,14 +3752,7 @@
     "capsil_screen": null,
     "formula": "SUM(coverage_net_amount_at_risk[iCov, coverage_1st_duration[iCov] + coverage_dec31_indicator[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "coverage_net_amount_at_risk",
-      "coverage_1st_duration",
-      "coverage_dec31_indicator",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["coverage_net_amount_at_risk", "coverage_1st_duration", "coverage_dec31_indicator", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -4451,12 +3772,7 @@
     "capsil_screen": null,
     "formula": "SUM(insured_net_amount_at_risk[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage) if is_life_insurance_coverage else 0",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; exclude all additional coverages",
-    "depends_on": [
-      "insured_net_amount_at_risk",
-      "number_of_insureds_on_coverage",
-      "is_life_insurance_coverage",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["insured_net_amount_at_risk", "number_of_insureds_on_coverage", "is_life_insurance_coverage", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life/additional coverage",
     "rounding": "None specified after summation",
@@ -4476,10 +3792,7 @@
     "capsil_screen": null,
     "formula": "fiscal_insurance_amount - net_premium_reserve",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; negative values are not prohibited or clamped by the source",
-    "depends_on": [
-      "fiscal_insurance_amount",
-      "net_premium_reserve"
-    ],
+    "depends_on": ["fiscal_insurance_amount", "net_premium_reserve", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4499,12 +3812,7 @@
     "capsil_screen": null,
     "formula": "0 if iDur == policy_1st_duration and policy_dec31_indicator == 1 else report_ncpi_before_policy_dec31_override",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection; first duration is zero when policy_dec31_indicator=1",
-    "depends_on": [
-      "policy_1st_duration",
-      "policy_dec31_indicator",
-      "report_ncpi_before_policy_dec31_override",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["policy_1st_duration", "policy_dec31_indicator", "report_ncpi_before_policy_dec31_override", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": "0 in the first-duration override branch",
     "rounding": "None specified",
@@ -4524,14 +3832,7 @@
     "capsil_screen": null,
     "formula": "SUM(coverage_net_cost_of_pure_insurance[iCov, coverage_1st_duration[iCov] + coverage_dec31_indicator[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "coverage_net_cost_of_pure_insurance",
-      "coverage_1st_duration",
-      "coverage_dec31_indicator",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["coverage_net_cost_of_pure_insurance", "coverage_1st_duration", "coverage_dec31_indicator", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -4551,12 +3852,7 @@
     "capsil_screen": null,
     "formula": "SUM(insured_net_cost_of_pure_insurance[iCov, iInsured, iDur] for 1 <= iInsured <= number_of_insureds_on_coverage) if is_life_insurance_coverage else 0",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; exclude all additional coverages",
-    "depends_on": [
-      "insured_net_cost_of_pure_insurance",
-      "number_of_insureds_on_coverage",
-      "is_life_insurance_coverage",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["insured_net_cost_of_pure_insurance", "number_of_insureds_on_coverage", "is_life_insurance_coverage", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life/additional coverage",
     "rounding": "None specified after summation",
@@ -4576,11 +3872,7 @@
     "capsil_screen": null,
     "formula": "ROUND(next_duration_mortality_probability_qx * insured_net_amount_at_risk, 2)",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; next-duration Qx must exist; negative NAAR produces negative NCPI because no clamp is specified",
-    "depends_on": [
-      "next_duration_mortality_probability_qx",
-      "insured_net_amount_at_risk",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["next_duration_mortality_probability_qx", "insured_net_amount_at_risk", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "ROUND(2)",
@@ -4600,14 +3892,8 @@
     "capsil_screen": null,
     "formula": "mortality_probability_qx[iCov, iInsured, iDur + 1]",
     "conditions_constraints": "1 <= iDur <= end_of_coverage_projection; iDur + 1 <= end_of_fiscal_projection",
-    "depends_on": [
-      "mortality_probability_qx",
-      "end_of_coverage_projection",
-      "end_of_fiscal_projection"
-    ],
-    "allowed_values": [
-      "0 through 1"
-    ],
+    "depends_on": ["mortality_probability_qx", "end_of_coverage_projection", "end_of_fiscal_projection"],
+    "allowed_values": ["0 through 1"],
     "default_example": null,
     "rounding": "Uses NPR-19 TRUNC(12) value; no additional rounding",
     "notes": "Explicit look-ahead intermediary. Reserve/NCPI projection requires Qx one duration beyond every NAAR duration.",
@@ -4626,14 +3912,7 @@
     "capsil_screen": null,
     "formula": "initial_carried_cumulative_ncpi if iDur == policy_1st_duration and policy_dec31_indicator == 1 else initial_accrued_cumulative_ncpi if iDur == policy_1st_duration else renewal_cumulative_ncpi",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection; policy_dec31_indicator in {0, 1}",
-    "depends_on": [
-      "initial_carried_cumulative_ncpi",
-      "initial_accrued_cumulative_ncpi",
-      "renewal_cumulative_ncpi",
-      "policy_1st_duration",
-      "policy_dec31_indicator",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["initial_carried_cumulative_ncpi", "initial_accrued_cumulative_ncpi", "renewal_cumulative_ncpi", "policy_1st_duration", "policy_dec31_indicator", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4653,11 +3932,7 @@
     "capsil_screen": null,
     "formula": "policy_cumulative_ncpi",
     "conditions_constraints": "iDur == policy_1st_duration and policy_dec31_indicator == 1",
-    "depends_on": [
-      "policy_cumulative_ncpi",
-      "policy_1st_duration",
-      "policy_dec31_indicator"
-    ],
+    "depends_on": ["policy_cumulative_ncpi", "policy_1st_duration", "policy_dec31_indicator"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4677,12 +3952,7 @@
     "capsil_screen": null,
     "formula": "policy_cumulative_ncpi + net_cost_of_pure_insurance",
     "conditions_constraints": "iDur == policy_1st_duration and policy_dec31_indicator == 0",
-    "depends_on": [
-      "policy_cumulative_ncpi",
-      "net_cost_of_pure_insurance",
-      "policy_1st_duration",
-      "policy_dec31_indicator"
-    ],
+    "depends_on": ["policy_cumulative_ncpi", "net_cost_of_pure_insurance", "policy_1st_duration", "policy_dec31_indicator"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4702,12 +3972,7 @@
     "capsil_screen": null,
     "formula": "prior_duration_cumulative_ncpi + net_cost_of_pure_insurance",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "prior_duration_cumulative_ncpi",
-      "net_cost_of_pure_insurance",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["prior_duration_cumulative_ncpi", "net_cost_of_pure_insurance", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4727,10 +3992,7 @@
     "capsil_screen": null,
     "formula": "TEMPORAL_STATE_LOOKUP(series_id='CUMN-01', duration=iDur - 1)",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection; preceding duration must already be evaluated",
-    "depends_on": [
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -4750,13 +4012,7 @@
     "capsil_screen": null,
     "formula": "SUM(acb_coverage_cost_interpolated_premium[iCov, coverage_1st_duration[iCov] + (iDur - policy_1st_duration)] for 1 <= iCov <= number_of_coverages_on_illustration)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection; include only life-insurance coverages",
-    "depends_on": [
-      "acb_coverage_cost_interpolated_premium",
-      "coverage_1st_duration",
-      "policy_1st_duration",
-      "number_of_coverages_on_illustration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["acb_coverage_cost_interpolated_premium", "coverage_1st_duration", "policy_1st_duration", "number_of_coverages_on_illustration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified after summation",
@@ -4776,11 +4032,7 @@
     "capsil_screen": null,
     "formula": "life_insurance_interpolated_premium",
     "conditions_constraints": "coverage_1st_duration <= iDur <= end_of_coverage_projection; additional coverages excluded through Section 6 classification",
-    "depends_on": [
-      "life_insurance_interpolated_premium",
-      "coverage_1st_duration",
-      "end_of_coverage_projection"
-    ],
+    "depends_on": ["life_insurance_interpolated_premium", "coverage_1st_duration", "end_of_coverage_projection"],
     "allowed_values": [],
     "default_example": "0 for non-life/additional coverage",
     "rounding": "None specified",
@@ -4800,12 +4052,7 @@
     "capsil_screen": null,
     "formula": "initial_cumulative_acb_coverage_cost if iDur == policy_1st_duration else renewal_cumulative_acb_coverage_cost",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "initial_cumulative_acb_coverage_cost",
-      "renewal_cumulative_acb_coverage_cost",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["initial_cumulative_acb_coverage_cost", "renewal_cumulative_acb_coverage_cost", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4825,12 +4072,7 @@
     "capsil_screen": null,
     "formula": "policy_acb + policy_cumulative_ncpi + acb_coverage_cost",
     "conditions_constraints": "iDur == policy_1st_duration",
-    "depends_on": [
-      "policy_acb",
-      "policy_cumulative_ncpi",
-      "acb_coverage_cost",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["policy_acb", "policy_cumulative_ncpi", "acb_coverage_cost", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4850,12 +4092,7 @@
     "capsil_screen": null,
     "formula": "prior_duration_cumulative_acb_coverage_cost + acb_coverage_cost",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "prior_duration_cumulative_acb_coverage_cost",
-      "acb_coverage_cost",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["prior_duration_cumulative_acb_coverage_cost", "acb_coverage_cost", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4875,10 +4112,7 @@
     "capsil_screen": null,
     "formula": "TEMPORAL_STATE_LOOKUP(series_id='CACB-01', duration=iDur - 1)",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection; preceding duration must already be evaluated",
-    "depends_on": [
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",
@@ -4898,11 +4132,7 @@
     "capsil_screen": null,
     "formula": "MAX(0, acb_before_max)",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection; result >= 0",
-    "depends_on": [
-      "acb_before_max",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["acb_before_max", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "MAX(0); no rounding specified",
@@ -4922,12 +4152,7 @@
     "capsil_screen": null,
     "formula": "initial_acb_before_max if iDur == policy_1st_duration else renewal_acb_before_max",
     "conditions_constraints": "policy_1st_duration <= iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "initial_acb_before_max",
-      "renewal_acb_before_max",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["initial_acb_before_max", "renewal_acb_before_max", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4947,12 +4172,7 @@
     "capsil_screen": null,
     "formula": "policy_acb + acb_coverage_cost - net_cost_of_pure_insurance",
     "conditions_constraints": "iDur == policy_1st_duration",
-    "depends_on": [
-      "policy_acb",
-      "acb_coverage_cost",
-      "net_cost_of_pure_insurance",
-      "policy_1st_duration"
-    ],
+    "depends_on": ["policy_acb", "acb_coverage_cost", "net_cost_of_pure_insurance", "policy_1st_duration"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4972,13 +4192,7 @@
     "capsil_screen": null,
     "formula": "prior_duration_acb_before_max + acb_coverage_cost - net_cost_of_pure_insurance",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection",
-    "depends_on": [
-      "prior_duration_acb_before_max",
-      "acb_coverage_cost",
-      "net_cost_of_pure_insurance",
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["prior_duration_acb_before_max", "acb_coverage_cost", "net_cost_of_pure_insurance", "policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "None specified",
@@ -4998,10 +4212,7 @@
     "capsil_screen": null,
     "formula": "TEMPORAL_STATE_LOOKUP(series_id='ACB-02', duration=iDur - 1)",
     "conditions_constraints": "policy_1st_duration < iDur <= end_of_illustration_projection; preceding unclamped duration must already be evaluated",
-    "depends_on": [
-      "policy_1st_duration",
-      "end_of_illustration_projection"
-    ],
+    "depends_on": ["policy_1st_duration", "end_of_illustration_projection"],
     "allowed_values": [],
     "default_example": null,
     "rounding": "N/A",

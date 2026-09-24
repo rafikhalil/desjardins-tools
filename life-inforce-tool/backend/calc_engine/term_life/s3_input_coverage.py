@@ -1,12 +1,22 @@
-"""Section 3 -- Input Setup: Coverage. term_catalog.json IDs COV-01..COV-13.
-
-COV-12 (coverage_type) and COV-13 (product_type) are blocked pending the
-Product Characteristics reference (see s1_duration.py header for the same
-note) -- every other variable in this section only needs the extract plus
-Section 2's policy variables.
+"""Section 3 -- Input Setup: Coverage. term_catalog.json IDs COV-01..COV-13,
+plus COV-14/COV-15 (joint_type, joint_age_equivalent) added alongside
+COV-12/13 -- all four read product_characteristics.json by
+(coverage_plan_code, rate_scale) = (coverage.planId, coverage.rateScale).
+A plan not yet in that file raises Blocked via PlanNotFound, not a crash --
+see _pc_field below.
 """
+from ..product_characteristics import lookup, PlanNotFound
 from .context import variable, Blocked
 from .dates import parse_date, fmt_date, make_date, days_between_365
+
+
+def _pc_field(ctx, iCov, catalog_id, field):
+    cov = ctx.coverage(iCov)
+    try:
+        row = lookup(cov['planId'], cov['rateScale'])
+    except PlanNotFound as e:
+        raise Blocked(catalog_id, str(e))
+    return row[field]
 
 
 # ------------------------------------------------------------ direct reads
@@ -117,14 +127,29 @@ def coverage_dec31_indicator(ctx, iCov=None, iDur=None, iInsured=None):
     return 0
 
 
-# ------------------------------------------------------------------ blocked
+# ------------------------------------------------------ product characteristics
 @variable('coverage_type')
 def coverage_type(ctx, iCov=None, iDur=None, iInsured=None):
-    # COV-12. Individual vs Joint -- Product Characteristics, not yet available.
-    raise Blocked('COV-12', 'needs the Product Characteristics lookup (not yet available)')
+    # COV-12. 'Individual' or 'Joint'.
+    return _pc_field(ctx, iCov, 'COV-12', 'coverage_type')
 
 
 @variable('product_type')
 def product_type(ctx, iCov=None, iDur=None, iInsured=None):
-    # COV-13. Term vs Permanent -- Product Characteristics, not yet available.
-    raise Blocked('COV-13', 'needs the Product Characteristics lookup (not yet available)')
+    # COV-13. 'Term' or 'Permanent'.
+    return _pc_field(ctx, iCov, 'COV-13', 'product_type')
+
+
+@variable('joint_type')
+def joint_type(ctx, iCov=None, iDur=None, iInsured=None):
+    # COV-14 (added alongside COV-12/13). 'JFTD' / 'JLTD' / 'JLTDPU' when
+    # coverage_type is 'Joint'; null for 'Individual'.
+    return _pc_field(ctx, iCov, 'COV-14', 'joint_type')
+
+
+@variable('joint_age_equivalent')
+def joint_age_equivalent(ctx, iCov=None, iDur=None, iInsured=None):
+    # COV-15 (added alongside COV-12/13). True/False when coverage_type is
+    # 'Joint' (whether Maximum Age, DUR-13, uses the equivalent-age
+    # convention); null for 'Individual'.
+    return _pc_field(ctx, iCov, 'COV-15', 'joint_age_equivalent')

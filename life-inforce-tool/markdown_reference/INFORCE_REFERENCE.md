@@ -56,15 +56,18 @@ inforce-tool/
 │   ├── inforce.html           static shell: top bar, tabs, panes, status bar, toast, pre-load overlay
 │   ├── inforce.css            green palette + every component class
 │   ├── inforce.js             one IIFE: schema, state, render, events, engine hooks, History/pre-load
-│   ├── server.py              local server: static files + ../history_data/ + ../usernames.json routes
-│   └── calc_engine*.py        calculation engine modules (§11) — live here too, code goes in backend/
+│   ├── server.py              local server: static files + ../history_data/ + ../usernames.json + /calc/term_life
+│   └── calc_engine/term_life/ the Term calc engine package (§16) — code goes in backend/
 ├── markdown_reference/
 │   ├── INFORCE_REFERENCE.md   this file
 │   └── INFORCE_INSTRUCTIONS.md   custom instructions for the coding platform
 ├── usernames.json             known users proposed on the pre-load page (server-owned, atomic writes)
 ├── history_data/               saved test cases, one .json per save; history_data/_deleted/ = soft-deletes
-├── calculation_specs/          per-product calculation specs (source screenshots + generated LaTeX)
-└── term_catalog.xlsx / .json   the Term product's variable catalog (§11)
+├── extracts_policy/            dummy policy extracts for testing (§11)
+└── calculation_specs/
+    ├── 1_term_life/            term_catalog.json/.xlsx (§16) + latex-version/ (source screenshots + generated LaTeX)
+    ├── 2_perm_life/            not yet analysed
+    └── 3_critical_illness/     not yet available
 ```
 
 **`inforce.css` shares every component rule byte-for-byte with the sibling
@@ -1016,17 +1019,32 @@ catalog name closely enough to leave alone.
 
 ### What's implemented, and what's blocked on Product Characteristics
 
+`backend/calc_engine/product_characteristics.json` — a per-plan reference
+keyed on `(coverage_plan_code, rate_scale)` (e.g. "plan LT10I, rate scale B:
+premiums end at age 85, coverage ends at age 85") — now exists, loaded and
+looked up through `backend/calc_engine/product_characteristics.py`
+(`lookup()`, shared across product lines: it lives at the `calc_engine/`
+package level, not inside `term_life/`, for when perm_life and critical
+illness need the same file). `s3_input_coverage.py`'s `_pc_field(ctx, iCov,
+catalog_id, field)` is the one helper every product-characteristics-backed
+variable calls; a plan not yet in the file raises `PlanNotFound`, which
+`_pc_field` turns into `Blocked` with the caller's own catalog ID.
+
 Sections 2 (Input Setup - Policy, 13/13) and 3 (Input Setup - Coverage,
-11/13) are fully implemented — everything computable from the extract alone.
-Section 1 (Duration) has 4/16 implemented (DUR-01 through DUR-04); the rest,
-plus `coverage_type` (COV-12) and `product_type` (COV-13), raise `Blocked`
-because they need a **Product Characteristics reference** (a per-plan lookup
-— e.g. "plan LT10I: premiums end after 10 years, coverage ends at age 100")
-that does not exist yet. `term_catalog.json`'s `source` column marks these
-`product_char`. `DUR-16` (`age`) is blocked for a different reason: the
-catalog lists it as a direct CAPSIL read with no dependencies, but the
-extract has no raw age field, only birthdate — whether/how it should be
-computed is still an open question, not yet answered.
+15/15 — COV-12/13 plus the two added alongside them, COV-14 `joint_type` and
+COV-15 `joint_age_equivalent`) are fully implemented. Section 1 (Duration)
+is 11/16 implemented — only DUR-05, DUR-06, DUR-13, DUR-14 and DUR-16 still
+raise `Blocked`, and only because of DUR-16 (`age`): the catalog lists it as
+a direct CAPSIL read with no dependencies, but the extract has no raw age
+field, only birthdate — whether/how it should be computed is still an open
+question, not yet answered. DUR-05/06/13/14 are written as their real
+formulas (not stubs) and simply propagate `Blocked` the moment they call
+`ctx.get('age', ...)` or `ctx.get('maximum_age', ...)` underneath — the
+moment DUR-16 is resolved, all four start working with no further changes.
+DUR-13 (`maximum_age`) has one more edge no current plan can exercise: a
+Joint coverage with `joint_age_equivalent = true` would need an "equivalent
+age" CAPSIL value the extract model doesn't carry at all — every plan in
+`product_characteristics.json` today is `joint_age_equivalent: false`.
 
 Day-counts in `dates.days_between_365` (used by `POL-09` and `COV-08`'s
 Annual-mode branch) deliberately assume a 365-day year with February always

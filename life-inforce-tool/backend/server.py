@@ -36,7 +36,7 @@ import time
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # this file lives in backend/
 DATA = os.path.join(ROOT, 'history_data')
 USERS_FILE = os.path.join(ROOT, 'usernames.json')
-CATALOG_FILE = os.path.join(ROOT, 'term_catalog.json')
+CATALOG_FILE = os.path.join(ROOT, 'calculation_specs', '1_term_life', 'term_catalog.json')
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8001
 NAME = re.compile(r'[A-Za-z0-9_-]{1,100}\.json')   # a bare file name — nothing can land outside history_data/
 MAX_BYTES = 5 * 1024 * 1024

@@ -918,6 +918,7 @@ its `init` section):
 | `registerSnapshot(key, {get, set})`, `getSnapshot(key)`, `setSnapshot(key, data)` | lets a tab offer its own local state to Save/Load — Coverages' Unit Value is the only user |
 | `snapshotState()` | a deep-cloned plain-JSON snapshot of Settings/Insureds/Coverages |
 | `restoreState(snap)` | **the one deliberate WRITE exception** (below) — only ever called from `optimizer_history.js` |
+| `clearState()` | `restoreState` with default Settings and empty lists (its own floors give one blank insured + one blank coverage) — the same exception, same caller: the top bar's **Clear** button (§2h) |
 | *lent by tab files, after they load* | Rates: `allCovRate`, `bandTotals`, `bandFinalTotals`, `bandAt`, `bandTotalsAll` · Coverages: `modalPrem`, `modalPremBackdated`, `highestAmt`, `premBasis` · Backdate: `backdateEligible`, `finalBackdateDate`. Callers must tolerate `undefined` until then (Results does — `highestAmtFor` etc. return `null`) |
 
 `notifyOptimizerCoreChange()` (private to `optimizer.js`) fires this on
@@ -1245,7 +1246,7 @@ one file.
 In order: the **message bar** (§13; not History's), **Test Case Name**
 (`#tcName`, ≤ 60 characters), the **user chip** `#tcUser` (filled by the
 pre-load page, §14.3 — name as text, initials in `data-ini`), **Save Test**
-(`#btnSaveTest`), then the theme button. (There is no Username dropdown any more —
+(`#btnSaveTest`), **Clear** (`#btnClear` — resets the whole test case: default Settings with the Reference Date back to today, one blank Insured, one blank Coverage, Unit Values back to their default (1,000) and the Test Case Name emptied; returns to Input & Results; **no confirmation and no undo**, like every other removal on this page — nothing is saved to History), then the theme button. (There is no Username dropdown any more —
 the pre-load page chooses the user.)
 
 **Save Test** requires a non-blank name (red box, a toast and a message-bar
@@ -1582,7 +1583,7 @@ All of these are in `optimizer.css` and ready to use.
 | Region | IDs |
 |---|---|
 | Tool switcher | `brandBlock`, `toolSelect`, `toolMenu` |
-| Top bar | `btnTheme`; `tcName`, `tcUser`, `btnSaveTest` (Save Test, §2h — static markup, wired by `optimizer_history.js`) · the message bar (§13): `issues`, `issuesBox`, `issuesTxt`, `issuesNav`, `issuesN`, `issuesUp`, `issuesDown`, `issuesX`, `issuesPop` (wired by `initIssueBar()` in `optimizer.js`) |
+| Top bar | `btnTheme`; `tcName`, `tcUser`, `btnSaveTest`, `btnClear` (Save Test / Clear, §2h — static markup, wired by `optimizer_history.js`) · the message bar (§13): `issues`, `issuesBox`, `issuesTxt`, `issuesNav`, `issuesN`, `issuesUp`, `issuesDown`, `issuesX`, `issuesPop` (wired by `initIssueBar()` in `optimizer.js`) |
 | Pre-load page | `preload`, `plTitle`, `plRate_termLife`, `plRate_permLife` (`data-state` = `notloaded` / `loading` / `loaded`), `plLabel`, `plBar`, `plRetry`, `plStart`, `plHint`, `plSkip` (dev bypass) — wired by `optimizer_preload.js`; the rate rows by `optimizer_rates.js` (§14.3) |
 | Tabs | `tabList`, `hdrStamp` (empty; reserved for an "as of" stamp) |
 | Panes | `panes` (host), then one per tab: `optInput`, `optCoverages`, `optInsureds`, `optRates`, `optBackdate`, `optHistory` |
@@ -1659,6 +1660,7 @@ rejected must use `badInput`/`goodInput` (§13, §9 #47).
 | `#historyTabHost` | `click` | Load/Delete (`data-act="load-tc"`/`"del-tc"`) delegation, Import Test Case trigger (§2h) |
 | `#historyImportFile` | `change` | reads the picked `.json` file, adds it to the catalog |
 | `#btnSaveTest` | `click` | `doSaveTest()` (§2h) — lives in `optimizer_history.js` though the button itself is in the static top bar, not a tab pane |
+| `#btnClear` | `click` | `doClear()` (§2h) — `core.clearState()`, `setSnapshot('unitValues', {})` (each coverage re-defaults to 1,000), empties `#tcName`; in `optimizer_history.js` like Save Test |
 | `#tcName` | `keydown` | Enter triggers `doSaveTest()`, same as blurring a `data-fk` field commits elsewhere |
 | `#issuesUp` / `#issuesDown` / `#issuesX` / `#issuesTxt` | `click` | previous / next message (wrapping) · clear the one shown (**Shift+click clears all**) · toggle the full-text popup (Enter/Space too) — `initIssueBar()` |
 | `document` | `click` | (also) close the message popup when the click is outside `#issuesBox` |

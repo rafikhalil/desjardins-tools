@@ -577,15 +577,18 @@
      top-right on Input & Results. Page-level, not per-insured: `refDate` is
      what every insured's Age Real / Age Calculated is measured against
      (§ dates/ages above), so changing it recomputes every insured card. */
-  var settings = {
-    refDate: todayStr(),
-    mcd: false,            // Multi-Coverage Discount — no stated default; off until the operator opts in
-    freq: '',              // Payment Frequency — no default; blank until the operator picks one
-    premAdjPct: 100,       // Prem. Adj. % — 100% ("unchanged") is the stated default for a multiplicative factor
-    premAdjPctDur: 0,      // Prem. Adj. % Dur. — stated default; see the field's own `min: 0` note below
-    premAdjAmt: 0,         // Prem. Adj. $ — stated default, an additive adjustment so 0 means "none"
-    premAdjAmtDur: 0       // Prem. Adj. $ Dur. — stated default; see the field's own `min: 0` note below
-  };
+  function defaultSettings() {   // a function, not a literal: Clear (clearState, § save/load) needs a fresh copy
+    return {
+      refDate: todayStr(),
+      mcd: false,            // Multi-Coverage Discount — no stated default; off until the operator opts in
+      freq: '',              // Payment Frequency — no default; blank until the operator picks one
+      premAdjPct: 100,       // Prem. Adj. % — 100% ("unchanged") is the stated default for a multiplicative factor
+      premAdjPctDur: 0,      // Prem. Adj. % Dur. — stated default; see the field's own `min: 0` note below
+      premAdjAmt: 0,         // Prem. Adj. $ — stated default, an additive adjustment so 0 means "none"
+      premAdjAmtDur: 0       // Prem. Adj. $ Dur. — stated default; see the field's own `min: 0` note below
+    };
+  }
+  var settings = defaultSettings();
 
   var SETTINGS_FIELDS = [
     { k: 'refDate', l: 'Reference Date', t: 'date', ph: 'DD-MMM-YYYY' },
@@ -2050,6 +2053,12 @@
     renderInsuredList();
   }
 
+  /** Clear = restore a blank test case: default Settings (Reference Date back to today) and — the
+      empty lists tripping restoreState's own floors — one blank insured and one blank coverage.
+      The second write exception on the bridge, same caller (optimizer_history.js, which also
+      resets Unit Value and the Test Case Name, both of which live outside this model). */
+  function clearState() { restoreState({ settings: defaultSettings() }); }
+
   // ------------------------------------------------- input-state diagnostics
   /* What is wrong with the INPUTS themselves — the cases the field-by-field
      validators can't catch because they only see one field at a time: the
@@ -2266,7 +2275,8 @@
     /** The one deliberate WRITE exception to this otherwise read-only bridge
         — restoring a saved test case (§ save/load, above). Only ever called
         from optimizer_history.js. */
-    restoreState: restoreState
+    restoreState: restoreState,
+    clearState: clearState   // … and its blank-slate twin (the top bar's Clear button)
   };
 
   // ------------------------------------------------------------------ init

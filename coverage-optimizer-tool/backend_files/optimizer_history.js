@@ -223,6 +223,21 @@
     toast('Loaded "' + entry.name + '".');
   }
 
+  /** The top bar's Clear: a blank test case — Settings, Insureds, Coverages (core.clearState), Unit
+      Value and the Test Case Name. Same restore-then-Unit-Value order as doLoad, and no confirmation,
+      like every other removal on this page (doDelete, Remove on a coverage/insured). */
+  function doClear() {
+    core.clearState();
+    core.setSnapshot('unitValues', {});
+    $('tcName').value = '';
+    $('tcName').classList.remove('fi--bad');
+    $('tcName').title = 'Test Case Name';
+    core.resolve('h:name');
+    var tabBtn = document.querySelector('.tab[data-pane="optInput"]');
+    if (tabBtn) tabBtn.click();
+    toast('Test case cleared.');
+  }
+
   function doDelete(id) {
     var entry = null;
     catalog.forEach(function (e) { if (e.id === id) entry = e; });
@@ -391,6 +406,7 @@
     // Save Test / Test Case Name live in the static top bar (optimizer.html),
     // not inside #historyTabHost — wired here anyway, per the file header.
     $('btnSaveTest').addEventListener('click', doSaveTest);
+    $('btnClear').addEventListener('click', doClear);
     $('tcName').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); doSaveTest(); }
     });

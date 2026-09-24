@@ -193,7 +193,7 @@
     var rows = unionDates(datesCurrent, datesBackdated).map(function (u) {
       var t = u.date.getTime();
       var payC = u.inA ? series.current[yearOfCurrent[t]] : 0, payB;
-      if (t === firstBackdated) payB = proratedBackdated;
+      if (t === firstBackdated) payB = proratedBackdated + (t === firstCurrent ? annualBackdated : 0);   // same day (Backdate Date = Illustration Date): both pieces, else year 0 is never billed
       else if (t === firstCurrent) payB = annualBackdated;
       else if (u.inA) payB = series.backdated[yearOfCurrent[t]];   // same year-index as Current — see the doc comment above
       else payB = 0;                          // subsequent Backdated-only anniversaries — checkpoint
@@ -205,11 +205,7 @@
   }
 
   /** Monthly branch — union of monthly anniversaries on each side, full
-      premium on each side's own dates, no prorating. `searchMonths` is the
-      script's own horizon-sizing heuristic (how far out a stable crossing
-      could plausibly need); ported as-is since it costs nothing here and the
-      eventual Savings Date logic (TO_DO C-3) will want the same horizon. */
-  /** `series` is buildYearSeries()'s own { current, backdated } arrays. Independent per-side
+      premium on each side's own dates, no prorating. `series` is buildYearSeries()'s own { current, backdated } arrays. Independent per-side
       clocks — confirmed by the requester's own worked example (each side keeps its OWN monthly
       schedule and its OWN renewal date, whichever comes first): month i on a side belongs to
       elapsed policy year floor(i/12) on THAT side's own schedule, unrelated to what the other side
@@ -447,6 +443,7 @@
     var maxBackdate = subtractMonths(illustration, 6), best = null, unresolved = null;
     core.insureds().forEach(function (ins) {
       if (!ins.birthdate || !core.parseDate(ins.birthdate)) return;   // nothing to contribute
+      if (!core.coverages().some(function (c) { return c.insureds.some(function (s) { return s.insuredId === ins._id; }); })) return;   // on no coverage: nothing to backdate
       var r = insuredBackdate(ins, illustration, maxBackdate);
       if (r.unresolved) unresolved = unresolved || r.unresolved;
       else if (r.date && (!best || r.date.getTime() < best.getTime())) best = r.date;

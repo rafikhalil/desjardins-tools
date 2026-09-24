@@ -45,9 +45,8 @@
  *     picker handles both; detectAndIngest() tells them apart by which sheet
  *     names the workbook itself has ("temp_rates_" vs "perm_rates_"), so
  *     there's one drop point instead of a button per category. Term Life
- *     keeps every Duration 1-100 it finds, not just Duration 1 — only
- *     Duration 1 is read anywhere today (§ lookupTermLifeRate's own default),
- *     but a later feature needing another duration won't need a re-import.
+ *     keeps every Duration 1-100 it finds — the tables read Duration 1, the
+ *     Backdate Projection every later one (bandTotalsAtYear).
  *   - PR_i / PR_BD_i are wired (baseRateResult(), § below) — the ported old
  *     workbook formula: Term Life always uses the individual insured's own
  *     Age Nearest/Last (Calculated) at Duration 1; Permanent Life Individual
@@ -57,8 +56,8 @@
  *     equivalent single age of the two insureds, calculated in optimizer.js
  *     (equivAge), not typed. PR_BD_i is the identical lookup at (age - 1); on
  *     a joint coverage it is Joint Age Backdated — equivAge re-run with each
- *     Backdate-Eligible insured a year younger. Neither is the Backdate tab's
- *     real backdated age (TO_DO C-2). A lookup that runs but can't resolve a number (no Axis
+ *     Backdate-Eligible insured a year younger (age - 1 is the confirmed
+ *     production rule). A lookup that runs but can't resolve a number (no Axis
  *     Key yet, no rate file loaded, no matching row, no birthdate, no Joint Age)
  *     renders core's the new .cell-error "Error" cell, not a silent blank —
  *     the old formula's IFERROR(...;"") reinterpreted as a visible failure
@@ -163,10 +162,8 @@
 
   // ------------------------------------------------------------- workbook
   /* termLifeTables[suffix][axisKey][duration][age] = rate. Every Duration
-     1-100 is kept, not just Duration 1 — only Duration 1 is actually READ
-     anywhere today, but re-importing the whole workbook once a later
-     feature needs another duration is wasteful when it's no harder to keep
-     all of it the first time. Populated by ingestTermLifeWorkbook(); empty
+     1-100 is kept: the tables read Duration 1, the Backdate Projection
+     every later one (bandTotalsAtYear). Populated by ingestTermLifeWorkbook(); empty
      until a file is loaded (the pre-load page does that on every launch —
      loadFromRatesFolder(), below). */
   var termLifeTables = {};
@@ -643,7 +640,7 @@
       PR_BD_i — PR_BD_i is the exact same lookup at (Age Nearest/Last
       Calculated - 1), not a real backdated age (Backdate and Rates stay
       deliberately unwired, §9 invariant #39).
-        - Term Life: always the individual insured's own age, Duration 1 —
+        - Term Life: always the individual insured's own age, Duration elapsedYears + 1 (1 on the tables) —
           Coverage Type never matters for Term Life in the old formula.
         - Permanent Life: no duration axis. Individual: the insured's own age
           and Sex/Rate. Joint First-to-Die / Joint Last-to-Die / JLTDPU: the

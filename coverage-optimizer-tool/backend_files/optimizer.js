@@ -363,6 +363,10 @@
     // reference date (settings.refDate), not always literally today.
     var dt = parseDate(s);
     if (!dt) return { ok: false, msg: f.l + ' must be a valid date — ' + DATE_FORMATS };
+    // The 30-day borrow (agesAt) gives age 0, not -1, to a birthdate up to a month AFTER the
+    // Reference Date, so the age range below can't catch it.
+    var ref = parseDate(settings.refDate);
+    if (ref && dt > ref) return { ok: false, msg: f.l + ' can\'t be after the Reference Date (' + settings.refDate + ')' };
     var check = agesAt(fmtDate(dt), settings.refDate);
     if (check.real === null || check.real < 0 || check.real > 120 ||
         check.nearest === null || check.nearest < 0 || check.nearest > 120) {
@@ -869,7 +873,7 @@
      lives, so the spec's more-than-two-lives loop (3B, FTD) never applies.
      `backdated`: each insured Backdate Eligible (core.backdateEligible, the
      eligibility alone — Confirm Backdate reads rates, which read this) is a
-     year younger (the same "age - 1" stand-in as the Rates _BD columns, C-2).
+     year younger (the same confirmed "age - 1" as the Rates _BD columns).
      Returns { v } or { why, err } — err: the inputs are all there but the
      spec has no answer (JLTDPU under 18). */
   function eqIdx(tops, x) { for (var i = 0; i < tops.length; i++) if (x <= tops[i]) return i; return tops.length - 1; }
@@ -2078,8 +2082,10 @@
         out.push({ key: 'd:bd:' + i._id, msg: who + 'isn\'t a valid date (' + DATE_FORMATS + ').' });
         return;
       }
-      var a = agesAt(i.birthdate, settings.refDate);
-      if (a.real !== null && (a.real < 0 || a.real > 120)) {
+      var a = agesAt(i.birthdate, settings.refDate), ref = parseDate(settings.refDate);
+      if (ref && parseDate(i.birthdate) > ref) {
+        out.push({ key: 'd:age:' + i._id, msg: who + 'is after the Reference Date ' + settings.refDate + '. Change the Birthdate or the Reference Date.' });
+      } else if (a.real !== null && (a.real < 0 || a.real > 120)) {
         out.push({ key: 'd:age:' + i._id, msg: who + 'gives an age of ' + a.real + ' at the Reference Date ' + settings.refDate +
           ' — it must be between 0 and 120. Change the Birthdate or the Reference Date.' });
       }

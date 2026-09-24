@@ -869,7 +869,7 @@ shared `.ins thead th` rule — do not edit the shared rule).
 | Modal Premium | Σ of every coverage's Modal Prem. (`premiumTotal('modalPrem')`) |
 | Modal Premium Backdated | Σ of every coverage's Modal Prem. Backdated |
 | Possible Backdate Date | the Backdate tab's Final Backdate Date (`core.finalBackdateDate`) |
-| Backdate Savings Date | **amber** — waits on the Backdate Projection's Monthly / Annual Savings Date (whichever Payment Frequency picks; *TO_DO C-3*) |
+| Backdate Savings Date | the Backdate Projection's Monthly / Annual Savings Date, whichever Payment Frequency picks (§12.12) |
 
 A total is never partial: an Error anywhere ⇒ Error; pending ⇒ pending;
 blocked ⇒ blocked (`summaryValue`). Results **re-renders** on every
@@ -1194,7 +1194,7 @@ insured's own date cannot be resolved).
 | 6 | Midpoint (Possible Backdate) | rounded-half-up midpoint; day 29–31 → 28 |
 | 7 | Next Birthday | the birthday after the Illustration Date |
 | 8 | Backdate Eligible | `AND(Midpoint ≥ Max. Backdate Date; Midpoint ≤ Illustration Date)` |
-| 9 | Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` (informational; not yet used by the Rates `_BD` columns, *TO_DO C-2*) |
+| 9 | Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` (informational; the Rates `_BD` columns use a flat age − 1, confirmed — §12.5) |
 | 10 | Rate Current (All Cov.) | `core.allCovRate(insuredId, false)` — Σ of PR_N over the insured's coverages |
 | 11 | Rate Backdated (All Cov.) | `core.allCovRate(insuredId, true)` — Σ of PR_BD_N |
 | 12 | Confirm Backdate | `Eligible AND Rate Backdated < Rate Current` |
@@ -1220,9 +1220,10 @@ A **Show Projection** switch in the band (`.switch`, `data-act="toggle-bdproj"`,
 `#bdProjBody`; the band stays visible. Two amber pills — **Monthly Savings
 Date**, **Annual Savings Date** — and a six-column table (**Date, Premium
 Current, Cumul. Prem. Current, Premium Backdated, Cumul. Prem. Backdated,
-Difference**) whose *header* cells are amber. **No formulas and no row rule have
-been given, so no rows are generated** — a single "Formulas not yet provided"
-placeholder stands in (*TO_DO C-3*).
+Difference**). All built — formulas in §12.12. A row is highlighted from the
+first one that counts as saved (Annual: the Annual Savings Date's own test;
+Monthly: Difference > 0). An insured on no coverage is left out of the Final
+Backdate Date (nothing to backdate).
 
 Date primitives (`optimizer_backdate.js`): `subtractMonths`, `birthdayInYear`,
 `surroundingBirthdays`, `midpointDate`, `eligibility`, `insuredBackdate`,
@@ -2327,7 +2328,7 @@ A total is **never a partial sum**: an Error anywhere makes the total an Error; 
   rate lookup, the Equivalent Age (§12.6) and the Insureds tab use.
 - **Measured against `settings.refDate`** (the "Illustration Date"), never
   today. A Reference Date day of 29/30/31 is stored as 28 (any month).
-- **Backdated age** — today a stand-in: `age − 1` (*assumption — TO_DO C-2*).
+- **Backdated age** — a flat `age − 1` (confirmed production rule, 2026-09-21).
   The Backdate tab also computes a "Backdated Age Nearest/Last" at the
   Midpoint date (§12.7); the Rates `_BD` columns do **not** use it yet.
 
@@ -2745,8 +2746,9 @@ per-year rate (above) and a per-year context, `premContextAtYear`. Unlike
 `premContext` (§12.8, unchanged — an already-shipped figure), this one gates
 the 4 duration-limited inputs by `elapsedYears < …Dur` (0 = never applies,
 confirmed): Settings' *Prem. Adj. %/$ Dur.*, a slot's own *Term $ Dur.*
-(`termExtraPremAtYear`), and the Joint container's *Flat Term $ Dur.* — see
-*TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
+(`termExtraPremAtYear`). The Joint container's *Flat Extra Prem. $ Term* and
+its *Duration* are **not** used (a joint coverage prices Flat Perm $ alone, as
+Modal Prem. does — R-9; open question *TO_DO R-16*) — see *TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
 Dur field is in play. An Input Premium coverage's insurance amount is
 resolved **once**, at today's rates (`premBasis`, the same figure Coverages/
 Results already show), then re-priced at each year's own rate — not re-solved
@@ -3134,9 +3136,9 @@ The rate workbooks are confidential and stay on the work machine. `rates/` is
 later (C-n), **2** assumptions to review (R-n), **3** open questions (Q-n), **4**
 suggestions (S-n), then **5 Done**. Every "later / put aside / review later"
 goes there in the same change; finished items move to *Done*. Open items at the
-time of writing: real backdated age in `_BD` (C-2), Backdate Projection (C-3),
+time of writing:
 History "Total Modal Premium" (C-4), the two "Joint Extra Prem. Backdated"
-columns (C-5), Critical Illness (C-6), Term durations > 1 (C-7), a calculated
+columns (C-5), Critical Illness (C-6), a calculated
 Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-10; the
 review R-12 (the 2017 products' assumptions).
 

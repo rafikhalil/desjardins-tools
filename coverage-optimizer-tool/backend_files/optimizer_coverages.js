@@ -275,8 +275,8 @@
   }
 
   /** premContext(), generalised to a specific elapsed policy YEAR — everything the Modal Prem. LET()
-      needs, with the 4 duration-limited inputs (Prem. Adj. %/$ Dur., a slot's own Term $ Dur., the
-      Joint's own Flat Term $ Duration — folded into termExtraPremAtYear above) applied only while
+      needs, with the duration-limited inputs (Prem. Adj. %/$ Dur., a slot's own Term $ Dur. — folded
+      into termExtraPremAtYear above; the Joint's Flat Term $ / Duration are not used, TO_DO R-16) applied only while
       their own duration still covers this year (0 = never, confirmed by the requester). Coverage
       Fee, Unit Value and the Modal Factor stay constant — only the rate and these four vary by year.
       Deliberately a SEPARATE function from premContext(), not a generalisation of it: today's single-

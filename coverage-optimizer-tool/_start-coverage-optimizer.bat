@@ -14,7 +14,8 @@ if %errorlevel%==0 (
     set PYCMD=python
 ) else (
     where py >nul 2>nul
-    if %errorlevel%==0 (
+    rem not %%errorlevel%%: inside this block it was already expanded before "where py" ran
+    if not errorlevel 1 (
         set PYCMD=py
     ) else (
         echo Python was not found on PATH.

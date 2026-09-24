@@ -11,9 +11,13 @@ MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 
 
 
 def parse_date(s):
-    """'21-JUN-2018' -> date(2018, 6, 21)."""
-    d, mon, y = s.split('-')
-    return date(int(y), MONTHS.index(mon.upper()) + 1, int(d))
+    """'21-JUN-2018' -> date(2018, 6, 21). A blank or malformed value (e.g. an
+    empty CAPSIL date) raises with the value itself, not an unpacking error."""
+    try:
+        d, mon, y = s.split('-')
+        return date(int(y), MONTHS.index(mon.upper()) + 1, int(d))
+    except (AttributeError, ValueError):
+        raise ValueError('expected a valid DD-MMM-YYYY date, got %r' % (s,)) from None
 
 
 def fmt_date(d):

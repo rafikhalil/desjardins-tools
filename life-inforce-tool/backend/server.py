@@ -32,6 +32,7 @@ import re
 import sys
 import tempfile
 import time
+import unicodedata
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # this file lives in backend/
 DATA = os.path.join(ROOT, 'history_data')
@@ -109,7 +110,8 @@ def run_term_life_calc(data):
 
 
 def derive_initials(name, taken):
-    letters = re.findall(r"[A-Za-z]+", name)
+    # Fold accents first: "Élise Côté" -> "ec", not "lct" ([A-Za-z] alone skips É).
+    letters = re.findall(r"[A-Za-z]+", unicodedata.normalize('NFKD', name).encode('ascii', 'ignore').decode())
     base = ''.join(w[0] for w in letters).lower() or 'u'
     if base not in taken:
         return base
@@ -257,5 +259,8 @@ class Handler(http.server.SimpleHTTPRequestHandler):
 
 
 if __name__ == '__main__':
+    # On Windows SO_REUSEADDR lets a second server bind a port an old one still
+    # holds, and the old one keeps answering with stale code. Fail loudly instead.
+    http.server.ThreadingHTTPServer.allow_reuse_address = sys.platform != 'win32'
     print('Inforce Tool server: http://localhost:%d/backend/inforce.html  (Ctrl+C to stop)' % PORT)
     http.server.ThreadingHTTPServer(('127.0.0.1', PORT), Handler).serve_forever()

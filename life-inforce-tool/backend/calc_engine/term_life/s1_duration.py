@@ -67,28 +67,24 @@ def end_of_illustration_projection(ctx, iCov=None, iDur=None, iInsured=None):
 @variable('expiration_type')
 def expiration_type(ctx, iCov=None, iDur=None, iInsured=None):
     # DUR-07. 'A' never ends, 'B' predetermined years, 'C' predetermined age.
-    from .s3_input_coverage import _pc_field
     return _pc_field(ctx, iCov, 'DUR-07', 'expiration_type')
 
 
 @variable('end_of_premium_type')
 def end_of_premium_type(ctx, iCov=None, iDur=None, iInsured=None):
     # DUR-12. 'A' predetermined years, 'B' predetermined age, 'C' never ends.
-    from .s3_input_coverage import _pc_field
     return _pc_field(ctx, iCov, 'DUR-12', 'end_of_premium_type')
 
 
 @variable('end_of_premium_age_or_duration')
 def end_of_premium_age_or_duration(ctx, iCov=None, iDur=None, iInsured=None):
     # DUR-09.
-    from .s3_input_coverage import _pc_field
     return _pc_field(ctx, iCov, 'DUR-09', 'end_of_premium_age_or_duration')
 
 
 @variable('end_of_coverage_age_or_duration')
 def end_of_coverage_age_or_duration(ctx, iCov=None, iDur=None, iInsured=None):
     # DUR-11.
-    from .s3_input_coverage import _pc_field
     return _pc_field(ctx, iCov, 'DUR-11', 'end_of_coverage_age_or_duration')
 
 

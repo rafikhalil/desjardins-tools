@@ -322,7 +322,11 @@ block the page: it shows in yellow, and the rate lookups that need it say so (§
 that would put either Age Real or Age Calculated outside 0–120 (checked
 against the *current* reference date) is rejected at commit, with the
 previous valid value left in place — it never reaches a derived row as an
-out-of-range figure.
+out-of-range figure. **A birthdate after the Reference Date is rejected too**
+(its own check, before the age range): the 30-day borrow below gives a
+birthdate up to a month in the future an age of **0**, not −1, so the range
+check alone let it through (the Backdate tab then showed a Past Birthday
+before the birth).
 
 **The age algorithm is a specific, exact stepwise procedure, not the "actual
 midpoint" heuristic an earlier draft used.** `agesAt(birth, asOf)` must
@@ -353,6 +357,14 @@ agreement with the other platform this tool validates against. `real` is the
 is step 4's result. Verified against hand-traced cases (22-JUL-1974 vs
 01-JAN-2026 → 51/51; 15-MAR-1990 vs 01-JAN-2026 → 35/36) before being
 committed — reproduce those two before trusting any change to this function.
+
+**Known edge of the algorithm as written (*TO_DO R-18*, not changed):** step 3's
+borrow can take `months` to −1 after step 2 has already run, and nothing borrows
+the year back — so in the up-to-30 days before a birthday that falls in the
+Reference Date's own month, Age Real reads one year too old (20-SEP-1990 at
+15-SEP-2026 → Real **36**, Nearest 36; true age last birthday is 35). Only
+"Last Birthday" insureds are affected. Kept as specified until production's
+behaviour is confirmed; the fix would be one line after step 3.
 
 The two derived cells are **not** rendered through the field-control system at
 all (no `.fi--ro`, no `data-fk`) — they're plain text, the `.rs-k`/`.rs-v`
@@ -1794,9 +1806,9 @@ existed to port), which is exactly why Rates vendors `xlsx.full.min.js`
    There is no baseline on this page to soft-withdraw against, so no
    restore/undo is expected here the way Inforce offers one for an imported
    life.
-10. A birthdate that would put Age Real or Age Calculated outside 0–120 is
-    rejected at commit (against the *current* reference date), not clamped or
-    silently accepted.
+10. A birthdate that would put Age Real or Age Calculated outside 0–120, or
+    that falls after the Reference Date, is rejected at commit (against the
+    *current* reference date), not clamped or silently accepted.
 11. `agesAt` implements the exact stepwise algorithm specified for this tool
     (§ "Insured Input"), not the "actual midpoint" heuristic `inforce.js`
     uses for its own, differently-scoped age math. Do not merge the two or
@@ -2148,8 +2160,9 @@ rate files — with the real ones on the work machine, or a small synthetic work
       `Age Nearest`; Remove disabled at one. One row of seven cells. Ages:
       reference date `01-JAN-2026`, `22-JUL-1974` → Real 51 / Nearest 51;
       `15-MAR-1990` → 35 / 36 **(Δ)**. Age Calculated's label reads *Age Nearest* /
-      *Age Last*. A Name > 30 characters or an age outside 0–120 is rejected (red box,
-      toast, **message in the bar**, record unchanged).
+      *Age Last*. A Name > 30 characters, an age outside 0–120 or a Birthdate after
+      the Reference Date is rejected (red box, toast, **message in the bar**, record
+      unchanged).
 - [ ] **Coverage Input** starts with one coverage: Category, Coverage, Coverage Type
       **blank and highlighted**; Calculation Type = *Coverage Amount*; Input blank.
       Input is a **whole number** for Coverage Amount and **2 decimals** for Input
@@ -2198,6 +2211,9 @@ Use these before trusting any change to §12.
 - [ ] **Backdate**: Final Backdate Date of 13-JUL-2026 / blank / 24-MAY-2026 =
       24-MAY-2026; a non-eligible insured shows a real `FALSE` and a blank date; Max.
       Backdate Date = Illustration Date − 6 months; a Midpoint on day 29–31 shows 28.
+      An eligible insured on **no** coverage doesn't blank the Final Backdate Date.
+      Annual projection with the Backdate Date **on** the Illustration Date: the first
+      row bills the full year-0 Backdated premium (not 0.00).
 - [ ] Results **Modal Prem** and **Modal Prem Backdated** equal the Coverages tab's;
       Summary Modal Premium = the sum of the rows; a non-backdatable insured gives
       Backdated = Modal Prem.
@@ -2322,7 +2338,8 @@ A total is **never a partial sum**: an Error anywhere makes the total an Error; 
 ### 12.1 Ages
 
 - **Age Real / Age Nearest** — the stepwise 30-day-month algorithm of §2
-  (`agesAt`). Never re-implement it; never use Inforce's.
+  (`agesAt`). Never re-implement it; never use Inforce's. Known edge: Age Real
+  is one year too old just before a same-month birthday (§2, *TO_DO R-18*).
 - **Age used everywhere ("Age Calculated")** = Age Real if the insured's own
   *Age Calculation* is "Last Birthday", else Age Nearest. This is the age every
   rate lookup, the Equivalent Age (§12.6) and the Insureds tab use.
@@ -2475,7 +2492,10 @@ backdated (`_BD`):
 **unless** the insured is *Backdate Eligible* (§12.7) **and** the backdated
 value is **strictly lower** — then the backdated one. The `_BD` value is only
 looked up for an eligible insured, so a missing `_BD` row cannot spoil an
-insured who keeps `_N`. Eligibility unknown (blank/invalid birthdate) ⇒ Error,
+insured who keeps `_N`. **On a joint Perm coverage only Insured 1 is counted,
+so only Insured 1's eligibility is asked** — if only Insured 2 is eligible, the
+lower Joint Age Backdated is ignored and the result depends on slot order
+(*TO_DO R-17*, open). Eligibility unknown (blank/invalid birthdate) ⇒ Error,
 never a guess (*TO_DO R-8*).
 
 **Totals** (Rates tab right-hand block, and the inputs to Modal Prem.):
@@ -2593,7 +2613,7 @@ calendar dates.
 | Rate Backdated (All Cov.) | the same Σ of **PR_BD_N** |
 | **Confirm Backdate** | `Eligible AND (Rate Backdated < Rate Current)` — strict `<`, tolerant of float noise (1e-9). Not eligible ⇒ a real `FALSE` (`AND(FALSE; anything)`); eligible with a rate that could not be resolved ⇒ that rate's own state |
 | **Backdate Date** | the Midpoint when Confirm Backdate is TRUE, else blank |
-| **Final Backdate Date** (band) | the **earliest** Backdate Date among insureds, blanks ignored (13-JUL-2026 / blank / 24-MAY-2026 → 24-MAY-2026). None ⇒ muted "no insured is backdatable"; an unresolved insured makes the MIN unknowable, so that state wins |
+| **Final Backdate Date** (band) | the **earliest** Backdate Date among insureds, blanks ignored (13-JUL-2026 / blank / 24-MAY-2026 → 24-MAY-2026). Insureds with no valid birthdate **or on no coverage** are left out (nothing to backdate — before 2026-09-23 an eligible insured on no coverage blanked the date, the projection and the Summary). None ⇒ muted "no insured is backdatable"; an unresolved insured makes the MIN unknowable, so that state wins |
 
 Feeds the Results Summary's *Possible Backdate Date*. The **Backdate
 Projection** container (savings dates + 6-column table) is built — §12.12.
@@ -2748,7 +2768,9 @@ the 4 duration-limited inputs by `elapsedYears < …Dur` (0 = never applies,
 confirmed): Settings' *Prem. Adj. %/$ Dur.*, a slot's own *Term $ Dur.*
 (`termExtraPremAtYear`). The Joint container's *Flat Extra Prem. $ Term* and
 its *Duration* are **not** used (a joint coverage prices Flat Perm $ alone, as
-Modal Prem. does — R-9; open question *TO_DO R-16*) — see *TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
+Modal Prem. does — R-9; open question *TO_DO R-16*: filling the Term side
+while Flat Perm $ is blank also blocks Modal Prem., since the Perm box is then
+locked blank) — see *TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
 Dur field is in play. An Input Premium coverage's insurance amount is
 resolved **once**, at today's rates (`premBasis`, the same figure Coverages/
 Results already show), then re-priced at each year's own rate — not re-solved
@@ -2782,6 +2804,14 @@ old two-constant version), just fed a year index instead of a constant:
   too; there is no separate Backdated-side clock to track here. Year 0 is
   still split into a prorated piece + a remainder piece (paid on Current's
   first anniversary), both priced at year 0's Backdated rate (*TO_DO R-13*).
+  When the Backdate Date **is** the Illustration Date the two land on the same
+  row, which bills **both** (prorated = 0, remainder = the full year-0
+  premium). The original script's `np.where` chain only ever took the first
+  branch there, so year 0 was never billed and every Difference was one full
+  premium too high — fixed 2026-09-23.
+- **Row highlight** (`.cell-pos`, `r.saved`): Annual — the Annual Savings
+  Date's own test, `Difference ≥ prorated year-0 Backdated premium`, so the
+  first highlighted row *is* that date; Monthly — `Difference > 0`.
 - **Monthly:** fully **independent** per-side clocks — each side bills
   monthly on its own schedule, at whatever elapsed-year rate applies to *it*,
   with no cross-side alignment (confirmed via a worked example: Backdated
@@ -2896,7 +2926,7 @@ Text: `<where>: <validator message>`; *where* = `Insured Input — <name>`,
 |---|---|---|
 | A-1 | Insured Name | blank, or > 30 characters |
 | A-2 | Insured Sex / Rate / Age Calculation | not one of the options |
-| A-3 | Insured Birthdate | not a valid date (`DD-MMM-YYYY`, `YYYY-MM-DD`, `YYYYMMDD`, `YYYY/MM/DD`); or Age Real / Age Calculated would fall outside 0–120 at the Reference Date |
+| A-3 | Insured Birthdate | not a valid date (`DD-MMM-YYYY`, `YYYY-MM-DD`, `YYYYMMDD`, `YYYY/MM/DD`); or it is after the Reference Date (`Birthdate can't be after the Reference Date (…)`); or Age Real / Age Calculated would fall outside 0–120 at the Reference Date |
 | A-4 | Settings Reference Date | not a valid date |
 | A-5 | Settings Prem. Adj. % / $ / Dur. | not a number; not whole (Dur.); more than 2 decimals ($); below min / above max (%: 0–1,000,000; $: 0–999,999,999.99; Dur.: 0–999) |
 | A-6 | Coverage Fee / Input | not a number; not whole (Coverage Amount); > 2 decimals (money, Input Premium); out of range (fee ≤ 999,999,999.99; amount ≤ 999,999,999) |
@@ -2910,7 +2940,7 @@ Text: `<where>: <validator message>`; *where* = `Insured Input — <name>`,
 |---|---|---|
 | B-1 | Reference Date is not a valid date (only possible via a loaded/hand-edited file) | `Settings — Reference Date "…" isn't a valid date …, so no age can be calculated` |
 | B-2 | An insured's Birthdate is present but unparseable (loaded file) | `Insured Input — <name>: Birthdate "…" isn't a valid date` |
-| B-3 | An insured's age is outside 0–120 **because the Reference Date was changed afterwards** (the field validator only checks at entry) | `… gives an age of n at the Reference Date … — it must be between 0 and 120` |
+| B-3 | An insured's Birthdate is after the Reference Date, or their age is outside 0–120, **because the Reference Date was changed afterwards** (the field validator only checks at entry) | `… is after the Reference Date …` or `… gives an age of n at the Reference Date … — it must be between 0 and 120` (same key `d:age:<insId>`, one message per insured) |
 | B-4 | A coverage holds more insureds than its Coverage Type allows (loaded file) | `Coverage Input — Coverage n: has n insureds but "<type>" allows at most n` |
 
 **C. Rate lookups** — diagnostics from `ratesIssues`; each is a red Error cell
@@ -3034,7 +3064,9 @@ next two call) → `_coverages` → `_insureds` → `_backdate` (lends
 ### 14.2 Starting the tool
 
 **Always start it with `_start-coverage-optimizer.bat`** (double-click). It finds `python`
-or `py`, opens the browser in the background after ~2 s and runs
+or, failing that, the `py` launcher (the fallback check uses `if not errorlevel 1`: a
+`%errorlevel%` inside the `else ( … )` block is expanded before `where py` runs, so until
+2026-09-23 a PC with only `py` got "Python was not found"). It opens the browser in the background after ~2 s and runs
 `backend_files/server.py` on **port 8000 in its own console window — the only one**
 (closing it stops the server). The page is `http://localhost:8000/backend_files/optimizer.html`:
 `server.py` serves the **tool folder** (the parent of `backend_files/`), so the page
@@ -3139,12 +3171,14 @@ goes there in the same change; finished items move to *Done*. Open items at the
 time of writing:
 History "Total Modal Premium" (C-4), the two "Joint Extra Prem. Backdated"
 columns (C-5), Critical Illness (C-6), a calculated
-Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-10; the
-review R-12 (the 2017 products' assumptions).
+Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-18
+(R-13 … R-15: Backdate Projection choices; R-16: joint Flat Term $; R-17: joint
+BD_Final eligibility; R-18: Age Last edge); suggestions S-2 … S-6 (S-6: re-render
+speed, ~130 ms per edit with 3 Input Premium coverages).
 
 ### 14.8 Change log of this document
 
-- **2026-09-20 (this revision).** Brought up to date with everything built after
+- **2026-09-20.** Brought up to date with everything built after
   the 2026-09-17 text: pre-load page, users, `server.py` and `history_data/`; Rates
   lookups (PR/EPR/PEP, `_BD`, BD_Final, Totals, bands); Backdate calculations
   and Final Backdate Date; Modal Prem. and Modal Prem. Backdated; Prem. Basis
@@ -3158,4 +3192,14 @@ review R-12 (the 2017 products' assumptions).
   (was `data/`) and `markdown_reference/` (all `.md`). `server.py` now serves the tool root
   and the page is at `/backend_files/optimizer.html`; the JS reaches `../rates/` and
   `../history_data/`. The launcher runs the server in its own window (one console, not two).
+- **2026-09-21.** Backdate Projection premiums vary by policy year (§12.12: Term
+  steps, Permanent pay periods, Duration = elapsed years + 1); `_BD` age − 1
+  confirmed as the production rule (old C-2).
+- **2026-09-23 (this revision).** Top-bar **Clear** button (§2h, `core.clearState`). Whole-project
+  review, fixes: Annual projection bills year 0 when the Backdate Date is the
+  Illustration Date (§12.12); an insured on no coverage no longer blanks the Final
+  Backdate Date (§12.7); a Birthdate after the Reference Date is rejected (§2, §13
+  A-3/B-3); the launcher's `py` fallback works (§14.2); Annual row highlight follows
+  the Annual Savings Date (§12.12). Documented open edges: R-16, R-17, R-18 (§2,
+  §12.5, §12.12).
 - 2026-09-17 — the original text (six of seven tabs live).

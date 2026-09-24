@@ -16,9 +16,9 @@
  * be touched comes from the schema below (`lock: 1` = NON-EDITABLE), not from
  * any mode the operator has to select first.
  *
- * The parser is mocked and the projection engine is a stub. Both are isolated
- * behind one function each — `parseWorkbook` and `runProjection` — so wiring
- * the real ones does not touch the rendering code.
+ * The parser reads real .xlsx extracts; the projection engine is still a
+ * stub. Both are isolated behind one function each — `parseWorkbook` and
+ * `runProjection` — so wiring the real engine does not touch the rendering code.
  */
 (function () {
   'use strict';
@@ -105,7 +105,8 @@
   function toNum(raw) {
     if (typeof raw === 'number') return isFinite(raw) ? raw : null;
     var c = String(raw === null || raw === undefined ? '' : raw).replace(/[\s,$]/g, '').replace(/%$/, '');
-    if (c === '' || !/^-?\d*\.?\d*$/.test(c)) return null;
+    // A leading "+" is how CAPSIL writes signed fields (P-FEE "+040.00").
+    if (c === '' || !/^[-+]?\d*\.?\d*$/.test(c)) return null;
     var n = Number(c);
     return isFinite(n) ? n : null;
   }
@@ -473,58 +474,31 @@
     specialQuoteIdentifier: { capsil: 'COMM3',      kind: 'text' }
   };
 
-  function readPolicyCell(cells, spec) {
-    var v = cells[spec.ref];
-    if (v === null || v === undefined || v === '') return '';        // blank stays blank
+  /** One raw cell value -> the field value for its kind. Blank stays blank. */
+  function cellValue(v, kind) {
+    if (v === null || v === undefined || v === '') return '';
 
-    if (spec.kind === 'date') {
+    if (kind === 'date') {
       if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
       var dt = parseDate(v);
       return dt ? fmtDate(dt) : String(v).trim();
     }
-    if (spec.kind === 'number') {
+    if (kind === 'number') {
       if (typeof v === 'number') return v;
       var n = toNum(v);
       return n === null ? '' : n;
     }
-    if (spec.kind === 'code2' || spec.kind === 'code3') {
-      var len = spec.kind === 'code2' ? 2 : 3;
-      var s = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
-      return s === '' ? '' : s.padStart(len, '0');
+    if (kind === 'code2' || kind === 'code3') {
+      var code = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
+      return code === '' ? '' : code.padStart(kind === 'code2' ? 2 : 3, '0');
     }
     return String(v).trim();                                          // text
   }
 
   function parsePolicyCellByName(cells, spec) {
-    /* New format: scan rows for CAPSIL field name in column B, read value from column C */
-    var capsulField = spec.capsil;
-    var kind = spec.kind;
-
-    // Scan through cells to find the row with matching CAPSIL field name in column B
+    // Find the row whose CAPSIL field name (column B) matches; the value is in column C.
     for (var i = 2; i <= 100; i++) {  // rows 2-100 (row 1 is header)
-      var cellB = 'B' + i;
-      if (cells[cellB] === capsulField) {
-        var cellC = 'C' + i;
-        var v = cells[cellC];
-        if (v === null || v === undefined || v === '') return '';
-
-        if (kind === 'date') {
-          if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
-          var dt = parseDate(v);
-          return dt ? fmtDate(dt) : String(v).trim();
-        }
-        if (kind === 'number') {
-          if (typeof v === 'number') return v;
-          var n = toNum(v);
-          return n === null ? '' : n;
-        }
-        if (kind === 'code2' || kind === 'code3') {
-          var len = kind === 'code2' ? 2 : 3;
-          var s = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
-          return s === '' ? '' : s.padStart(len, '0');
-        }
-        return String(v).trim();  // text
-      }
+      if (cells['B' + i] === spec.capsil) return cellValue(cells['C' + i], spec.kind);
     }
     return '';  // field not found
   }
@@ -564,28 +538,6 @@
     cashValue:       { col: 'AC', kind: 'number' }
   };
 
-  function readCoverageCell(cells, row, spec) {
-    var v = cells[spec.col + row];
-    if (v === null || v === undefined || v === '') return '';
-
-    if (spec.kind === 'date') {
-      if (typeof v === 'number') return fmtDate(excelSerialToDate(v));
-      var dt = parseDate(v);
-      return dt ? fmtDate(dt) : String(v).trim();
-    }
-    if (spec.kind === 'number') {
-      if (typeof v === 'number') return v;
-      var n = toNum(v);
-      return n === null ? '' : n;
-    }
-    if (spec.kind === 'code2' || spec.kind === 'code3') {
-      var len = spec.kind === 'code2' ? 2 : 3;
-      var code = typeof v === 'number' ? String(Math.trunc(v)) : String(v).trim();
-      return code === '' ? '' : code.padStart(len, '0');
-    }
-    return String(v).trim();
-  }
-
   function parseCoveragesSheet(cells) {
     var rows = [], maxRow = 0;
     Object.keys(cells).forEach(function (ref) {
@@ -606,7 +558,7 @@
 
       var coverage = {};
       Object.keys(COVERAGE_CELL_MAP).forEach(function (k) {
-        coverage[k] = readCoverageCell(cells, row, COVERAGE_CELL_MAP[k]);
+        coverage[k] = cellValue(cells[COVERAGE_CELL_MAP[k].col + row], COVERAGE_CELL_MAP[k].kind);
       });
       // Only in-force statuses are imported; coverageNumber is left as-is on the
       // survivors — never renumbered to fill the gap left by a skipped status.
@@ -648,20 +600,9 @@
         : byCoverage[String(coverageNumber).trim().toUpperCase()];
       if (!coverage) continue;
 
-      var birthdate = cells['C' + row];
-      if (typeof birthdate === 'number') {
-        birthdate = fmtDate(excelSerialToDate(birthdate));
-      } else if (birthdate !== null && birthdate !== undefined && birthdate !== '') {
-        var dt = parseDate(birthdate);
-        birthdate = dt ? fmtDate(dt) : String(birthdate).trim();
-      } else {
-        birthdate = '';
-      }
-
-      var name = cells['B' + row];
       coverage.insureds.push({
-        fullName: name === null || name === undefined ? '' : String(name).trim().toUpperCase(),
-        birthdate: birthdate,
+        fullName: cellValue(cells['B' + row], 'text').toUpperCase(),
+        birthdate: cellValue(cells['C' + row], 'date'),
         sex: coverage.sex,
         _id: 'i' + (++insuredSeq),
         _removed: false,
@@ -792,6 +733,16 @@
   }
   function liveInsureds(c) {
     return c.insureds.filter(function (i) { return !i._removed; });
+  }
+
+  /* New records take their _id from ++state.seq. Keep seq past every id
+     already in the data (extract row numbers, records added in a loaded test
+     case) or a new coverage can reuse one: its edits would land on the other
+     coverage, and Discard would drop both. */
+  function syncSeq() {
+    state.data.coverages.forEach(function (c) {
+      [c].concat(c.insureds).forEach(function (r) { state.seq = Math.max(state.seq, parseInt(r._id.slice(1), 10) || 0); });
+    });
   }
 
   function newCoverage() {
@@ -1206,6 +1157,7 @@
     state.base = result.data;
     state.data = JSON.parse(JSON.stringify(result.data));
     state.form = null;
+    syncSeq();
 
     $('hdrPolicy').textContent = state.data.policy.policyNumber || '(no policy number)';
     $('hdrFile').textContent = result.meta.fileName;
@@ -1236,6 +1188,8 @@
       var needsData = id !== 'paneHistory';
       $(id).hidden = id !== pane || (needsData && !state.loaded);
     });
+    // Here, not in the tab click handler: an import while this tab is open must refresh it too.
+    if (pane === 'paneDevCalc') renderDevCalc();
   }
 
   function ingest(file) {
@@ -1457,6 +1411,7 @@
     state.base = JSON.parse(JSON.stringify(snap.base));
     state.data = JSON.parse(JSON.stringify(snap.data));
     state.form = null;
+    syncSeq();
 
     $('hdrPolicy').textContent = state.data.policy.policyNumber || '(no policy number)';
     $('hdrFile').textContent = state.meta.fileName;
@@ -1606,7 +1561,7 @@
 
   function devCalcRow(v) {
     return v.results.map(function (r) {
-      var scope = r.iCov == null ? '(policy)' : 'C' + (r.coverageNumber || r.iCov) + (r.iInsured == null ? '' : ' / insured ' + r.iInsured);
+      var scope = r.iCov == null ? '(policy)' : 'Cov ' + (r.coverageNumber || r.iCov) + (r.iInsured == null ? '' : ' / insured ' + r.iInsured);
       var cell = r.error
         ? '<span class="chip chip--warn" title="' + esc(r.error) + '">' + esc(r.error.length > 46 ? r.error.slice(0, 46) + '…' : r.error) + '</span>'
         : '<span class="mono">' + esc(String(r.value)) + '</span>';
@@ -1631,8 +1586,12 @@
     if (!host) return;
     if (!state.loaded) { host.innerHTML = ''; return; }
     host.innerHTML = '<div class="card-note" style="margin:8px;">Loading…</div>';
+    // Terminated coverages and withdrawn lives never reach the engine (§6).
+    var live = { policy: state.data.policy, coverages: liveCoverages().map(function (c) {
+      return Object.assign({}, c, { insureds: liveInsureds(c) });
+    }) };
     fetch('../calc/term_life', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(state.data)
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(live)
     }).then(function (r) {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();
@@ -1805,7 +1764,6 @@
     var b = e.target.closest ? e.target.closest('.tab') : null;
     if (!b) return;
     showTab(b.dataset.pane);
-    if (b.dataset.pane === 'paneDevCalc') renderDevCalc();
   });
 
   $('btnRun').addEventListener('click', function () {

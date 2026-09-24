@@ -50,7 +50,7 @@ likely way to produce an unusable result.
 ## 1. File map
 
 ```
-inforce-tool/
+life-inforce-tool/
 ├── _start-life-inforce.bat    launcher: runs backend/server.py, opens the browser
 ├── backend/
 │   ├── inforce.html           static shell: top bar, tabs, panes, status bar, toast, pre-load overlay
@@ -60,7 +60,9 @@ inforce-tool/
 │   └── calc_engine/term_life/ the Term calc engine package (§16) — code goes in backend/
 ├── markdown_reference/
 │   ├── INFORCE_REFERENCE.md   this file
-│   └── INFORCE_INSTRUCTIONS.md   custom instructions for the coding platform
+│   ├── INFORCE_INSTRUCTIONS.md   custom instructions for the coding platform
+│   └── TO-DO.md               running list of open items and unanswered spec questions
+├── reference_files/            product_characteristics.xlsx
 ├── usernames.json             known users proposed on the pre-load page (server-owned, atomic writes)
 ├── history_data/               saved test cases, one .json per save; history_data/_deleted/ = soft-deletes
 ├── extracts_policy/            dummy policy extracts for testing (§11)
@@ -85,7 +87,16 @@ then can't `fetch()` `usernames.json`, and Save Test can't write into
 `history_data/` (it falls back to a browser download; see §15). **Preferred:**
 run `_start-life-inforce.bat` (from the project root), which starts
 `backend/server.py` (stdlib-only, no `pip install`) on port 8001 and opens
-the tool over `http://localhost:8001/backend/inforce.html`.
+the tool over `http://localhost:8001/backend/inforce.html`. The launcher uses
+`python` if it's on `PATH`, otherwise the `py` launcher.
+
+> **One server per port.** On Windows `server.py` turns off
+> `allow_reuse_address`: by default Windows lets a second server bind a port
+> an old one still holds, and the *old* one keeps answering with stale code.
+> A second launch now fails with "Only one usage of each socket address…"
+> instead. If you see that, an old `server.py` is still running; kill it
+> (closing its window, or `Stop-Process` on the `python.exe` whose command
+> line contains `server.py`).
 
 For plain static-file development that doesn't touch History, a generic
 server still works:
@@ -118,6 +129,10 @@ var TOOLS = [
 ];
 var THIS_TOOL = 'inforce';
 ```
+
+> **Known issue:** each tool now runs on its own server (Inforce on 8001
+> under `/backend/`, the Optimizer on 8000 under `/backend_files/`), so the
+> relative `optimizer.html` link resolves to a 404. Tracked in `TO-DO.md`.
 
 What carries across a switch, and what does not:
 
@@ -491,7 +506,9 @@ returns. The operator's text stays on screen so they can fix it.
 
 `toNum` strips spaces, commas, `$` and a trailing `%` before parsing. This is
 what lets an operator paste `$1,234.50` straight out of the source terminal,
-and what lets inputs display grouped numbers.
+and what lets inputs display grouped numbers. It also accepts a leading `+`,
+which is how CAPSIL writes signed fields (`P-FEE` `+040.00`, `FLAT-RATE`
+`+00000.00`). Before that was accepted, those fields imported as blank.
 
 ### Number display
 
@@ -539,6 +556,14 @@ var state = {
 ```
 
 Exposed for debugging as `window.__state()`.
+
+**`seq` must stay past every existing `_id`.** New coverages and insureds
+take `'c' + (++state.seq)` / `'i' + (++state.seq)`, but the parser numbers
+records from sheet rows (`c8`…) and a loaded test case can already contain
+operator-added ids (`c101`…). `syncSeq()` raises `seq` past every id in
+`state.data` and is called from both `load()` and `doHistLoad()`. Without it,
+a new coverage could reuse an existing id: its edits would land on the other
+coverage, and Discard would drop both.
 
 **`base` vs `data` is the core idea.** `base` is the extract exactly as parsed;
 `data` is the working copy. `diff()` compares them to produce the change log,
@@ -664,7 +689,14 @@ bodies. Nothing above them in the file needs to change.
 
 ### A. `parseWorkbook(bytes, fileName)` — extract → dataset
 
-Currently returns a hard-coded `FIXTURE` and ignores `bytes`.
+Real parser: reads the `Policy`, `Coverages` and `Insureds` sheets with the
+dependency-free zip/XML reader (`readWorkbookXlsx`). `Policy` is looked up by
+CAPSIL field name (column B → value in column C, `POLICY_CAPSIL_FIELD_MAP`);
+`Coverages` by column letter (`COVERAGE_CELL_MAP`); `Insureds` joins to its
+coverage on `C#`. Every cell goes through one converter, `cellValue(v,
+kind)` (`date` / `number` / `code2` / `code3` / `text`), so all three sheets
+convert values the same way. Only **Load Sample** (`bytes === null`) still
+returns the hard-coded `FIXTURE`.
 
 ```js
 function parseWorkbook(bytes, fileName) { /* ... */ }
@@ -693,23 +725,30 @@ Requirements:
 
 - **Assign `_id`, `_removed: false`, `_new: false`** to every coverage and
   insured. The UI cannot function without `_id`.
-- Ids must be unique across the dataset (the current mock uses one counter for
-  both, giving `c1, i2, c3, …`).
+- Ids must be unique across the dataset. The parser uses `'c' + sheet row`
+  for coverages and `'i' + n` for insureds; the sample uses one counter for
+  both (`c1, i2, c3, …`). `syncSeq()` (§9) keeps operator-added ids clear of
+  either.
 - Dates must be emitted as `DD-MMM-YYYY` strings, or as anything `parseDate`
   accepts and then normalised.
 - Numeric fields must be **numbers**, not strings.
-- Set `meta.mocked = false` once real parsing works — that flag drives the
-  amber "Mock parser" chip in the header.
-- The expected sheet is named `POLICY_EXTRACT`: one policy header row, one row
-  per coverage, insured lives in trailing columns.
+- `meta.mocked` is `false` for both the real parser and the sample, so the
+  amber "Mock parser" chip stays hidden.
 - On a malformed file, `throw` — `ingest()` catches and shows an error toast.
-- Accepted extensions are gated in `ingest()`: `.xlsx .xls .xlsm .csv`.
+- Accepted extensions are gated in `ingest()`: `.xlsx .xlsm`.
 - **Only in-force coverages are imported.** A `Coverages` row is skipped
   entirely unless its `CS` column is `1`, `2`, `3` or `4`. Skipped rows are
   never rendered and never counted. `coverageNumber` always comes straight
   from the row's own `C#` cell — a gap left by a skipped coverage (e.g.
   importing only C05–C08 out of 18) is never closed by renumbering the
   survivors.
+- **Known gaps, tracked in `TO-DO.md`:**
+  - The `P2-SEX / P2-SMK / P2-AGE / P2-STB1 / P2-STB2` columns (second insured)
+    are not read.
+  - Every insured's `sex` is copied from the coverage's `S` column, which is
+    `J` on a joint coverage.
+  - An `Insureds` row whose `C#` doesn't match a coverage exactly (e.g. `1`
+    vs `01`) is dropped without a warning.
 
 ### B. `runProjection(dataset)` — the engine
 
@@ -780,6 +819,7 @@ disable the Run button.
 8. Model mutations from a `change` handler use `deferRender()`, never `render()`.
 9. Field metadata lives in the descriptor tables, not in rendering code.
 10. Editing one coverage never touches another (verified behaviour — preserve it).
+11. Every `_id` is unique within `state.data` (see `syncSeq()`, §9).
 
 ---
 
@@ -825,7 +865,8 @@ After any change, confirm:
 - [ ] Terminate a coverage: struck through, restorable, excluded from totals.
 - [ ] Add and remove an insured: no strikethrough, no log entry.
 - [ ] Pick Coverage Optimizer in the menu: `optimizer.html` loads; the theme
-      choice carries over; the extract does **not**.
+      choice carries over; the extract does **not**. *(Currently fails with a
+      404 — see §2 and `TO-DO.md`.)*
 - [ ] Toggle dark mode.
 - [ ] No horizontal page scroll at 1280px and 1920px.
 - [ ] Console is free of errors.
@@ -854,6 +895,15 @@ After any change, confirm:
       `history_data/_deleted/` (never erased).
 - [ ] Reopen the tool: every case anyone saved into `history_data/` is listed,
       merged with this browser's own `localStorage` copy.
+- [ ] Import `extracts_policy/dummy-policy.xlsx`: Policy Fee reads 40 / 20 / 0
+      and Flat Rate 0 (CAPSIL's `+040.00`), never blank.
+- [ ] Load a saved test case that contains an added coverage, then
+      **+ Add Coverage**: the new coverage gets a fresh `_id` (no duplicates in
+      `__state().data`).
+- [ ] Dev Validations: a terminated coverage or withdrawn insured does not
+      appear; importing another extract while the tab is open refreshes it.
+- [ ] Start `server.py` twice on the same port: the second exits with
+      "Only one usage of each socket address…".
 
 ---
 
@@ -872,7 +922,8 @@ tool's roster is **dynamic**: `initPreload()` fetches `usernames.json` from
 `server.py` and renders one `.pl-user` pill per entry. "Not listed? Add your
 name…" + **Add** (or Enter) `POST`s `{name}` to `usernames.json`; the server
 de-dupes case-insensitively, derives initials from the name's word-initial
-letters (disambiguating a collision with a trailing digit), atomically
+letters (accents folded first, so "Élise Côté" → `ec`; a collision gets a
+trailing digit), atomically
 rewrites the file, and replies with the full updated list — which the client
 re-renders and auto-selects. **Nothing is remembered between launches** — it
 asks every time, on purpose (§14.3 of the Optimizer reference has the same
@@ -923,8 +974,14 @@ whole UI is built around diffing `state.base` (pristine) against `state.data`
 snapshot, not just `data`: the gold "changed" rows, the tooltip "was …"
 values, and the Change Log all come back exactly as they were the moment the
 case was saved, so the operator can keep analysing a case rather than getting
-a clean slate. `state.loaded` is set, the header/status bar are refreshed as
-in `load()`, and the tab switches to Home.
+a clean slate. `state.loaded` is set, `syncSeq()` runs (§9), the
+header/status bar are refreshed as in `load()`, and the tab switches to Home.
+
+Snapshots store the data under the field keys in use when they were saved.
+A test case saved before the §16 field renames (e.g.
+`history_data/rk_12345678_save_test.json`) loads with Projection Date,
+Paid-To Date, Payment Mode, ACB, NCPI and Maturity blank. Re-import and
+re-save it; there is no key migration.
 
 ### History tab
 
@@ -1035,9 +1092,11 @@ Sections 2 (Input Setup - Policy, 13/13) and 3 (Input Setup - Coverage,
 COV-15 `joint_age_equivalent`) are fully implemented. Section 1 (Duration)
 is 11/16 implemented — only DUR-05, DUR-06, DUR-13, DUR-14 and DUR-16 still
 raise `Blocked`, and only because of DUR-16 (`age`): the catalog lists it as
-a direct CAPSIL read with no dependencies, but the extract has no raw age
-field, only birthdate — whether/how it should be computed is still an open
-question, not yet answered. DUR-05/06/13/14 are written as their real
+a direct CAPSIL read with no dependencies. The decision is to read it from
+CAPSIL rather than compute it from birthdate. The extract already carries
+`P2-AGE` (second insured) on `Coverages`, but not yet the first insured's age
+(`age_1`) — adding it, wiring the insured layout, and pointing DUR-16 at it
+are the first items in `TO-DO.md`. DUR-05/06/13/14 are written as their real
 formulas (not stubs) and simply propagate `Blocked` the moment they call
 `ctx.get('age', ...)` or `ctx.get('maximum_age', ...)` underneath — the
 moment DUR-16 is resolved, all four start working with no further changes.
@@ -1052,10 +1111,28 @@ Annual-mode branch) deliberately assume a 365-day year with February always
 calendar day-count, and leap years are never special-cased anywhere in the
 engine.
 
+`dates.parse_date` raises `ValueError("expected a valid DD-MMM-YYYY date, got
+'…'")` for a blank or malformed value (a blank CAPSIL date, a coverage added
+in the GUI with no dates yet), so the Dev Validations tab names the bad
+value instead of showing a Python unpacking error.
+
+**Every formula above matches the spec as written.** Where the spec itself
+looks wrong on an edge case, that is an open question in `TO-DO.md`, not a
+code change:
+- Feb 29 anniversaries crash POL-07 and COV-09.
+- COV-10 compares months only, so the Annual offset can go negative.
+- POL-09 Monthly ignores the year.
+- Payment modes other than `01`/`12` fall into the Monthly branch.
+- DUR-06's A/B branches look inconsistent with DUR-14's.
+
+Per the standing rule, none of these is implemented until it is answered.
+
 ### Dev Validations tab — not part of the shipped tool
 
 A `POST /calc/term_life` route on `server.py` (`run_term_life_calc`) takes
-the working dataset (`state.data`), walks every `term_catalog.json` entry in
+the **live** working dataset — `renderDevCalc()` strips `_removed` coverages
+and insureds before posting (§12.3), so `iCov` counts live coverages only —
+walks every `term_catalog.json` entry in
 the three sections above, calls `Context.get(...)` for each — once for a
 policy-level variable, once per coverage for an `iCov` one, once per
 (coverage, insured) for an `iCov, iInsured` one — and replies with the
@@ -1065,8 +1142,11 @@ surfaces instead of crashing the whole tab).
 
 The **Dev Validations** tab (`inforce.js` `renderDevCalc()` /
 `devCalcSection()` / `devCalcRow()`, `#devCalcHost`) POSTs to that route
-whenever it's opened and renders one `.card.card--out` per section, one row
-per (variable, scope) — mirroring the History tab's own card/table idiom.
+whenever it's shown — the call lives in `showTab()`, so an import that
+lands while the tab is open refreshes it too — and renders one
+`.card.card--out` per section, one row per (variable, scope), scope labelled
+`Cov <coverageNumber>` (plus `/ insured n`) — mirroring the History tab's own
+card/table idiom.
 Like History, it needs its own server (`_start-life-inforce.bat`); unlike
 History, it needs a loaded extract (there is nothing to compute against
 otherwise), so it is **not** exempted from the `showTab()` "nothing shows

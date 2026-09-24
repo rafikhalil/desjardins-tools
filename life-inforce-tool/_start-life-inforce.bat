@@ -10,20 +10,16 @@ rem Test can write into history_data\.
 cd /d "%~dp0"
 set PORT=8001
 
-where python >nul 2>nul
-if %errorlevel%==0 (
-    set PYCMD=python
-) else (
-    where py >nul 2>nul
-    if %errorlevel%==0 (
-        set PYCMD=py
-    ) else (
-        echo Python was not found on PATH.
-        echo Install Python 3, or run this manually from this folder:
-        echo     python backend\server.py %PORT%
-        pause
-        exit /b 1
-    )
+rem "python", else the "py" launcher. No %errorlevel% inside ( ) blocks: cmd
+rem expands it once, when the block is read, so a nested check never updates.
+set PYCMD=python
+where python >nul 2>nul || set PYCMD=py
+where %PYCMD% >nul 2>nul || (
+    echo Python was not found on PATH.
+    echo Install Python 3, or run this manually from this folder:
+    echo     python backend\server.py %PORT%
+    pause
+    exit /b 1
 )
 
 rem Open the browser ~2 s from now, in the background of THIS window (no second console).

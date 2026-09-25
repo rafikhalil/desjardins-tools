@@ -229,7 +229,9 @@ var TABS = [
   `init…Tab()` fills — same idiom as `optInput`'s own hosts, just one host
   per pane instead of four. `split` remains available for a future tab.
 - `showTab(id)` sets `aria-selected` on the buttons, un-hides exactly one pane,
-  and writes the tab label into `#stTab` in the status bar.
+  and writes the tab label into `#stTab` in the status bar. At the bar's right end,
+  `#stCase` shows the test case last **saved or loaded** (set by `optimizer_history.js`;
+  emptied by Clear).
 - The first tab is shown on load. **Panes are not gated on anything** — there
   is no extract import on this page; Rates' own rate-file import (§2f) is
   local to that one tab and never blocks any other pane from showing.
@@ -1319,11 +1321,19 @@ clears the name box and writes the file (below).
 
 ### The catalog entry
 
-`{ id, name, user, savedAt, insuredCount, coverageCount, snapshot }` (+ `file`, the
+`{ id, name, user, savedAt, insuredCount, coverageCount, snapshot, rates }` (+ `file`, the
 `history_data/` file name, added in memory once written or loaded from the folder) where
 `snapshot` = `core.snapshotState()` (Settings, Insureds, Coverages — deep-cloned
 JSON) **plus** `unitValues` (the Coverages tab's own field, folded in by
-`buildSnapshot`). `savedAt` is local wall-clock (`nowStamp()`). **Rate files are
+`buildSnapshot`). `savedAt` is local wall-clock (`nowStamp()`).
+**`rates` is a reference copy only — never read back on Load** (Load uses `snapshot`
+alone): `{ files: { termLife, permLife } (the loaded file names), coverages: [ { coverage,
+insureds, band (the coverage's own), bands: { <code>: { PR_n, EPR_n, PEP_n, PR_BD_n, EPR_BD_n,
+PEP_BD_n (per insured slot n), PR_TOTAL, EPR_TOTAL, PEP_TOTAL, PR_BD_TOTAL, EPR_BD_TOTAL,
+PEP_BD_TOTAL, PR_BD_FINAL, EPR_BD_FINAL, PEP_BD_FINAL } } } ] }` — every figure the Rates tab
+showed at save time (`core.ratesDump()`, the same `cellResult`/`totalResult` as the cells): a
+number, `"Error: <why>"`, or `null` (pending / nothing to sum). For checking a case by hand
+without opening the tool and reloading the rates. **Rate files are
 not part of a test case** — a loaded case re-resolves against whatever rates are
 loaded. `restoreState` ignores a legacy `joint.age` (Joint Age is calculated
 now).
@@ -1633,7 +1643,7 @@ All of these are in `optimizer.css` and ready to use.
 | Rates tab | `ratesTabHost` (`optRates`'s whole pane, §2f), `ratesFileInput`, `btnImportRates`, `btnLoadDefaultRates`, `rateProgress`/`rateProgressLabel`/`rateProgressBar`, `ratesStatus`, `ratesCoverageList` — all in `optimizer_rates.js` |
 | Backdate tab | `backdateTabHost` (`optBackdate`'s whole pane, §2g) — container 1: `bdInsBody`, `bdInsCount`, `bdIllustrationDate`, `bdMaxBackdateDate` — container 2: `bdProjBody` — all in `optimizer_backdate.js` |
 | History tab | `historyTabHost` (`optHistory`'s whole pane, §2h), `historyTabBody`, `historyTabCount`, `btnImportTestCase`, `historyImportFile` — all in `optimizer_history.js` |
-| Status bar | `stDot`, `stText`, `stTab` |
+| Status bar | `stDot`, `stText`, `stTab`, `stCase` (test case last saved / loaded) |
 | Toast | `toast` |
 
 ### `data-fk` — field key grammars
@@ -3161,7 +3171,7 @@ and writes `history_data/<initials>_<name>.json` through `server.py` — e.g.
 collide; the name is stripped to `A-Z a-z 0-9 - _ space`, spaces → `_`, ≤ 60
 characters). If `history_data/` cannot be written the file is **downloaded instead** and
 the bar says why. A test case = `{ id, name, user, savedAt, insuredCount,
-coverageCount, snapshot }`, `snapshot` = Settings + Insureds + Coverages + the
+coverageCount, snapshot, rates }` (`rates`: reference copy of every rate, never reloaded — §2h), `snapshot` = Settings + Insureds + Coverages + the
 Coverages tab's Unit Values (§2h). **Import Test Case** adds a `.json` that is not in the
 folder; **Load** restores it (and puts the previous state back if the file is
 damaged, §13 F-5). Rate files are *not* part of a test case: a loaded case
@@ -3232,7 +3242,10 @@ speed, ~130 ms per edit with 3 Input Premium coverages).
 - **2026-09-21.** Backdate Projection premiums vary by policy year (§12.12: Term
   steps, Permanent pay periods, Duration = elapsed years + 1); `_BD` age − 1
   confirmed as the production rule (old C-2).
-- **2026-09-24 (this revision).** New rules: Age Nearest under 18 ⇒ Rate forced to
+- **2026-09-24 (this revision), later.** Status bar shows the test case last saved /
+  loaded (`#stCase`); a saved test case also carries every rate (`rates`, reference
+  only, never reloaded — §2h).
+- **2026-09-24.** New rules: Age Nearest under 18 ⇒ Rate forced to
   Regular / Smoker (§2); Term Life P1 / P2 / R1 need a minimum amount by age, Input
   Premium gets a message instead (§2b, §13 D-7); Term Life Extra Premium only on P3 /
   R2 (§2b). Fixes: Midpoint = Past Birthday + 6 months (§12.7); Monthly Savings Date

@@ -931,6 +931,35 @@
     return { pr: pr.value, pep: pep.value };
   }
 
+  /** Every rate the Rates tab shows, as plain JSON — saved with a test case (optimizer_history.js) for
+      reference only, never read back on Load. Per coverage, per band: PR_n … PEP_BD_n per insured slot,
+      then the TOTAL / BD_TOTAL / BD_FINAL trios — the same cellResult() / totalResult() as the cells. A
+      figure; "Error: <why>"; or null (pending / nothing to sum). `band` is the coverage's own band. */
+  function ratesDump() {
+    function v(r) { return !r || r.pending ? null : r.error ? 'Error: ' + r.why : r.value; }
+    var TRIO = ['PR', 'EPR', 'PEP'];
+    return core.coverages().map(function (c, ci) {
+      var slots = c.insureds.filter(function (s) { return s.insuredId; }), bands = {}, own = bandFor(c);
+      (bandsFor(c) || []).forEach(function (b) {
+        var row = {};
+        slots.forEach(function (s, i) {
+          var ins = core.findInsured(s.insuredId);
+          TRIO.concat(['PR_BD', 'EPR_BD', 'PEP_BD']).forEach(function (n, j) { row[n + '_' + (i + 1)] = v(cellResult(c, ins, s, b, j)); });
+        });
+        TRIO.forEach(function (n, j) { row[n + '_TOTAL'] = v(totalResult(c, slots, b, j)); });
+        TRIO.forEach(function (n, j) { row[n + '_BD_TOTAL'] = v(totalResult(c, slots, b, j + 3)); });
+        TRIO.forEach(function (n, j) { row[n + '_BD_FINAL'] = v(totalResult(c, slots, b, j, true)); });
+        bands[b.code] = row;
+      });
+      return {
+        coverage: (ci + 1) + '. ' + core.coverageTitle(c),
+        insureds: slots.map(function (s, i) { var ins = core.findInsured(s.insuredId); return (i + 1) + ': ' + (ins ? ins.name : ''); }),
+        band: own.band ? own.band.code : null,
+        bands: bands
+      };
+    });
+  }
+
   /** Results' Highest Amt (§ optimizer_coverages.js): the same two figures for
       EVERY band of the coverage's Category, in BAND_TABLES order — the whole
       Total column as the Rates tab shows it, which is what the "could a bigger
@@ -1140,7 +1169,9 @@
     core.bandFinalTotals = bandFinalTotals;   // … the same two from BD_Final, for Modal Prem. Backdated …
     core.bandAt = bandAt;           // … and, for Results' Highest Amt, the band an amount falls in
     core.bandTotalsAll = bandTotalsAll;
-    core.bandTotalsAtYear = bandTotalsAtYear;   // … and the Backdate Projection's per-year premium (optimizer_coverages.js)
+    core.bandTotalsAtYear = bandTotalsAtYear;
+    core.ratesDump = ratesDump;     // … and every rate, for a saved test case's reference copy (optimizer_history.js)
+    core.ratesFiles = function () { return { termLife: termLifeMeta && termLifeMeta.fileName, permLife: permLifeMeta && permLifeMeta.fileName }; };   // … and the Backdate Projection's per-year premium (optimizer_coverages.js)
     core.diagnostics(ratesIssues);   // the top-bar messages: why a cell here is an Error
     $('plSheets').innerHTML = TERM_LIFE_DURATIONS.map(function (s) {   // "Term 10" … "Term 65" (t10 → Term 10)
       return '<div class="pl-sheet" id="plSheet_' + s + '" data-state="notloaded"><span class="dot"></span>' +

@@ -131,7 +131,10 @@
       savedAt: nowStamp(),
       insuredCount: snap.insureds.length,
       coverageCount: snap.coverages.length,
-      snapshot: snap
+      snapshot: snap,
+      // Reference only (manual checks / debugging without the tool): every rate as the Rates tab showed it
+      // at save time, with the files it came from. Never read back — Load uses `snapshot` alone.
+      rates: { files: core.ratesFiles ? core.ratesFiles() : null, coverages: core.ratesDump ? core.ratesDump() : null }
     };
   }
 
@@ -156,6 +159,7 @@
     persistCatalog();
     renderHistoryTab();
     nameEl.value = '';
+    $('stCase').textContent = name;
 
     var fname = safeFileName(name);
     saveToDataFolder(fname, entry).then(function (r) {
@@ -220,6 +224,7 @@
     var tabBtn = document.querySelector('.tab[data-pane="optInput"]');
     if (tabBtn) tabBtn.click();
 
+    $('stCase').textContent = entry.name;
     toast('Loaded "' + entry.name + '".');
   }
 
@@ -235,6 +240,7 @@
     core.resolve('h:name');
     var tabBtn = document.querySelector('.tab[data-pane="optInput"]');
     if (tabBtn) tabBtn.click();
+    $('stCase').textContent = '';
     toast('Test case cleared.');
   }
 

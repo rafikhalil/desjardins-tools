@@ -33,7 +33,7 @@
 /* Marker: red = Not loaded, yellow (--warn) = Loading, green = Loaded. */
 .pl-rate, .pl-sheet { display: flex; align-items: center; gap: 8px; padding: 3px 0; font-size: 12px; }
 .pl-rate .dot, .pl-sheet .dot { width: 10px; height: 10px; margin: 0; background: var(--neg); }
-.pl-rate[data-state="loading"] .dot, .pl-sheet[data-state="loading"] .dot { background: var(--warn); }
+.pl-rate[data-state="loading"] .dot, .pl-sheet[data-state="loading"] .dot { background: #F2C200; }   /* brighter than --warn's amber (S-4) */
 .pl-rate[data-state="loaded"] .dot, .pl-sheet[data-state="loaded"] .dot { background: var(--pos); }
 /* One line per Term Life sheet, indented under Term Life. Not `.pl-rate`: the Start gate only
    watches the two files, the sheets are progress detail. */

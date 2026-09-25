@@ -361,7 +361,7 @@
       not clamped to the shorter month's last day) — not addressed by the
       request; flagged here rather than silently picked. */
   function subtractMonths(dt, n) {
-    return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() - n, dt.getUTCDate()));
+    return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth() - n, Math.min(dt.getUTCDate(), 28)));   // day 29-31 → 28, never rolls over (R-4, 2026-09-24)
   }
 
   /** The birthday that falls in calendar year `y`, from a birth month/day.

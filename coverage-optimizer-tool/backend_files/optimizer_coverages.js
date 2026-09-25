@@ -158,23 +158,10 @@
   /** Everything the Modal Prem. LET() needs that does NOT change with the
       insurance amount — gathered once so Highest Amt's own trial amounts reuse
       it. { ctx } or { blocked } with the reason. */
-  function premContext(c) {
-    var modal_factor = modalFactor();
-    if (modal_factor === null) return { blocked: 'needs a Payment Frequency (Settings)' };
-    var joint = core.isJointPerm(c);
-    var term_extra_prem = joint ? c.joint.extraFlat : extraTermTotal(c);
-    if (term_extra_prem === null || term_extra_prem === undefined) {
-      return { blocked: joint ? 'Flat Extra Prem. $ Perm is blank (Joint container)' : 'Extra Prem. Term $ isn\'t available yet' };
-    }
-    if (c.fee === null || c.fee === undefined) return { blocked: 'needs a Coverage Fee (Coverage Input)' };
-    var s = core.settings;
-    return { ctx: {
-      modal_factor: modal_factor, term_extra_prem: term_extra_prem, coverage_fee: c.fee,
-      unit_value: unitValueFor(c._id),
-      prem_adj_percentage: s.premAdjPct / 100,   // Settings holds the % as 100 = x1.00
-      prem_adj_dollar: s.premAdjAmt
-    } };
-  }
+  /* = the projection's year 0 (requester, 2026-09-24): a Dur. of 0 means the Prem. Adj. % / $ and a
+     Term $ never apply (100% / $0.00 / no temporary extra) — R-14; a joint coverage prices Flat Perm $
+     + Flat Term $ (while year < its Duration), a blank Flat Perm $ counting as 0 — R-16. */
+  function premContext(c) { return premContextAtYear(c, 0); }
 
   /** The Excel LET() itself — pure arithmetic, no DOM and no lookups: the Modal
       Prem. for `insurance_amount` at a band whose PR_Total/PEP_Total are `pr`/
@@ -263,7 +250,11 @@
       no duration of its own and applies for as long as the coverage itself is still paying (gated
       by the caller — premiumAtYear/bandTotalsAtYear — not here). */
   function termExtraPremAtYear(c, elapsedYears) {
-    if (core.isJointPerm(c)) return c.joint.extraFlat;
+    if (core.isJointPerm(c)) {
+      var j = c.joint;
+      if (j.extraFlat == null && j.extraTempAmt == null) return null;   // both blank: nothing entered yet
+      return (j.extraFlat || 0) + (j.extraTempYears && elapsedYears < j.extraTempYears ? (j.extraTempAmt || 0) : 0);
+    }
     if (!c.covType) return null;
     var total = null;
     c.insureds.forEach(function (s) {
@@ -290,7 +281,7 @@
     if (modal_factor === null) return { blocked: 'needs a Payment Frequency (Settings)' };
     var term_extra_prem = termExtraPremAtYear(c, elapsedYears);
     if (term_extra_prem === null || term_extra_prem === undefined) {
-      return { blocked: core.isJointPerm(c) ? 'Flat Extra Prem. $ Perm is blank (Joint container)' : 'Extra Prem. Term $ isn\'t available yet' };
+      return { blocked: core.isJointPerm(c) ? 'Flat Extra Prem. $ Perm and $ Term are both blank (Joint container — type 0 if none)' : 'Extra Prem. Term $ isn\'t available yet' };
     }
     if (c.fee === null || c.fee === undefined) return { blocked: 'needs a Coverage Fee (Coverage Input)' };
     var s = core.settings;

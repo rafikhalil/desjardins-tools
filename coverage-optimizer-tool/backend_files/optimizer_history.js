@@ -131,6 +131,7 @@
       savedAt: nowStamp(),
       insuredCount: snap.insureds.length,
       coverageCount: snap.coverages.length,
+      totalModalPremium: core.premiumTotal('modalPrem').value,   // the Summary's Modal Premium at save time (undefined → not saved)
       snapshot: snap,
       // Reference only (manual checks / debugging without the tool): every rate as the Rates tab showed it
       // at save time, with the files it came from. Never read back — Load uses `snapshot` alone.
@@ -295,12 +296,8 @@
   }
 
   // ---------------------------------------------------------------- render
-  /* Total Modal Premium — plain muted "—", not core.pendingCell()'s amber
-     "no formula yet": the intended formula here (sum of every coverage's own
-     Modal Prem., once that exists) is already known, the same way Results'
-     own "Modal Premium" summary field is treated (§ optimizer.js Results) —
-     it's blocked on an upstream figure that doesn't exist yet, not itself an
-     unspecified formula. */
+  /* Total Modal Premium — the Results Summary's Modal Premium, stored at save time (buildEntry); a muted
+     "—" for a case saved before 2026-09-24 or whose total couldn't be calculated then. */
   function historyRow(entry) {
     return '<tr>' +
         '<td class="r">' + core.esc(entry.name) + '</td>' +
@@ -308,7 +305,8 @@
         '<td class="r">' + core.esc(entry.savedAt) + '</td>' +
         '<td class="r">' + entry.insuredCount + '</td>' +
         '<td class="r">' + entry.coverageCount + '</td>' +
-        '<td class="r"><span class="muted" title="Not calculated yet">—</span></td>' +
+        (typeof entry.totalModalPremium === 'number' ? '<td class="r">' + core.group(entry.totalModalPremium, 2) + '</td>'
+          : '<td class="r"><span class="muted" title="Not saved with this test case (saved before 2026-09-24, or not calculable then)">—</span></td>') +
         '<td class="r"><button class="btn btn--sm" data-act="load-tc" data-id="' + core.esc(entry.id) + '">Load</button></td>' +
         '<td class="r"><button class="btn btn--sm btn--danger" data-act="del-tc" data-id="' + core.esc(entry.id) + '">Delete</button></td>' +
       '</tr>';

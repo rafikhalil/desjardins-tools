@@ -230,6 +230,7 @@
     // 3. Days, borrowing a (30-day) month if negative.
     var days = a.getUTCDate() - b.getUTCDate();
     if (days < 0) { days += 30; months -= 1; }
+    if (months < 0) { months += 12; age -= 1; }   // the day borrow can take months to -1 (birthday later this month) — R-18, confirmed 2026-09-24
 
     var real = age;                 // age last birthday, after the borrows above
 
@@ -1420,7 +1421,7 @@
      a 4-cell row plus a separate box beneath it) — Extra Premium's own four
      sub-fields are nested inside its one cell (covExtraCell), not spread
      across the row as their own cells. */
-  function covInsuredSlot(rec, slot, canRemove) {
+  function covInsuredSlot(rec, slot, rmWhy) {
     var ins = findInsured(slot.insuredId);
     var row = '<div class="fc-row cov-ins-row">' +
         '<div class="fc"><span class="rs-k">' + esc(COVINS_FIELD_MAP.insuredId.l) + '</span>' + insRefControl(rec, slot) + '</div>' +
@@ -1433,7 +1434,7 @@
     return '<div class="cov-ins-slot">' +
         '<div class="cov-ins-slot-head">' +
           '<button class="btn btn--sm btn--danger" data-act="rmcovins" data-cov="' + rec._id + '" data-slot="' + slot._id + '"' +
-            (canRemove ? '' : ' disabled title="A coverage must retain at least one insured"') + '>Remove</button>' +
+            (rmWhy ? ' disabled title="' + rmWhy + '"' : '') + '>Remove</button>' +
         '</div>' + row +
       '</div>';
   }
@@ -1505,8 +1506,9 @@
 
     var maxIns = maxInsuredsFor(rec.category, rec.covType);
     var canAddIns = rec.insureds.length < maxIns;
-    var canRemoveIns = rec.insureds.length > 1;
-    var slotsHtml = rec.insureds.map(function (slot) { return covInsuredSlot(rec, slot, canRemoveIns); }).join('');
+    var rmWhy = isJointPerm(rec) ? 'A joint Permanent Life coverage always has its two insureds'
+      : rec.insureds.length > 1 ? '' : 'A coverage must retain at least one insured';
+    var slotsHtml = rec.insureds.map(function (slot) { return covInsuredSlot(rec, slot, rmWhy); }).join('');
 
     return '<div class="coverage-card">' +
         '<div class="coverage-head">' +

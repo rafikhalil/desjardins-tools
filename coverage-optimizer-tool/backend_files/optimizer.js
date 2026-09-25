@@ -452,6 +452,13 @@
              (v === null ? '—' : v) + '</span></div>';
   }
 
+  /** Age Nearest strictly under 18 → the Rate is always Regular / Smoker, every product (requester, 2026-09-24).
+      Forced in renderInsuredList, which every birthdate / Reference Date / load change goes through. */
+  function isMinor(ins) {
+    var n = agesAt(ins.birthdate, settings.refDate).nearest;
+    return n !== null && n < 18;
+  }
+
   function insuredCard(rec, idx) {
     var ages = agesAt(rec.birthdate, settings.refDate);
     var calcAge = rec.ageCalc === 'last' ? ages.real : ages.nearest;
@@ -463,7 +470,10 @@
     var row =
       insFieldCell(INS_FIELD_MAP.name, rec) +
       insFieldCell(INS_FIELD_MAP.sex, rec) +
-      insFieldCell(INS_FIELD_MAP.rate, rec) +
+      (isMinor(rec)
+        ? '<div class="fc"><span class="rs-k">Rate</span><input class="fi fi--ro" value="Regular / Smoker" readonly tabindex="-1"' +
+          ' title="Age Nearest under 18 — always Regular / Smoker"></div>'
+        : insFieldCell(INS_FIELD_MAP.rate, rec)) +
       insFieldCell(INS_FIELD_MAP.birthdate, rec) +
       insFieldCell(INS_FIELD_MAP.ageCalc, rec) +
       insValueCell('Age Real', ages.real) +
@@ -508,6 +518,7 @@
 
   function renderInsuredList() {
     if (pendingIns) { clearTimeout(pendingIns); pendingIns = null; }
+    insureds.forEach(function (i) { if (isMinor(i)) i.rate = 'reg'; });
 
     var act = document.activeElement;
     var fk = act && act.dataset ? act.dataset.fk : null;
@@ -518,7 +529,7 @@
     $('insuredList').innerHTML = insureds.map(insuredCard).join('');
     $('insCount').textContent = insureds.length + ' insured' + (insureds.length === 1 ? '' : 's');
 
-    if (!fk) { syncCoverageInsuredRefs(); renderCoverageList(); return; }
+    if (!fk) { renderCoverageList(); return; }
     var back = document.querySelector('[data-fk="' + fk + '"]');
     if (back) {
       if (typing !== null && back.value !== typing) back.value = typing;
@@ -531,7 +542,6 @@
     // every insured-list change, same as Insured Input refreshes itself.
     // `syncCoverageInsuredRefs` first drops any coverage's reference to an
     // insured that was just removed, so nothing points at a dangling _id.
-    syncCoverageInsuredRefs();
     renderCoverageList();
   }
 
@@ -660,7 +670,7 @@
   function settingsControl(f) {
     var fk = 'set|' + f.k, v = settings[f.k];
     if (f.t === 'enum') {
-      return '<select class="fi" data-fk="' + fk + '">' + blankOpt(f, v) + f.opts.map(function (o) {
+      return '<select class="fi' + (f.blank ? needCls(v) : '') + '" data-fk="' + fk + '">' + blankOpt(f, v) + f.opts.map(function (o) {
         return '<option value="' + o[0] + '"' + (o[0] === v ? ' selected' : '') + '>' + esc(o[1]) + '</option>';
       }).join('') + '</select>';
     }
@@ -718,6 +728,7 @@
     if (!res.ok) { badInput(el, res.msg, 'Settings'); return; }
     goodInput(el);
     settings[f.k] = res.v;
+    if (f.blank) el.classList.toggle('fi--need', !res.v);   // not re-rendered (below), so the highlight follows here
 
     // This field is not part of a repeating list, so nothing else re-renders
     // it the way renderInsuredList() does for an insured's own fields —
@@ -857,6 +868,10 @@
      disabled — the Joint container carries the equivalent instead. They render
      blank (not whatever stale value the slot still holds) with this title. */
   var JOINT_OFF = 'Not used on a joint coverage — see the Joint container below';
+  /* Term Life: an Extra Premium is only possible on a P3 or R2 rate (requester, 2026-09-24) — P1 / P2 / R1, or
+     no rate yet, lock all four boxes and syncCoverageInsuredRefs puts them back to 0. */
+  var EXTRA_OK = { P3: 1, R2: 1 };
+  var EXTRA_OFF = 'Extra Premium is only possible on a P3 or R2 rate';
 
   /* Equivalent single age of a joint Perm coverage's two lives ("Equivalent
      Single Formula" spec). All tables are the document's, band tops inclusive.
@@ -1127,10 +1142,10 @@
     var v = slot[f.k];
     var control;
     if (locked) {
-      var off = locked === JOINT_OFF;    // not applicable at all — blank, not the slot's stored value
+      var off = locked === JOINT_OFF || locked === EXTRA_OFF;    // not applicable at all — blank, not the slot's stored value
       control = '<input class="fi fi--ro" value="' + (off ? '' : esc(covRaw(f, v))) + '" readonly tabindex="-1"' +
                 (off ? ' placeholder="—"' : '') +
-                ' title="' + (off ? JOINT_OFF : 'Clear the other Extra Premium amount to edit this') + '">';
+                ' title="' + (off ? locked : 'Clear the other Extra Premium amount to edit this') + '">';
     } else {
       var fk = 'covins|' + rec._id + '~' + slot._id + '|' + f.k;
       control = covControl(f, v, fk, rec);
@@ -1162,7 +1177,8 @@
   function covExtraCell(rec, slot) {
     var permFilled = isFilledCov(slot.extraFlat);
     var termFilled = isFilledCov(slot.extraTempAmt) || isFilledCov(slot.extraTempYears);
-    var off = isJointPerm(rec) ? JOINT_OFF : false;    // all four disabled on a joint coverage
+    var off = isJointPerm(rec) ? JOINT_OFF                                   // all four disabled on a joint coverage
+      : rec.category === 'termLife' && !EXTRA_OK[slot.rate] ? EXTRA_OFF : false;   // Term Life: only P3 / R2 take an Extra Premium
     var mini =
       covInsExtraMiniField(COVINS_FIELD_MAP.extraPct, rec, slot, 'Perm %', off) +
       covInsExtraMiniField(COVINS_FIELD_MAP.extraFlat, rec, slot, 'Perm $', off || termFilled) +
@@ -1201,7 +1217,19 @@
       would otherwise fall through to the Preferred codes and invent one. */
   function covRateOptions(rec, slot) {
     var ins = findInsured(slot.insuredId);
-    return ins && ins.rate && rec.category ? rateOptionsFor(rec.category, ins.rate).map(function (s) { return [s, s]; }) : [];
+    if (!(ins && ins.rate && rec.category)) return [];
+    return rateOptionsFor(rec.category, ins.rate).filter(function (r) {
+      return !PREFERRED[r] || rec.calcType === 'premium' || preferredOk(ins, rec.amount);   // Input Premium: any rate; the message bar says if it doesn't qualify
+    }).map(function (s) { return [s, s]; });
+  }
+
+  /* Term Life's P1 / P2 / R1 need a minimum Coverage Amount by Age Nearest (requester, 2026-09-24):
+     61+ → 250,000; 51-60 → 500,000; 18-50 → 2,000,001; under 18 → never. No amount / no age → not yet. */
+  var PREFERRED = { P1: 1, P2: 1, R1: 1 };
+  function preferredMin(age) { return age >= 61 ? 250000 : age >= 51 ? 500000 : age >= 18 ? 2000001 : Infinity; }
+  function preferredOk(ins, amount) {
+    var age = agesAt(ins.birthdate, settings.refDate).nearest;
+    return age !== null && amount !== null && amount !== undefined && amount >= preferredMin(age);
   }
 
   /* The blank "— Select —" first option is load-bearing, not decoration, and
@@ -1348,11 +1376,9 @@
     insureds.forEach(function (i) { live[i._id] = 1; });
     coverages.forEach(function (c) {
       c.insureds.forEach(function (s) {
-        if (s.insuredId && !live[s.insuredId]) { s.insuredId = ''; s.rate = ''; return; }
-        if (!s.rate) return;
-        var stillValid = false;
-        covRateOptions(c, s).forEach(function (o) { if (o[0] === s.rate) stillValid = true; });
-        if (!stillValid) s.rate = '';
+        if (s.insuredId && !live[s.insuredId]) s.insuredId = '';
+        if (s.rate && !covRateOptions(c, s).some(function (o) { return o[0] === s.rate; })) s.rate = '';
+        if (c.category === 'termLife' && !EXTRA_OK[s.rate]) { s.extraPct = 0; s.extraFlat = 0; s.extraTempAmt = 0; s.extraTempYears = 0; }
       });
     });
   }
@@ -1531,6 +1557,7 @@
     if (!$('coverageList')) return;   // not built yet — see init() ordering
 
     recalcFees();
+    syncCoverageInsuredRefs();   // here, not only on insured changes: an amount / category / rate edit can invalidate a slot too
 
     var act = document.activeElement;
     var fk = act && act.dataset ? act.dataset.fk : null;
@@ -2035,7 +2062,8 @@
     // A malformed/hand-edited file could carry an empty list; both floors
     // (§9 invariants #8/#16 — never below one insured, never below one
     // coverage) must hold regardless of what was loaded.
-    insureds = (snap.insureds && snap.insureds.length) ? snap.insureds : [newInsuredRecord()];
+    insureds = (snap.insureds && snap.insureds.length) ? snap.insureds : [];
+    if (!insureds.length) insureds.push(newInsuredRecord());   // after emptying: named against the NEW list (Insured-1), not the old one
     coverages = (snap.coverages && snap.coverages.length) ? snap.coverages : [newCoverageRecord()];
     coverages.forEach(function (c) { if (!c.joint) c.joint = newJoint(); });   // saved before the Joint container existed
 
@@ -2243,6 +2271,8 @@
     /** { v } or { why, err } — the Joint Age calculation itself (§ equivAge), so
         the Rates tab can say why a joint lookup has no age. */
     equivAge: equivAge,
+    /** Term Life P1 / P2 / R1: the minimum amount at an Age Nearest (Infinity under 18), and the set itself. */
+    preferredMin: preferredMin, PREFERRED: PREFERRED,
     /** Modal Premium / Modal Premium Backdated summed over every coverage —
         built for the Results Summary; lent here once the Backdate tab's own
         Projection container (optimizer_backdate.js) needed the identical sums. */

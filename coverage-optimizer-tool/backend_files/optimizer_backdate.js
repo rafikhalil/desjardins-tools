@@ -32,7 +32,7 @@
  * ending once the rate table itself runs dry around real age 85) and a
  * limited-pay/age-capped Permanent product (WL 10/15/20 Pay, WL to 65, WL to
  * 100, Term to 100) simply stops charging once its own pay period is over —
- * confirmed by the requester, § OPTIMIZER_REFERENCE.md §12.13. `buildYearSeries()`
+ * confirmed by the requester, § OPTIMIZER_REFERENCE.md §12.12. `buildYearSeries()`
  * computes both sides' whole premium-by-year series ONCE per render
  * (core.premiumAtYear per coverage, summed — optimizer_coverages.js), and
  * `projectionAnnual()`/`projectionMonthly()` place those years onto the
@@ -211,8 +211,8 @@
       elapsed policy year floor(i/12) on THAT side's own schedule, unrelated to what the other side
       is doing that same calendar month. current/backdated always end together (buildYearSeries),
       so one shared month count covers both. */
-  function projectionMonthly(dateCurrent, dateBackdated, series) {
-    var months = series.current.length * 12;
+  function projectionMonthly(dateCurrent, dateBackdated, series, window) {
+    var months = Math.min(window || Infinity, series.current.length * 12);   // `window`: monthlySavingsDate's search window
 
     var datesCurrent = [], datesBackdated = [], monthOfCurrent = {}, monthOfBackdated = {};
     for (var i = 0; i < months; i++) {
@@ -285,7 +285,16 @@
     if (series.current[0] - series.backdated[0] <= 0) {
       return { blocked: 'no stabilization — the Backdated premium is not lower than Current' };
     }
-    var rows = projectionMonthly(x.dateCurrent, x.dateBackdated, series);
+    // The search window of your monthly.md, restored (requester, 2026-09-24): the break-even estimate from
+    // the year-0 premiums + REQUIRED_STREAK + 24 months. Over the whole lifetime the Difference always ends
+    // negative — Backdated, a year younger, pays one extra (age-85) year after Current has ended.
+    var dc = x.dateCurrent, db = x.dateBackdated, premC = series.current[0], premB = series.backdated[0];
+    var datedifM = (dc.getUTCFullYear() - db.getUTCFullYear()) * 12 + (dc.getUTCMonth() - db.getUTCMonth()) -
+      (dc.getUTCDate() < db.getUTCDate() ? 1 : 0);
+    var backBeforeCurrent = db < dc ? datedifM + 1 - (dc.getUTCDate() === db.getUTCDate() ? 1 : 0) : 0;
+    var REQUIRED_STREAK = 5;
+    var approxMonths = Math.max(12, Math.ceil(backBeforeCurrent * premB / (premC - premB)));
+    var rows = projectionMonthly(dc, db, series, approxMonths + REQUIRED_STREAK + 24);
     var lastNonPositive = -1;
     for (var i = 0; i < rows.length; i++) {
       if (rows[i].diff <= 0) lastNonPositive = i;
@@ -380,18 +389,12 @@
     return { past: birthdayInYear(birth, asOf.getUTCFullYear() - 1), next: thisYear };
   }
 
-  /** The exact midpoint, in whole days, between two dates — rounded half up.
-      Past and Next Birthday are 365 or 366 days apart, so an exact half-day
-      split is never possible for the (far more common) 365 case; not
-      specified by the request, round-half-up picked as the least surprising
-      tie-break available. A day of 29/30/31 in the result then falls back to
-      the 28th — same rule, and same reason (any month, not just the ones
-      that day doesn't exist in), as Settings' own Reference Date. */
-  function midpointDate(a, b) {
-    var half = Math.round((b.getTime() - a.getTime()) / MS_PER_DAY / 2);
-    var mid = new Date(a.getTime() + half * MS_PER_DAY);
-    if (mid.getUTCDate() >= 29) mid = core.buildDate(mid.getUTCFullYear(), mid.getUTCMonth(), 28);
-    return mid;
+  /** The Midpoint = Past Birthday + exactly 6 calendar months (requester, 2026-09-24 — not half the
+      days between the two birthdays): 08-MAR → 08-SEP, 24-JAN → 24-JUL. A birthday on day 29/30/31
+      lands on the 28th (30-MAR → 28-SEP), the same rule as Settings' own Reference Date. */
+  function midpointDate(past) {
+    var m = past.getUTCMonth() + 6;
+    return core.buildDate(past.getUTCFullYear() + Math.floor(m / 12), m % 12, Math.min(past.getUTCDate(), 28));
   }
 
   /** The surrounding birthdays, the Midpoint (Possible Backdate), and Backdate
@@ -400,7 +403,7 @@
       core.backdateEligible (the Rates tab's BD_Final) can't disagree. */
   function eligibility(birth, illustration, maxBackdate) {
     var bdays = surroundingBirthdays(birth, illustration);
-    var mid = midpointDate(bdays.past, bdays.next);
+    var mid = midpointDate(bdays.past);
     return {
       bdays: bdays, mid: mid,
       eligible: mid.getTime() >= maxBackdate.getTime() && mid.getTime() <= illustration.getTime()

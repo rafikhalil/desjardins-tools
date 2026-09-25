@@ -2,7 +2,7 @@
 
 Things parked for later, and things to review. **One item = one short block** (what · where it stands · waiting on · where in the code). Ask Claude to "add it to the TO-DO" whenever you park something; it also gets added when you say "later" / "come back to it".
 
-*Last updated: 2026-09-23*
+*Last updated: 2026-09-24*
 
 ## At a glance
 
@@ -16,7 +16,7 @@ Things parked for later, and things to review. **One item = one short block** (w
 | R-1 | Review | Joint Age Backdated = equivalent age re-run on backdated ages (age − 1, confirmed) | JLTDPU-under-18 edge only |
 | R-2 | Review | Joint Perm lookups (EPR reading, JLTDPU change) vs Excel | Real rate files |
 | R-3 | Review | "Extra Prem. Term $" adds Perm $ + Term $ | Your OK |
-| R-4 | Review | Backdate date edge cases (month-end, midpoint rounding) | Your OK |
+| R-4 | Review | Backdate date edge cases (Max. Backdate month-end, birthday on the Illustration Date) | Your OK |
 | R-5 | Review | Everything tested only on synthetic rate files | Work laptop |
 | R-7 | Review | **Insureds on Perm Life JFTD / JLTD / JLTDPU coverages** ("a review is due") | You: what to check |
 | R-8 | Review | BD_Final when an insured's eligibility is unknown (blank birthdate) → Error | Your OK |
@@ -86,7 +86,7 @@ Things parked for later, and things to review. **One item = one short block** (w
 - **Where:** `optimizer_coverages.js` → `extraTermCell`.
 
 ### R-4 · Backdate date edge cases  *(flagged in the code, never specified)*
-- **Why:** 31-AUG minus 6 months rolls over to about 3-MAR instead of clamping to the month's last day; the midpoint uses round-half-up; a birthday exactly on the Illustration Date counts as "past".
+- **Why:** 31-AUG minus 6 months (Max. Backdate Date) rolls over to about 3-MAR instead of clamping to the month's last day; a birthday exactly on the Illustration Date counts as "past". (The Midpoint rounding question is gone — it is now Past Birthday + 6 months, your rule of 2026-09-24.)
 - **Check:** confirm or give the rule.
 - **Where:** `optimizer_backdate.js` → `subtractMonths`, `midpointDate`, `surroundingBirthdays`.
 
@@ -185,6 +185,8 @@ Things parked for later, and things to review. **One item = one short block** (w
 ---
 
 ## 5 · Done (moved here from the lists above)
+
+- 2026-09-24 · **Your bug list + new rules** (each verified live): Payment Frequency highlighted yellow while blank (also after Clear). Clear names the new insured Insured-1 (it was named against the old list → Insured-3). Midpoint = Past Birthday + exactly 6 months, day 29–31 → 28 (DOB 24-JAN-2007 → 24-JUL-2026; your case 22-FEB-1952 → 22-AUG-2026, was 24-AUG). Monthly Savings Date shows again: my 09-21 change had made it check the Difference over the whole lifetime, where it always ends negative (Backdated pays one extra age-85 year) — your `monthly.md` search window is back (your case, rates matched to PR 40.79 / PR_BD 35.85: 24-NOV-2027 — the first positive row is 24-APR-2027, but with Backdated now paying on the 22nd the Difference dips each 22nd until 22-NOV-2027). Age Nearest < 18 ⇒ Rate forced to Regular / Smoker, box locked. Term Life Extra Premium only on P3 / R2 (P1 / P2 / R1 / blank: locked and reset to 0). Term Life P1 / P2 / R1 minimum amounts by Age Nearest (61+ 250,000; 51–60 500,000; 18–50 2,000,001; under 18 never): Coverage Amount — only qualifying codes offered, a stored one cleared when it stops qualifying; Input Premium — any code, message bar says when the amount the premium buys doesn't qualify. `syncCoverageInsuredRefs` now runs on every Coverage Input render.
 
 - 2026-09-23 · **Whole-project review — bugs fixed** (each reproduced first, then re-verified): (1) Backdate Projection, Annual: when the Backdate Date equals the Illustration Date, the Backdated side's year-0 premium was never billed (0.00 instead of 571.25 in the test), inflating every Difference by a full year — now both pieces bill on that day. (2) An eligible insured who is on no coverage blanked the Final Backdate Date, both Savings Dates, the projection and the Summary ("not on any coverage yet") — they're now left out (nothing to backdate). (3) A birthdate up to a month AFTER the Reference Date was accepted as age 0 (the Backdate tab then showed a Past Birthday before the birth) — now rejected at input, and flagged in the message bar if the Reference Date later moves before it. (4) `_start-coverage-optimizer.bat`: the `py` fallback could never run (`%errorlevel%` is expanded before `where py` inside the block) — now `if not errorlevel 1`. (5) Stale comments / docs (C-2 / C-3 / "Duration 1 only" / "ENGINE STUBBED"), and a wrong claim that the joint Flat Term $ Duration is used by the projection (it isn't — R-16). Open decisions from the same review: R-16, R-17, R-18, S-6.
 

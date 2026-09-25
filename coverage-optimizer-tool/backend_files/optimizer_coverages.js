@@ -491,6 +491,20 @@
         if (!byWhy[why]) { byWhy[why] = []; order.push(why); }
         byWhy[why].push(p[0]);
       });
+      // Term Life, Input Premium: any rate can be picked, but P1 / P2 / R1 need the amount the premium
+      // buys (Prem. Basis Ins. Amt) to meet the Age Nearest minimum (core.preferredMin) — else say so.
+      if (c.category === 'termLife' && c.calcType === 'premium') {
+        var pb = premBasis(c);
+        c.insureds.forEach(function (s) {
+          var ins = core.findInsured(s.insuredId);
+          if (!ins || !core.PREFERRED[s.rate] || !pb.amount) return;
+          var age = core.agesAt(ins.birthdate, core.settings.refDate).nearest, min = age === null ? Infinity : core.preferredMin(age);
+          if (pb.amount >= min) return;
+          out.push({ key: 'd:pref:' + c._id + ':' + s._id, msg: where + ': rate ' + s.rate + ' isn\'t available at this premium input for Insured "' +
+            (ins.name || 'Insured') + '" — ' + (min === Infinity ? 'P1 / P2 / R1 need an Age Nearest of 18 or over'
+            : 'it buys ' + core.group(pb.amount, 0) + ', and at age ' + age + ' P1 / P2 / R1 need at least ' + core.group(min, 0)) + '.' });
+        });
+      }
       order.forEach(function (why) {
         if (/Payment Frequency/.test(why)) {
           out.push({ key: 'd:freq', msg: 'Settings — Payment Frequency isn\'t set, so no Modal Prem. can be calculated (the monthly / annual modal factor depends on it).' });

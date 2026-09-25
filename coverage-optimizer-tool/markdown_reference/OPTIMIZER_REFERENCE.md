@@ -292,7 +292,7 @@ their own page) plus two read-only derived cells:
 |---|---|---|---|---|
 | Name | `name` | text | ≤ 30 characters, any content | `Insured-1`, `Insured-2`, … — lowest number not currently in use, scanned fresh on every Add (so renaming or removing frees its number) |
 | Sex | `sex` | enum | `M` / `F` | **blank** (`—` option; highlighted yellow until chosen) |
-| Rate | `rate` | enum | `pref` ("Preferred / Non-smoker") / `reg` ("Regular / Smoker") — internal codes, not shown | **blank** (`— Select —`; highlighted yellow until chosen) |
+| Rate | `rate` | enum | `pref` ("Preferred / Non-smoker") / `reg` ("Regular / Smoker") — internal codes, not shown | **blank** (`— Select —`; highlighted yellow until chosen). **Age Nearest under 18 ⇒ forced to `reg`** and the box is locked (`isMinor`, applied in `renderInsuredList` on every birthdate / Reference Date / load change; every product). Turning 18 unlocks it; the value stays `reg` until changed |
 | Birthdate | `birthdate` | date | `DD-MMM-YYYY`; also accepts `YYYY-MM-DD`, `YYYYMMDD`, `YYYY/MM/DD` (ported `parseDate`, `INFORCE_REFERENCE.md` §8) | blank |
 | Age Calculation | `ageCalc` | enum | `nearest` ("Age Nearest") / `last` ("Last Birthday") | `nearest` |
 | *Age Real* | — | derived, read-only | age last birthday | `agesAt(...).real` |
@@ -445,7 +445,7 @@ to right in the bar:
 | Field | Key | Type | Constraint | Default |
 |---|---|---|---|---|
 | Reference Date | `refDate` | date | same 4 formats as Birthdate, normalises to `DD-MMM-YYYY` | `todayStr()` |
-| Payment Frequency | `freq` | enum | `monthly` ("Monthly") / `annually` ("Annually") | **blank** (`— Select —`) — no default is invented; **Modal Prem. cannot be calculated until it is set** (the message bar says so, §13 D-1) |
+| Payment Frequency | `freq` | enum | `monthly` ("Monthly") / `annually` ("Annually") | **blank** (`— Select —`, **highlighted yellow** until chosen, also after Clear) — no default is invented; **Modal Prem. cannot be calculated until it is set** (the message bar says so, §13 D-1) |
 | Multi-Coverage Discount | `mcd` | boolean | ON / OFF, via a button-style switch, not a `<select>` | `false` — **not specified by the request; off until the operator opts in was the conservative reading** |
 | Prem. Adj. % | `premAdjPct` | pct | 0–1,000,000%, no decimal-place cap | `100` — a multiplicative factor, so 100% ("unchanged") is the stated neutral default |
 | Prem. Adj. % Dur. | `premAdjPctDur` | int | 1–999 is the stated range, but see below | `0` |
@@ -653,6 +653,12 @@ is centred — every other `.fc` label on the page is left-aligned, but this
 one cell has 4 sub-fields under it rather than 1, and a left-aligned label
 read as belonging to just the first of them.
 
+**Term Life: an Extra Premium only exists on a P3 or R2 rate.** On P1 / P2 / R1
+(or while the slot's Rate is still blank) all four boxes are locked (`EXTRA_OFF`,
+title "Extra Premium is only possible on a P3 or R2 rate") and
+`syncCoverageInsuredRefs` puts them back to 0 — a stale extra can never reach
+Modal Prem.
+
 **Permanent $ and Temporary $ (either its amount or its duration) are
 mutually exclusive — an insured is either getting a flat permanent extra or
 a temporary per-mille one, never both.** Whichever side gets an entry first
@@ -685,6 +691,23 @@ and the referenced insured's own Rate field back in Insured Input (`pref` /
 |---|---|---|
 | Term Life | P1, P2, P3 | R1, R2 |
 | any other category | P | R |
+
+**Term Life P1 / P2 / R1 need a minimum amount by Age Nearest** (always Nearest,
+whatever the insured's Age Calculation), `preferredMin(age)`:
+
+| Age Nearest | P1 / P2 / R1 offered when the Coverage Amount is |
+|---|---|
+| 61 and over | ≥ 250,000 |
+| 51 – 60 | ≥ 500,000 |
+| 18 – 50 | ≥ 2,000,001 |
+| under 18 | never (only R2) |
+
+*Coverage Amount* coverages: the dropdown only offers the codes that qualify (no
+amount or no birthdate yet ⇒ only P3 / R2), and a stored P1 / P2 / R1 that stops
+qualifying (amount lowered, birthday passed) is cleared back to `— Select —`.
+*Input Premium* coverages: every code is offered; if the amount the premium buys
+(Prem. Basis Ins. Amt) doesn't meet the minimum, the message bar says so (§13 D-7)
+— the figures are still calculated.
 
 Changing which insured a slot points at clears that slot's `rate` (the old
 code may not even exist in the new insured's option set); changing a
@@ -804,8 +827,9 @@ the value is ignored (`restoreState` gives every coverage a `joint`).
 Coverage Input's Insured dropdown, Sex/Age cells, and Rate options all derive
 live from Insured Input's own `insureds` array — nothing about an insured is
 duplicated into a coverage record except the chosen `_id`. Concretely,
-`renderInsuredList()` (§2) calls `syncCoverageInsuredRefs()` then
-`renderCoverageList()` at the end of **every** run, regardless of what
+`renderInsuredList()` (§2) calls `renderCoverageList()` — which runs
+`syncCoverageInsuredRefs()` first, on **every** render (so an amount, rate or
+category edit re-checks the slots too, not only an insured change) — at the end of **every** run, regardless of what
 triggered it — an edit, an Add, a Remove, or `settings.refDate` changing —
 so Coverage Input is never looking at stale insured data. This is also why
 `initCoverageInput()` runs before `initInsuredInput()` in the init sequence
@@ -1203,7 +1227,7 @@ insured's own date cannot be resolved).
 | 3 | Age Real | `agesAt(birthdate, Illustration Date).real` |
 | 4 | Age Nearest/Last | real or nearest per `ins.ageCalc` |
 | 5 | Past Birthday | most recent birthday on/before the Illustration Date |
-| 6 | Midpoint (Possible Backdate) | rounded-half-up midpoint; day 29–31 → 28 |
+| 6 | Midpoint (Possible Backdate) | Past Birthday **+ exactly 6 months**; a birthday on day 29–31 → the 28th |
 | 7 | Next Birthday | the birthday after the Illustration Date |
 | 8 | Backdate Eligible | `AND(Midpoint ≥ Max. Backdate Date; Midpoint ≤ Illustration Date)` |
 | 9 | Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` (informational; the Rates `_BD` columns use a flat age − 1, confirmed — §12.5) |
@@ -1259,7 +1283,7 @@ one file.
 In order: the **message bar** (§13; not History's), **Test Case Name**
 (`#tcName`, ≤ 60 characters), the **user chip** `#tcUser` (filled by the
 pre-load page, §14.3 — name as text, initials in `data-ini`), **Save Test**
-(`#btnSaveTest`), **Clear** (`#btnClear` — resets the whole test case: default Settings with the Reference Date back to today, one blank Insured, one blank Coverage, Unit Values back to their default (1,000) and the Test Case Name emptied; returns to Input & Results; **no confirmation and no undo**, like every other removal on this page — nothing is saved to History), then the theme button. (There is no Username dropdown any more —
+(`#btnSaveTest`), **Clear** (`#btnClear` — resets the whole test case (the new insured is named *Insured-1* again — named against the emptied list, not the old one): default Settings with the Reference Date back to today, one blank Insured, one blank Coverage, Unit Values back to their default (1,000) and the Test Case Name emptied; returns to Input & Results; **no confirmation and no undo**, like every other removal on this page — nothing is saved to History), then the theme button. (There is no Username dropdown any more —
 the pre-load page chooses the user.)
 
 **Save Test** requires a non-blank name (red box, a toast and a message-bar
@@ -1855,8 +1879,8 @@ existed to port), which is exactly why Rates vendors `xlsx.full.min.js`
     slots, but never by two slots on the *same* coverage — `insuredRefOptions`
     enforces this by excluding sibling slots' choices, not by rejecting a
     commit after the fact.
-20. `syncCoverageInsuredRefs()` runs on every insured-list change (inside
-    `renderInsuredList()`, unconditionally) — a coverage slot must never be
+20. `syncCoverageInsuredRefs()` runs on every Coverage Input render (inside
+    `renderCoverageList()`, unconditionally — so on every insured-list change too) — a coverage slot must never be
     left pointing at an insured `_id` that no longer exists in `insureds`,
     **and its `rate` must always be one of that slot's own currently-valid
     options, or blank** (§2b). The second half exists because the option set
@@ -2606,7 +2630,7 @@ calendar dates.
 | Illustration Date | `settings.refDate` |
 | Max. Backdate Date | Illustration Date **− 6 months** by plain `Date` normalisation (31-AUG − 6 months lands ≈ 3-MAR, not clamped — *TO_DO R-4*) |
 | Past / Next Birthday | most recent birthday **on or before** the Illustration Date (a birthday exactly on it counts as past) / the next one after it. 29-FEB in a non-leap year → 28-FEB |
-| Midpoint (Possible Backdate) | the midpoint, in whole days, between Past and Next Birthday, **rounded half up**; a day of 29/30/31 → **28** |
+| Midpoint (Possible Backdate) | **Past Birthday + exactly 6 calendar months** (requester, 2026-09-24 — no longer half the days to the Next Birthday): 24-JAN → 24-JUL, 08-MAR → 08-SEP; a birthday on day 29/30/31 → **28** (30-MAR → 28-SEP, 31-AUG → 28-FEB) |
 | **Backdate Eligible** | `Midpoint ≥ Max. Backdate Date AND Midpoint ≤ Illustration Date` |
 | Backdated Age Nearest/Last | `agesAt(birthdate, Midpoint)` — informational, distinct from the Rates `_BD` columns, which use a flat **age − 1** (confirmed production rule, not derived from this Midpoint age — §12.5) |
 | Rate Current (All Cov.) | Σ over every coverage the insured is on of that coverage's **PR_N** at its band (§12.4) |
@@ -2821,6 +2845,18 @@ old two-constant version), just fed a year index instead of a constant:
 (the 6-column table) all call `buildYearSeries()` once and reuse it — same
 blocked/pending/error states as everywhere else on this page.
 
+**Monthly Savings Date's search window** (your `monthly.md`, restored
+2026-09-24): the Difference only has to stay positive up to `approxMonths +
+REQUIRED_STREAK (5) + 24` months, where `approxMonths = max(12, ⌈months the
+Backdated side pays before Current × year-0 Backdated premium ÷ (year-0 Current
+− year-0 Backdated)⌉)`. Checked over the whole lifetime instead (as from
+2026-09-21 to 09-24), it never passed: the Backdated side, a year younger, pays
+one extra year at the age-85 rate after Current has ended, so the Difference
+always ends negative. When the two sides pay on different days of the month the
+Difference dips on each Backdated payment day, so the date can fall later than
+the first positive row (test case: first positive 24-APR-2027, stays positive
+from 24-NOV-2027).
+
 ### 12.13 Where each piece of logic lives
 
 | Logic | Function | File |
@@ -2971,6 +3007,7 @@ blanks. The affected figures are named.
 | D-4 | **The Coverage Amount is below the lowest rate band** | raise it to at least that band |
 | D-5 | **The Input premium is too low to buy even the lowest band** | raise it |
 | D-6 | **The amount search did not settle within 100,000 steps** | Error rather than a guess |
+| D-7 | **Term Life, Input Premium: a P1 / P2 / R1 rate the premium doesn't qualify for** (`d:pref:<covId>:<slotId>`) | `rate P1 isn't available at this premium input for Insured "…" — it buys n, and at age a P1 / P2 / R1 need at least m` (under 18: need an Age Nearest of 18 or over) |
 
 **E. Rate files** — events (`f:termLife`, `f:permLife`, `f:import`); cleared when
 that file next loads cleanly. The pre-load page also shows the fetch failure text.
@@ -3195,7 +3232,13 @@ speed, ~130 ms per edit with 3 Input Premium coverages).
 - **2026-09-21.** Backdate Projection premiums vary by policy year (§12.12: Term
   steps, Permanent pay periods, Duration = elapsed years + 1); `_BD` age − 1
   confirmed as the production rule (old C-2).
-- **2026-09-23 (this revision).** Top-bar **Clear** button (§2h, `core.clearState`). Whole-project
+- **2026-09-24 (this revision).** New rules: Age Nearest under 18 ⇒ Rate forced to
+  Regular / Smoker (§2); Term Life P1 / P2 / R1 need a minimum amount by age, Input
+  Premium gets a message instead (§2b, §13 D-7); Term Life Extra Premium only on P3 /
+  R2 (§2b). Fixes: Midpoint = Past Birthday + 6 months (§12.7); Monthly Savings Date
+  uses the script's search window again (§12.12); Payment Frequency highlighted while
+  blank (§2a); Clear names the new insured Insured-1 (§2h).
+- **2026-09-23.** Top-bar **Clear** button (§2h, `core.clearState`). Whole-project
   review, fixes: Annual projection bills year 0 when the Backdate Date is the
   Illustration Date (§12.12); an insured on no coverage no longer blanks the Final
   Backdate Date (§12.7); a Birthdate after the Reference Date is rejected (§2, §13

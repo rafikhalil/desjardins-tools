@@ -731,17 +731,24 @@
       Same { value } / { error } / { pending } shape as cellResult(). The
       backdated value is only looked up for an eligible insured, so a missing
       …_BD_N row can't spoil an insured who keeps …_N. */
-  function finalResult(c, ins, slot, band, j) {
+  function finalPick(c, ins, slot, band, j) {   // { j: j or j + 3, value } — or the { error } / { pending } that stops the choice
     var n = cellResult(c, ins, slot, band, j);
     if (n.error || n.pending) return n;
     var eligible = ins && core.backdateEligible ? core.backdateEligible(ins) : null;   // true / false / null (unknown)
     if (eligible === null) {
       return fail(ins ? 'BD_Final needs Backdate Eligible, and Insured "' + (ins.name || 'Insured') + '" has no valid Birthdate' : 'no insured is chosen on this slot');
     }
-    if (!eligible) return n;
+    if (!eligible) return { j: j, value: n.value };
     var bd = cellResult(c, ins, slot, band, j + 3);
     if (bd.error || bd.pending) return bd;
-    return bd.value < n.value ? bd : n;
+    return bd.value < n.value ? { j: j + 3, value: bd.value } : { j: j, value: n.value };
+  }
+  /* `elapsedYears` (Backdate Projection): the pick is made ONCE, at issue (year 0, above), and that insured
+     stays on it — backdated (age − 1) or not — for every later year. Before 2026-09-24 the projection put
+     every insured at age − 1 (BD_Total), so its Backdated side didn't match Modal Prem. Backdated. */
+  function finalResult(c, ins, slot, band, j, elapsedYears) {
+    var p = finalPick(c, ins, slot, band, j);
+    return p.error || p.pending || !elapsedYears ? p : cellResult(c, ins, slot, band, p.j, elapsedYears);
   }
 
   /** Total / BD_Total / BD_Final cell: the SUM of per-insured column `j`
@@ -874,11 +881,11 @@
       to encode for it. */
   var PERM_PAY_YEARS = { 'WL 10 Pay': 10, 'WL 15 Pay': 15, 'WL 20 Pay': 20 };
   var PERM_AGE_CAP = { 'WL to 65': 65, 'WL to 100': 100, 'Term to 100': 100 };
-  function permStillPaying(c, ins, backdated, elapsedYears) {
+  function permStillPaying(c, ins, ageOffset, elapsedYears) {
     if (PERM_PAY_YEARS[c.coverage] !== undefined) return elapsedYears < PERM_PAY_YEARS[c.coverage];
     var cap = PERM_AGE_CAP[c.coverage];
     if (cap === undefined) return true;
-    var age = lookupAge(c, ins, backdated ? -1 : 0);
+    var age = lookupAge(c, ins, ageOffset);
     return age === null ? true : (age + elapsedYears) < cap;
   }
 
@@ -905,9 +912,9 @@
       never ratable at all (a bad Axis Key, a file that's missing this product entirely, …), and
       every year should show that same real error, not a silently-invented "ended" the moment the
       "no row" wording happens to match. One extra year-0 check, only when a later year fails. */
-  function endedOrError(c, band, slots, j, elapsedYears, why) {
+  function endedOrError(c, band, slots, j, elapsedYears, why, final) {
     if (!isRowGoneAtYear(why, elapsedYears)) return { error: why };
-    var year0 = totalResult(c, slots, band, j, false, 0);
+    var year0 = totalResult(c, slots, band, j, final, 0);
     return (year0 && !year0.error && !year0.pending) ? { ended: true } : { error: why };
   }
 
@@ -918,15 +925,16 @@
     if (!slots.length) return { blocked: 'no insured chosen on this coverage' };
     if (c.category === 'permLife') {
       var repIns = core.findInsured(slots[0].insuredId);   // joint: ignored by lookupAge (Joint Age covers both); individual: the one insured
-      if (repIns && !permStillPaying(c, repIns, backdated, elapsedYears)) return { ended: true };
+      var off = backdated && finalPick(c, repIns, slots[0], b.band, 0).j === 3 ? -1 : 0;   // the age BD_Final priced it at
+      if (repIns && !permStillPaying(c, repIns, off, elapsedYears)) return { ended: true };
     }
-    var jPr = backdated ? 3 : 0, jPep = backdated ? 5 : 2;
-    var pr = totalResult(c, slots, b.band, jPr, false, elapsedYears);
+    var jPr = 0, jPep = 2, fin = !!backdated;   // backdated side = BD_Final (each insured's own pick), not BD_Total
+    var pr = totalResult(c, slots, b.band, jPr, fin, elapsedYears);
     if (!pr) return { blocked: 'no insured chosen on this coverage' };
-    if (pr.error) return endedOrError(c, b.band, slots, jPr, elapsedYears, pr.why);
+    if (pr.error) return endedOrError(c, b.band, slots, jPr, elapsedYears, pr.why, fin);
     if (pr.pending) return { blocked: 'PR is pending' };
-    var pep = totalResult(c, slots, b.band, jPep, false, elapsedYears);
-    if (pep.error) return endedOrError(c, b.band, slots, jPep, elapsedYears, pep.why);
+    var pep = totalResult(c, slots, b.band, jPep, fin, elapsedYears);
+    if (pep.error) return endedOrError(c, b.band, slots, jPep, elapsedYears, pep.why, fin);
     if (pep.pending) return { blocked: 'PEP is pending' };
     return { pr: pr.value, pep: pep.value };
   }

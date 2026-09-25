@@ -343,6 +343,7 @@ worth writing out in full:
    if months < 0:  months += 12;  age -= 1
 3. days   = asOf.day   - birth.day
    if days < 0:    days += 30;    months -= 1
+   if months < 0:  months += 12;  age -= 1      ← added 2026-09-24 (R-18, confirmed vs production)
    [ age here == Age Real / "age last birthday" ]
 4. nearest = age
    if months > 6:                        nearest = age + 1
@@ -360,13 +361,12 @@ is step 4's result. Verified against hand-traced cases (22-JUL-1974 vs
 01-JAN-2026 → 51/51; 15-MAR-1990 vs 01-JAN-2026 → 35/36) before being
 committed — reproduce those two before trusting any change to this function.
 
-**Known edge of the algorithm as written (*TO_DO R-18*, not changed):** step 3's
-borrow can take `months` to −1 after step 2 has already run, and nothing borrows
-the year back — so in the up-to-30 days before a birthday that falls in the
-Reference Date's own month, Age Real reads one year too old (20-SEP-1990 at
-15-SEP-2026 → Real **36**, Nearest 36; true age last birthday is 35). Only
-"Last Birthday" insureds are affected. Kept as specified until production's
-behaviour is confirmed; the fix would be one line after step 3.
+**The second year borrow (2026-09-24):** step 3's day borrow can take `months`
+to −1 (a birthday later in the Reference Date's own month); without borrowing the
+year back, Age Real read one year too old (20-SEP-1990 at 15-SEP-2026 gave 36, not
+35). Production's own examples, now reproduced: Reference Date 24-SEP-2026, DoB
+24-SEP-2007 → Age 19 / Nearest 19 (a birthday on the Reference Date counts as
+passed); Reference Date 23-SEP-2026, same DoB → Age 18 / Nearest 19.
 
 The two derived cells are **not** rendered through the field-control system at
 all (no `.fi--ro`, no `data-fk`) — they're plain text, the `.rs-k`/`.rs-v`
@@ -610,7 +610,8 @@ chosen.
 Same Add/Remove logic as Insured Input, one level in: each slot is its own
 bordered box (`.cov-ins-slot`) inside the coverage card's `.cov-insured-wrap`,
 with a `+ Add Insured` footer and a per-slot Remove button. A coverage always
-keeps at least one slot (Remove disabled at the floor, same as everywhere
+keeps at least one slot — and a joint Permanent Life coverage (JFTD / JLTD /
+JLTDPU) always keeps both, its Remove buttons disabled (Remove disabled at the floor, same as everywhere
 else on this page).
 
 **The subcontainer carries a blue tint** (`--accent-soft` background,
@@ -1321,7 +1322,7 @@ clears the name box and writes the file (below).
 
 ### The catalog entry
 
-`{ id, name, user, savedAt, insuredCount, coverageCount, snapshot, rates }` (+ `file`, the
+`{ id, name, user, savedAt, insuredCount, coverageCount, totalModalPremium, snapshot, rates }` (+ `file`, the
 `history_data/` file name, added in memory once written or loaded from the folder) where
 `snapshot` = `core.snapshotState()` (Settings, Insureds, Coverages — deep-cloned
 JSON) **plus** `unitValues` (the Coverages tab's own field, folded in by
@@ -1341,8 +1342,9 @@ now).
 ### The table — 8 columns
 
 Test Case Name · Username · Date Saved · Number of Insureds · Number of
-Coverages · Total Modal Premium (muted `—`; could now be the sum of each
-coverage's Modal Prem., but a saved case stores inputs, not figures — *TO_DO C-4*)
+Coverages · Total Modal Premium (the Summary's Modal Premium, stored in the entry
+at save time as `totalModalPremium`; muted `—` for a case saved before 2026-09-24
+or whose total couldn't be calculated then)
 · **Load** (`data-act="load-tc"`) · **Delete** (`data-act="del-tc"`, immediate, no
 confirmation — same convention as Remove elsewhere). **Newest first** (the id starts with
 the save time in ms). **Delete also moves the case's file** to `history_data/_deleted/`
@@ -2372,8 +2374,8 @@ A total is **never a partial sum**: an Error anywhere makes the total an Error; 
 ### 12.1 Ages
 
 - **Age Real / Age Nearest** — the stepwise 30-day-month algorithm of §2
-  (`agesAt`). Never re-implement it; never use Inforce's. Known edge: Age Real
-  is one year too old just before a same-month birthday (§2, *TO_DO R-18*).
+  (`agesAt`). Never re-implement it; never use Inforce's. Includes the second year
+  borrow of 2026-09-24 (§2).
 - **Age used everywhere ("Age Calculated")** = Age Real if the insured's own
   *Age Calculation* is "Last Birthday", else Age Nearest. This is the age every
   rate lookup, the Equivalent Age (§12.6) and the Insureds tab use.
@@ -2638,7 +2640,7 @@ calendar dates.
 | Column | Rule |
 |---|---|
 | Illustration Date | `settings.refDate` |
-| Max. Backdate Date | Illustration Date **− 6 months** by plain `Date` normalisation (31-AUG − 6 months lands ≈ 3-MAR, not clamped — *TO_DO R-4*) |
+| Max. Backdate Date | Illustration Date **− 6 months**; a day 29–31 becomes the 28th, never rolls into the next month (31-AUG → 28-FEB — the 29th is discarded, as in production; `subtractMonths`, also behind the projection's `addMonths`) |
 | Past / Next Birthday | most recent birthday **on or before** the Illustration Date (a birthday exactly on it counts as past) / the next one after it. 29-FEB in a non-leap year → 28-FEB |
 | Midpoint (Possible Backdate) | **Past Birthday + exactly 6 calendar months** (requester, 2026-09-24 — no longer half the days to the Next Birthday): 24-JAN → 24-JUL, 08-MAR → 08-SEP; a birthday on day 29/30/31 → **28** (30-MAR → 28-SEP, 31-AUG → 28-FEB) |
 | **Backdate Eligible** | `Midpoint ≥ Max. Backdate Date AND Midpoint ≤ Illustration Date` |
@@ -2661,10 +2663,14 @@ The spreadsheet's `LET()`, variable by variable (names are the sheet's own).
 | `modal_factor` | Payment Frequency **Annually → 1**, **Monthly → 0.09** (literal, *not* 1/12). Frequency blank ⇒ blocked |
 | `coverage_fee` | the coverage's Coverage Fee (below) |
 | `unit_value` | the coverage's Unit Value (Coverages tab; default 1,000) |
-| `prem_adj_percentage` | Settings *Prem. Adj. %* **÷ 100** (100 = ×1.00) |
-| `prem_adj_dollar` | Settings *Prem. Adj. $* |
-| `term_extra_prem` | Term/Perm Individual & Term JFTD: Σ over insureds on the coverage of (*Perm $* + *Term $*). **Perm joint: the Joint container's *Flat Extra Prem. $ Perm* alone** (blank ⇒ blocked). *(The "Extra Prem. Term $" column shows Perm + Term for joint too — TO_DO R-3/R-9.)* |
+| `prem_adj_percentage` | Settings *Prem. Adj. %* **÷ 100** (100 = ×1.00) — **only when *Prem. Adj. % Dur.* > 0**; Dur. 0 ⇒ **100%** (requester, 2026-09-24) |
+| `prem_adj_dollar` | Settings *Prem. Adj. $* — **only when *Prem. Adj. $ Dur.* > 0**; Dur. 0 ⇒ **0.00** |
+| `term_extra_prem` | Term/Perm Individual & Term JFTD: Σ over insureds on the coverage of (*Perm $* + *Term $* — Term $ only when its *Term $ Dur.* > 0). **Perm joint: *Flat Extra Prem. $ Perm* + *Flat Extra Prem. $ Term*** (Term only when its *Duration* > 0; a blank Perm counts as 0 — requester, 2026-09-24); both blank ⇒ blocked. |
 | `pr`, `pep` | `PR_Total`, `PEP_Total` at the coverage's band |
+
+Since 2026-09-24 `premContext(c)` **is** `premContextAtYear(c, 0)` — Modal Prem. is
+exactly the Backdate Projection's year 0 (§12.12), so the Dur. fields and the joint
+Flat Term $ can never make the two disagree (the old TO_DO R-14 / R-16).
 | `units` | `ROUND(insurance_amount / unit_value, 5)` |
 | `cost_of_insurance` | `ROUND( ROUND(TRUNC(pr, 6) × units, 2) × prem_adj_percentage + prem_adj_dollar, 2 )` |
 | `pep_value` | `ROUND( ROUND(pep × units, 2) × prem_adj_percentage, 2 )` |
@@ -2796,16 +2802,12 @@ never disagree with the Rates tab's own cells at `elapsedYears = 0`. Returns
 
 **`premiumAtYear(c, elapsedYears, backdated)`** (`optimizer_coverages.js`) —
 the per-year Modal Prem., the *same* `modalPremAt` LET() §12.8 uses, fed a
-per-year rate (above) and a per-year context, `premContextAtYear`. Unlike
-`premContext` (§12.8, unchanged — an already-shipped figure), this one gates
-the 4 duration-limited inputs by `elapsedYears < …Dur` (0 = never applies,
-confirmed): Settings' *Prem. Adj. %/$ Dur.*, a slot's own *Term $ Dur.*
-(`termExtraPremAtYear`). The Joint container's *Flat Extra Prem. $ Term* and
-its *Duration* are **not** used (a joint coverage prices Flat Perm $ alone, as
-Modal Prem. does — R-9; open question *TO_DO R-16*: filling the Term side
-while Flat Perm $ is blank also blocks Modal Prem., since the Perm box is then
-locked blank) — see *TO_DO R-14* for the resulting divergence from `modalPrem()` at year 0 when a
-Dur field is in play. An Input Premium coverage's insurance amount is
+per-year rate (above) and a per-year context, `premContextAtYear` (Modal
+Prem.'s own `premContext` is its year 0, §12.8). It gates the duration-limited
+inputs by `elapsedYears < …Dur` (0 = never applies, confirmed): Settings'
+*Prem. Adj. %/$ Dur.* (outside it: 100% / 0.00), a slot's own *Term $ Dur.* and
+the Joint container's *Flat Extra Prem. $ Term Duration* (`termExtraPremAtYear`).
+An Input Premium coverage's insurance amount is
 resolved **once**, at today's rates (`premBasis`, the same figure Coverages/
 Results already show), then re-priced at each year's own rate — not re-solved
 for a new amount every year (confirmed: "in theory it shouldn't differ").
@@ -2820,12 +2822,16 @@ index = elapsed policy year) or the first `{ error }`/`{ pending }`/
 guard only (every real product ends by attained age 100 at the latest); the
 loop almost always stops itself first.
 
-The **Backdated** track is a straight, unconditional `age − 1` for every
-insured on the coverage (`core.premiumAtYear(c, y, true)`), modelling "what if
-this were fully backdated" — **not** the same mix as `modalPremBackdated`
-(§12.9), which uses each insured's own BD_Final (current rate for a
-non-eligible insured, age − 1 only for an eligible one). The two will not
-generally agree even at year 0. See *TO_DO R-15*.
+The **Backdated** track follows **BD_Final** (§12.5), exactly like Modal Prem.
+Backdated (§12.9): each insured is priced at `age − 1` only if their own BD_Final
+picked the backdated rate (Backdate Eligible **and** lower), otherwise at their
+current age. The pick is made **once, at issue** (year 0 — `finalPick`) and that
+insured keeps it for every later year (`finalResult(…, elapsedYears)` then looks
+up the chosen column at that year's duration), so year 0 of the Backdated side =
+Modal Prem. Backdated. A Permanent coverage's pay-period age follows the same
+pick. *(Until 2026-09-24 the track put every insured at `age − 1` — BD_Total — so
+a mix like one eligible + one non-eligible insured on a JFTD projected 119,040
+instead of 126,040; confirmed wrong by the requester, old TO_DO R-15.)*
 
 **Placing the series onto the calendar** — `projectionAnnual`/
 `projectionMonthly` are unchanged in *shape* from the original port (§12.7's
@@ -3013,7 +3019,7 @@ blanks. The affected figures are named.
 |---|---|---|
 | D-1 | **Payment Frequency isn't set** | one message for the whole page (`d:freq`) — Modal Prem. cannot be calculated without the modal factor |
 | D-2 | **Coverage Fee is blank** | the field was cleared and has no auto-default (Critical Illness is skipped) |
-| D-3 | **Perm joint: Flat Extra Prem. $ Perm is blank** | Joint container |
+| D-3 | **Perm joint: Flat Extra Prem. $ Perm and $ Term are both blank** | Joint container (type 0 if none) |
 | D-4 | **The Coverage Amount is below the lowest rate band** | raise it to at least that band |
 | D-5 | **The Input premium is too low to buy even the lowest band** | raise it |
 | D-6 | **The amount search did not settle within 100,000 steps** | Error rather than a guess |
@@ -3216,12 +3222,11 @@ later (C-n), **2** assumptions to review (R-n), **3** open questions (Q-n), **4*
 suggestions (S-n), then **5 Done**. Every "later / put aside / review later"
 goes there in the same change; finished items move to *Done*. Open items at the
 time of writing:
-History "Total Modal Premium" (C-4), the two "Joint Extra Prem. Backdated"
-columns (C-5), Critical Illness (C-6), a calculated
-Equiv. Substd. % (C-8), removing the dev bypass (C-9); reviews R-1 … R-18
-(R-13 … R-15: Backdate Projection choices; R-16: joint Flat Term $; R-17: joint
-BD_Final eligibility; R-18: Age Last edge); suggestions S-2 … S-6 (S-6: re-render
-speed, ~130 ms per edit with 3 Input Premium coverages).
+all **on hold** (reviewed with the requester 2026-09-24): the two "Joint Extra Prem.
+Backdated" columns (C-5), Critical Illness (C-6), a calculated Equiv. Substd. % (C-8),
+removing the dev bypass (C-9); reviews R-1 (JLTDPU under 18), R-2 (joint lookups vs
+Excel), R-3 (Extra Prem. Term $ column), R-7 (joint insureds), R-12 (2017 products),
+R-17 (joint BD_Final eligibility); suggestions S-5, S-6.
 
 ### 14.8 Change log of this document
 
@@ -3242,7 +3247,15 @@ speed, ~130 ms per edit with 3 Input Premium coverages).
 - **2026-09-21.** Backdate Projection premiums vary by policy year (§12.12: Term
   steps, Permanent pay periods, Duration = elapsed years + 1); `_BD` age − 1
   confirmed as the production rule (old C-2).
-- **2026-09-24 (this revision), later.** Status bar shows the test case last saved /
+- **2026-09-24 (this revision) — TO_DO review.** Modal Prem. = the projection's year 0
+  (`premContext` → `premContextAtYear(c, 0)`): Dur. 0 ⇒ Prem. Adj. 100% / 0.00, joint Flat
+  Term $ priced, blank joint Flat Perm = 0 (§12.8); Age Real borrows the year back (§2);
+  `subtractMonths` clamps to the 28th (§12.7); History stores Total Modal Premium (§2h);
+  joint Perm slots can't be removed (§2b); brighter Loading dot (§14.3).
+- **2026-09-24, last.** The Backdate Projection's Backdated side
+  follows BD_Final (each insured's own pick, made at issue) instead of age − 1 for
+  everyone (§12.12; closes R-15).
+- **2026-09-24, later.** Status bar shows the test case last saved /
   loaded (`#stCase`); a saved test case also carries every rate (`rates`, reference
   only, never reloaded — §2h).
 - **2026-09-24.** New rules: Age Nearest under 18 ⇒ Rate forced to
